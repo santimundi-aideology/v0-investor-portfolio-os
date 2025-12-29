@@ -4,7 +4,7 @@ export const currentUser: User = {
   id: "user-1",
   name: "Sarah Al-Rashid",
   email: "sarah@investorsos.ae",
-  role: "admin",
+  role: "realtor",
   avatar: "/professional-woman-avatar.png",
 }
 
@@ -438,15 +438,39 @@ export const mockActivities: Activity[] = [
 
 // Helper functions for data access (ready to swap with Supabase)
 export function getInvestorById(id: string): Investor | undefined {
-  return mockInvestors.find((inv) => inv.id === id)
+  const direct = mockInvestors.find((inv) => inv.id === id)
+  if (direct) return direct
+
+  // Allow shorthand numeric ids (e.g. /investors/1 -> inv-1)
+  if (/^\d+$/.test(id)) {
+    return mockInvestors.find((inv) => inv.id === `inv-${id}`)
+  }
+
+  return undefined
 }
 
 export function getPropertyById(id: string): Property | undefined {
-  return mockProperties.find((prop) => prop.id === id)
+  const direct = mockProperties.find((prop) => prop.id === id)
+  if (direct) return direct
+
+  // Allow shorthand numeric ids (e.g. /properties/1 -> prop-1)
+  if (/^\d+$/.test(id)) {
+    return mockProperties.find((prop) => prop.id === `prop-${id}`)
+  }
+
+  return undefined
 }
 
 export function getMemoById(id: string): Memo | undefined {
-  return mockMemos.find((memo) => memo.id === id)
+  const direct = mockMemos.find((memo) => memo.id === id)
+  if (direct) return direct
+
+  // Allow shorthand numeric ids (e.g. /memos/1 -> memo-1)
+  if (/^\d+$/.test(id)) {
+    return mockMemos.find((memo) => memo.id === `memo-${id}`)
+  }
+
+  return undefined
 }
 
 export function getDealRoomById(id: string): DealRoom | undefined {

@@ -2,40 +2,26 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  Users,
-  Building2,
-  CheckSquare,
-  FileText,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"
+import { Building2, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
+import { filterNavByRole } from "@/lib/nav"
+import { useApp } from "@/components/providers/app-provider"
 
 interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
 }
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Investors", href: "/investors", icon: Users },
-  { name: "Properties", href: "/properties", icon: Building2 },
-  { name: "Memos", href: "/memos", icon: FileText },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
-]
-
-const bottomNavigation = [{ name: "Settings", href: "/settings", icon: Settings }]
-
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
+  const { role } = useApp()
+  const sections = filterNavByRole(role)
 
-  const renderNavItem = (item: (typeof navigation)[0]) => {
-    const isActive = pathname.startsWith(item.href)
+  const renderNavItem = (item: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }) => {
+    const isActive = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href)
     const Icon = item.icon
 
     const linkContent = (
@@ -50,22 +36,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       >
         <Icon className="h-5 w-5 shrink-0" />
-        {!collapsed && <span>{item.name}</span>}
+        {!collapsed && <span>{item.label}</span>}
       </Link>
     )
 
     if (collapsed) {
       return (
-        <Tooltip key={item.name}>
+        <Tooltip key={item.href}>
           <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
           <TooltipContent side="right" className="font-medium">
-            {item.name}
+            {item.label}
           </TooltipContent>
         </Tooltip>
       )
     }
 
-    return <div key={item.name}>{linkContent}</div>
+    return <div key={item.href}>{linkContent}</div>
   }
 
   return (
@@ -95,11 +81,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
 
-        {/* Main Navigation */}
-        <nav className="flex-1 space-y-1 p-2">{navigation.map(renderNavItem)}</nav>
-
-        {/* Bottom Navigation - Settings */}
-        <div className="space-y-1 p-2 border-t border-sidebar-border">{bottomNavigation.map(renderNavItem)}</div>
+        {/* Navigation */}
+        <ScrollArea className="flex-1">
+          <ScrollAreaViewport className="p-2">
+            <nav className="space-y-4">
+              {sections.map((section) => (
+                <div key={section.label} className="space-y-1">
+                  {!collapsed ? (
+                    <div className="px-3 py-1 text-xs font-semibold tracking-wider text-sidebar-foreground/60">
+                      {section.label}
+                    </div>
+                  ) : null}
+                  {section.items.map((item) => renderNavItem({ label: item.label, href: item.href, icon: item.icon }))}
+                </div>
+              ))}
+            </nav>
+          </ScrollAreaViewport>
+          <ScrollBar />
+        </ScrollArea>
 
         {/* Collapse Toggle */}
         <div className="border-t border-sidebar-border p-2">

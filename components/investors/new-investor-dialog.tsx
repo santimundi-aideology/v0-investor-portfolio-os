@@ -38,7 +38,9 @@ export function NewInvestorDialog() {
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Add New Investor</DialogTitle>
-          <DialogDescription>Enter the investor's details to add them to your portfolio.</DialogDescription>
+            <DialogDescription>
+              Enter the investor&apos;s details to add them to your portfolio.
+            </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">

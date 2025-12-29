@@ -3,113 +3,85 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { X, LayoutDashboard, Users, Building2, CheckSquare, FileText, Settings } from "lucide-react"
+import { Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
+import { filterNavByRole } from "@/lib/nav"
+import { useApp } from "@/components/providers/app-provider"
 
 interface MobileSidebarProps {
   open: boolean
   onClose: () => void
 }
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Investors", href: "/investors", icon: Users },
-  { name: "Properties", href: "/properties", icon: Building2 },
-  { name: "Memos", href: "/memos", icon: FileText },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
-]
-
-const bottomNavigation = [{ name: "Settings", href: "/settings", icon: Settings }]
-
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
+  const { role } = useApp()
+  const sections = filterNavByRole(role)
 
   // Close on route change
   useEffect(() => {
     onClose()
   }, [pathname, onClose])
 
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose])
-
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-72 bg-sidebar shadow-lg flex flex-col">
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+    <Sheet open={open} onOpenChange={(v) => (!v ? onClose() : undefined)}>
+      <SheetContent side="left" className="bg-sidebar p-0">
+        <SheetHeader className="border-b border-sidebar-border px-4 py-4">
+          <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-semibold text-sidebar-foreground">InvestorOS</span>
-          </Link>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-            <span className="sr-only">Close menu</span>
+            </span>
+            <span>InvestorOS</span>
+          </SheetTitle>
+        </SheetHeader>
+
+        <ScrollArea className="h-[calc(100vh-72px)]">
+          <ScrollAreaViewport className="p-4">
+            <nav className="space-y-4">
+              {sections.map((section) => (
+                <div key={section.label} className="space-y-1">
+                  <div className="px-3 py-1 text-xs font-semibold tracking-wider text-sidebar-foreground/60">
+                    {section.label}
+                  </div>
+                  {section.items.map((item) => {
+                    const isActive =
+                      item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href)
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span>{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ))}
+            </nav>
+          </ScrollAreaViewport>
+          <ScrollBar />
+        </ScrollArea>
+
+        <div className="border-t border-sidebar-border p-4">
+          <Button asChild variant="ghost" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent">
+            <Link href="/settings" onClick={onClose}>
+              Settings
+            </Link>
           </Button>
         </div>
-
-        {/* Main Navigation */}
-        <nav className="flex-1 space-y-1 p-4">
-          {navigation.map((item) => {
-            const isActive = pathname.startsWith(item.href)
-            const Icon = item.icon
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{item.name}</span>
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* Bottom Navigation - Settings */}
-        <div className="border-t border-sidebar-border p-4 space-y-1">
-          {bottomNavigation.map((item) => {
-            const isActive = pathname.startsWith(item.href)
-            const Icon = item.icon
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{item.name}</span>
-              </Link>
-            )
-          })}
-        </div>
-      </aside>
-    </div>
+      </SheetContent>
+    </Sheet>
   )
 }

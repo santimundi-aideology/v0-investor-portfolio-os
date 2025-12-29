@@ -1,0 +1,83 @@
+import type { UserRole } from "@/lib/types"
+import {
+  LayoutDashboard,
+  LineChart,
+  Users,
+  Building2,
+  CheckSquare,
+  FolderKanban,
+  FileText,
+  Radar,
+  UsersRound,
+  Settings,
+  ScrollText,
+} from "lucide-react"
+
+export type NavItem = {
+  label: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  rolesAllowed: UserRole[]
+}
+
+export type NavSection = {
+  label: string
+  items: NavItem[]
+}
+
+const ALL_ROLES: UserRole[] = ["owner", "admin", "realtor", "investor"]
+const ADMIN_ROLES: UserRole[] = ["owner", "admin"]
+const INTERNAL_ROLES: UserRole[] = ["owner", "admin", "realtor"]
+const INVESTOR_ROLES: UserRole[] = ["investor"]
+
+export const navSections: NavSection[] = [
+  {
+    label: "Work",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, rolesAllowed: ALL_ROLES },
+      { label: "Real Estate", href: "/real-estate", icon: LineChart, rolesAllowed: ALL_ROLES },
+      { label: "Investors", href: "/investors", icon: Users, rolesAllowed: INTERNAL_ROLES },
+      { label: "Properties", href: "/properties", icon: Building2, rolesAllowed: INTERNAL_ROLES },
+      { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES },
+      { label: "Deal Rooms", href: "/deal-room/deal-1", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { label: "IC Memos", href: "/memos", icon: FileText, rolesAllowed: ALL_ROLES },
+      { label: "Market Signals", href: "/market-signals", icon: Radar, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
+    ],
+  },
+  {
+    label: "Preferences",
+    items: [{ label: "Settings", href: "/settings", icon: Settings, rolesAllowed: INTERNAL_ROLES }],
+  },
+  {
+    label: "Admin",
+    items: [
+      { label: "Team", href: "/team", icon: UsersRound, rolesAllowed: ADMIN_ROLES },
+      { label: "Audit Log", href: "/audit-log", icon: ScrollText, rolesAllowed: ADMIN_ROLES },
+    ],
+  },
+]
+
+export function filterNavByRole(role: UserRole) {
+  return navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.rolesAllowed.includes(role)),
+    }))
+    .filter((section) => section.items.length > 0)
+}
+
+export function findNavItemByHref(href: string) {
+  for (const section of navSections) {
+    for (const item of section.items) {
+      if (item.href === href) return item
+    }
+  }
+  return null
+}
+
+

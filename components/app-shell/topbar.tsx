@@ -1,63 +1,170 @@
 "use client"
 
-import { Bell, Search, Menu } from "lucide-react"
+import Link from "next/link"
+import { Bell, CircleHelp, Menu, Search, Sparkles, User2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { currentUser } from "@/lib/mock-data"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
+import { useApp, usePersonas } from "@/components/providers/app-provider"
+import { notifications } from "@/lib/mock-session"
 
 interface TopbarProps {
   onMenuClick: () => void
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+  const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
+  const personas = usePersonas()
+  const unreadCount = notifications.filter((n) => n.unread).length
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
-      {/* Mobile menu button */}
-      <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
-        <Menu className="h-5 w-5" />
-        <span className="sr-only">Toggle menu</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        {/* Mobile menu button */}
+        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Open navigation</span>
+        </Button>
 
-      {/* Search */}
-      <div className="hidden flex-1 md:flex md:max-w-md lg:max-w-lg">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input type="search" placeholder="Search investors, properties, tasks..." className="w-full pl-9" />
-        </div>
+        {/* Org switcher */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button id="org-switcher-trigger" variant="ghost" className="h-9 gap-2 px-2">
+              <Avatar className="h-6 w-6">
+                <AvatarFallback className="text-[10px]">{currentOrg.avatarText}</AvatarFallback>
+              </Avatar>
+              <span className="max-w-[160px] truncate text-sm font-medium">{currentOrg.name}</span>
+              <Badge variant="secondary" className="hidden sm:inline-flex">
+                {currentOrg.plan}
+              </Badge>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-72">
+            <DropdownMenuLabel>Organization</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              {orgs.map((org) => (
+                <DropdownMenuItem key={org.id} onSelect={() => setCurrentOrgId(org.id)}>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-[10px]">{org.avatarText}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{org.name}</div>
+                      <div className="text-muted-foreground text-xs capitalize">{org.plan}</div>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Global search / command */}
+      <div className="hidden flex-1 px-4 md:block">
+        <Button
+          variant="outline"
+          onClick={() => setCommandOpen(true)}
+          className="text-muted-foreground w-full justify-start gap-2"
+        >
+          <Search className="size-4" />
+          <span className="flex-1 text-left">Search…</span>
+          <span className="hidden text-xs tracking-widest md:inline">
+            <kbd className="bg-muted rounded px-1.5 py-0.5">⌘</kbd>
+            <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
+            <span className="mx-1 text-muted-foreground/70">/</span>
+            <kbd className="bg-muted rounded px-1.5 py-0.5">Ctrl</kbd>
+            <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
+          </span>
+        </Button>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2">
-        {/* Mobile search */}
-        <Button variant="ghost" size="icon" className="md:hidden">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setCommandOpen(true)}>
           <Search className="h-5 w-5" />
-          <span className="sr-only">Search</span>
+          <span className="sr-only">Open search</span>
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button id="notifications-trigger" variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 ? (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+              ) : null}
+              <span className="sr-only">Notifications</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-96">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">Notifications</div>
+              {unreadCount ? <Badge variant="secondary">{unreadCount} new</Badge> : null}
+            </div>
+            <div className="mt-3 space-y-3">
+              {notifications.map((n) => (
+                <div key={n.id} className="flex gap-3 rounded-md border p-3">
+                  <div className="bg-muted flex size-9 items-center justify-center rounded-md">
+                    <Sparkles className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-sm font-medium">{n.title}</div>
+                      {n.unread ? <Badge variant="outline">New</Badge> : null}
+                    </div>
+                    <div className="text-muted-foreground mt-0.5 text-sm">{n.body}</div>
+                    <div className="text-muted-foreground mt-1 text-xs">{n.createdAt}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Help */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button id="help-trigger" variant="ghost" size="icon">
+              <CircleHelp className="h-5 w-5" />
+              <span className="sr-only">Help</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Help</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="#">Docs</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="#">Contact support</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="#">Keyboard shortcuts</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+            <Button id="user-menu-trigger" variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
+                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
                 <AvatarFallback>
-                  {currentUser.name
+                  {user.name
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
@@ -65,18 +172,37 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{currentUser.name}</p>
-                <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+              <div className="flex items-center gap-3">
+                <div className="bg-muted flex size-9 items-center justify-center rounded-md">
+                  <User2 className="size-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{user.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">Settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Log out</DropdownMenuItem>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Persona</DropdownMenuLabel>
+            {personas.map((p) => (
+              <DropdownMenuItem key={p.id} onSelect={() => setPersonaId(p.id)} className="gap-2">
+                <span className="capitalize">{p.role}</span>
+                <span className="text-muted-foreground truncate text-xs">{p.label}</span>
+                {p.id === personaId ? <span className="ml-auto text-xs">✓</span> : null}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              Log out
+              <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,6 +1,7 @@
 // Domain types for UAE Investor Portfolio OS
 
-export type UserRole = "admin" | "agent" | "analyst" | "viewer"
+// Minimum roles for Investor Portfolio OS
+export type UserRole = "owner" | "admin" | "realtor" | "investor"
 
 export interface User {
   id: string

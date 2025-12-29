@@ -1,11 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { PageHeader } from "@/components/ui/page-header"
+import { useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+
+import { PageHeader } from "@/components/layout/page-header"
+import { RoleRedirect } from "@/components/security/role-redirect"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Calendar, User, Building2, Users } from "lucide-react"
 import Link from "next/link"
 import { mockTasks } from "@/lib/mock-data"
@@ -24,6 +31,18 @@ const columns = [
 ]
 
 export default function TasksPage() {
+  return (
+    <>
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/real-estate" />
+      <TasksPageInner />
+    </>
+  )
+}
+
+function TasksPageInner() {
+  const sp = useSearchParams()
+  const investorIdFilter = sp.get("investorId")
+
   const [tasks, setTasks] = useState(mockTasks)
 
   const toggleTaskStatus = (taskId: string) => {
@@ -40,9 +59,12 @@ export default function TasksPage() {
     )
   }
 
-  const getTasksByStatus = (status: Task["status"]) => {
-    return tasks.filter((task) => task.status === status)
-  }
+  const visibleTasks = useMemo(() => {
+    if (!investorIdFilter) return tasks
+    return tasks.filter((t) => t.investorId === investorIdFilter)
+  }, [tasks, investorIdFilter])
+
+  const getTasksByStatus = (status: Task["status"]) => visibleTasks.filter((task) => task.status === status)
 
   const openCount = getTasksByStatus("open").length
   const inProgressCount = getTasksByStatus("in-progress").length
@@ -53,12 +75,7 @@ export default function TasksPage() {
       <PageHeader
         title="Tasks"
         subtitle={`${openCount} open, ${inProgressCount} in progress, ${doneCount} completed`}
-        actions={
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Task
-          </Button>
-        }
+        primaryAction={<NewTaskDialog onCreate={(t) => setTasks((prev) => [t, ...prev])} />}
       />
 
       {/* Kanban Board */}
@@ -149,5 +166,68 @@ export default function TasksPage() {
         })}
       </div>
     </div>
+  )
+}
+
+function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
+  const [title, setTitle] = useState("")
+  const [priority, setPriority] = useState<Task["priority"]>("medium")
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          New task
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create task</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="task-title">Title</Label>
+            <Input id="task-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Follow up…" />
+          </div>
+          <div className="grid gap-2">
+            <Label>Priority</Label>
+            <Select value={priority} onValueChange={(v) => setPriority(v as Task["priority"])}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" type="button">
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              const trimmed = title.trim()
+              if (!trimmed) return
+              onCreate({
+                id: `task-${Math.floor(Math.random() * 100000)}`,
+                title: trimmed,
+                priority,
+                status: "open",
+                createdAt: new Date().toISOString().slice(0, 10),
+              })
+              setTitle("")
+              setPriority("medium")
+            }}
+          >
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

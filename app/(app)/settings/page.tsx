@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { PageHeader } from "@/components/ui/page-header"
+import { PageHeader } from "@/components/layout/page-header"
+import { RoleRedirect } from "@/components/security/role-redirect"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,10 +11,20 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { currentUser } from "@/lib/mock-data"
 import { User, Bell, Shield, Palette } from "lucide-react"
+import { useApp } from "@/components/providers/app-provider"
 
 export default function SettingsPage() {
+  return (
+    <>
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/real-estate" />
+      <SettingsPageInner />
+    </>
+  )
+}
+
+function SettingsPageInner() {
+  const { user, currentOrg } = useApp()
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [taskReminders, setTaskReminders] = useState(true)
   const [dealUpdates, setDealUpdates] = useState(true)
@@ -35,9 +46,9 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
+                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
                 <AvatarFallback>
-                  {currentUser.name
+                  {user.name
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
@@ -51,11 +62,11 @@ export default function SettingsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
-                <Input id="name" defaultValue={currentUser.name} />
+                <Input id="name" defaultValue={user.name} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue={currentUser.email} />
+                <Input id="email" type="email" defaultValue={user.email} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -80,7 +91,7 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Role</span>
-              <span className="font-medium capitalize">{currentUser.role}</span>
+              <span className="font-medium capitalize">{user.role}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-sm">
@@ -90,7 +101,7 @@ export default function SettingsPage() {
             <Separator />
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Plan</span>
-              <span className="font-medium">Professional</span>
+              <span className="font-medium capitalize">{currentOrg.plan}</span>
             </div>
           </CardContent>
         </Card>
