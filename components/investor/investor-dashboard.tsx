@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowUpRight, Bell, Building2, CalendarClock, FileText } from "lucide-react"
+import { ArrowUpRight, Bell, Building2, CalendarClock, FileText, FolderKanban } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { ContextPanel } from "@/components/layout/context-panel"
@@ -16,8 +16,8 @@ import { MiniAreaSparkline } from "@/components/charts/mini-area-sparkline"
 import { MiniLineSparkline } from "@/components/charts/mini-line-sparkline"
 import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
 import { cn } from "@/lib/utils"
-import { mockMemos } from "@/lib/mock-data"
-import { mockProperties } from "@/lib/mock-data"
+import { mockDealRooms, mockMemos, mockProperties } from "@/lib/mock-data"
+import type { DealRoom } from "@/lib/types"
 import {
   calcAppreciationPct,
   calcYieldPct,
@@ -28,6 +28,23 @@ import {
   getPortfolioSummary,
 } from "@/lib/real-estate"
 
+const dealStatusClasses: Record<DealRoom["status"], string> = {
+  preparation: "bg-muted text-muted-foreground",
+  "due-diligence": "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  negotiation: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  closing: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  completed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+}
+
+function dealStatusLabel(status: DealRoom["status"]) {
+  switch (status) {
+    case "due-diligence":
+      return "Due diligence"
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+}
+
 export function InvestorDashboard({
   investorId,
   investorName,
@@ -37,6 +54,11 @@ export function InvestorDashboard({
 }) {
   const summary = React.useMemo(() => getPortfolioSummary(investorId), [investorId])
   const opportunities = React.useMemo(() => getOpportunitiesForInvestor(investorId), [investorId])
+
+  const dealRooms = React.useMemo(
+    () => mockDealRooms.filter((d) => d.investorId === investorId && d.status !== "completed"),
+    [investorId],
+  )
 
   const valueSeries = React.useMemo(() => {
     const base = summary.totalPurchaseCost || summary.totalPortfolioValue
@@ -78,7 +100,10 @@ export function InvestorDashboard({
       .slice(0, 5)
   }, [summary.holdings])
 
-  const investorMemos = React.useMemo(() => mockMemos.filter((m) => m.investorId === investorId).slice(0, 3), [investorId])
+  const investorMemos = React.useMemo(
+    () => mockMemos.filter((m) => m.investorId === investorId).slice(0, 3),
+    [investorId],
+  )
 
   const aiQuestions = [
     "How is my portfolio performing vs market?",
@@ -124,7 +149,7 @@ export function InvestorDashboard({
                   </Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/deal-room/deal-1">Deal room</Link>
+                  <Link href="/deal-room">Deal rooms</Link>
                 </Button>
               </>
             }
@@ -143,7 +168,11 @@ export function InvestorDashboard({
               value={formatAED(summary.totalMonthlyRental)}
               meta={`Occupancy ${summary.occupancyPct.toFixed(1)}% • Avg net yield ${summary.avgYieldPct.toFixed(2)}%`}
               right={<MiniLineSparkline data={incomeSeries} dataKey="n" />}
-              badge={<Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" variant="outline">On track</Badge>}
+              badge={
+                <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" variant="outline">
+                  On track
+                </Badge>
+              }
             />
             <MetricCard
               label="Allocation"
@@ -202,7 +231,9 @@ export function InvestorDashboard({
                           <Badge
                             variant="outline"
                             className={cn(
-                              a >= 0 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-destructive/10 text-destructive",
+                              a >= 0
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : "bg-destructive/10 text-destructive",
                             )}
                           >
                             {a.toFixed(1)}%
@@ -283,6 +314,36 @@ export function InvestorDashboard({
                 <div className="font-medium">Approve memo (if ready)</div>
                 <div className="mt-1 text-xs text-muted-foreground">Quickly review memo highlights & approve/reject.</div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                  <FolderKanban className="size-4 text-primary" />
+                  Deal rooms
+              </CardTitle>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/deal-room">View all</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {dealRooms.length ? (
+                dealRooms.slice(0, 3).map((d) => (
+                  <Button key={d.id} asChild variant="outline" className="w-full justify-between">
+                    <Link href={`/deal-room/${d.id}`}>
+                      <span className="truncate">{d.title}</span>
+                      <Badge variant="outline" className={`ml-3 shrink-0 ${dealStatusClasses[d.status]}`}>
+                        {dealStatusLabel(d.status)}
+                      </Badge>
+                    </Link>
+                  </Button>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">No ongoing deal rooms.</div>
+              )}
             </CardContent>
           </Card>
 

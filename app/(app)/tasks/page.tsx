@@ -1,7 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { Building2, Calendar, Plus, User, Users } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { RoleRedirect } from "@/components/security/role-redirect"
@@ -13,8 +15,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Calendar, User, Building2, Users } from "lucide-react"
-import Link from "next/link"
 import { mockTasks } from "@/lib/mock-data"
 import type { Task } from "@/lib/types"
 
@@ -40,8 +40,8 @@ export default function TasksPage() {
 }
 
 function TasksPageInner() {
-  const sp = useSearchParams()
-  const investorIdFilter = sp.get("investorId")
+  const searchParams = useSearchParams()
+  const scopedInvestorId = searchParams.get("investorId")
 
   const [tasks, setTasks] = useState(mockTasks)
 
@@ -60,9 +60,9 @@ function TasksPageInner() {
   }
 
   const visibleTasks = useMemo(() => {
-    if (!investorIdFilter) return tasks
-    return tasks.filter((t) => t.investorId === investorIdFilter)
-  }, [tasks, investorIdFilter])
+    if (!scopedInvestorId) return tasks
+    return tasks.filter((task) => task.investorId === scopedInvestorId)
+  }, [tasks, scopedInvestorId])
 
   const getTasksByStatus = (status: Task["status"]) => visibleTasks.filter((task) => task.status === status)
 
@@ -75,10 +75,9 @@ function TasksPageInner() {
       <PageHeader
         title="Tasks"
         subtitle={`${openCount} open, ${inProgressCount} in progress, ${doneCount} completed`}
-        primaryAction={<NewTaskDialog onCreate={(t) => setTasks((prev) => [t, ...prev])} />}
+        primaryAction={<NewTaskDialog onCreate={(task) => setTasks((prev) => [task, ...prev])} />}
       />
 
-      {/* Kanban Board */}
       <div className="grid gap-6 lg:grid-cols-3">
         {columns.map((column) => {
           const columnTasks = getTasksByStatus(column.status)
@@ -93,10 +92,7 @@ function TasksPageInner() {
               <CardContent className="space-y-3">
                 {columnTasks.length > 0 ? (
                   columnTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
-                    >
+                    <div key={task.id} className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-start gap-3">
                         <Checkbox
                           checked={task.status === "done"}
@@ -104,22 +100,18 @@ function TasksPageInner() {
                           className="mt-0.5"
                         />
                         <div className="flex-1 space-y-2">
-                          <p
-                            className={`font-medium leading-snug ${
-                              task.status === "done" ? "line-through text-muted-foreground" : ""
-                            }`}
-                          >
+                          <p className={`font-medium leading-snug ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
                             {task.title}
                           </p>
                           {task.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
                           )}
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <Badge variant="outline" className={priorityColors[task.priority]}>
                               {task.priority}
                             </Badge>
                             {task.dueDate && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
                                 {task.dueDate}
                               </span>
@@ -172,6 +164,20 @@ function TasksPageInner() {
 function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
   const [title, setTitle] = useState("")
   const [priority, setPriority] = useState<Task["priority"]>("medium")
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  if (!isHydrated) {
+    return (
+      <Button type="button" suppressHydrationWarning disabled className="opacity-75">
+        <Plus className="mr-2 h-4 w-4" />
+        New task
+      </Button>
+    )
+  }
 
   return (
     <Dialog>
@@ -192,7 +198,7 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
           </div>
           <div className="grid gap-2">
             <Label>Priority</Label>
-            <Select value={priority} onValueChange={(v) => setPriority(v as Task["priority"])}>
+            <Select value={priority} onValueChange={(value) => setPriority(value as Task["priority"])}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -213,6 +219,7 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
             onClick={() => {
               const trimmed = title.trim()
               if (!trimmed) return
+
               onCreate({
                 id: `task-${Math.floor(Math.random() * 100000)}`,
                 title: trimmed,
@@ -220,6 +227,7 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
                 status: "open",
                 createdAt: new Date().toISOString().slice(0, 10),
               })
+
               setTitle("")
               setPriority("medium")
             }}

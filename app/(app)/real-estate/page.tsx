@@ -65,11 +65,13 @@ export default function RealEstatePage() {
         combined[p.month].gross += p.gross
       }
     }
-    return Object.values(combined).sort((a, b) => a.month.localeCompare(b.month)).map((p) => ({
-      ...p,
-      net: Math.round(p.net),
-      gross: Math.round(p.gross),
-    }))
+    return Object.values(combined)
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map((p) => ({
+        ...p,
+        net: Math.round(p.net),
+        gross: Math.round(p.gross),
+      }))
   }, [summary.holdings])
 
   const allocation = React.useMemo(() => {
@@ -107,7 +109,7 @@ export default function RealEstatePage() {
         }
         secondaryActions={
           <Button variant="outline" asChild>
-            <Link href="/deal-room/deal-1">Deal room</Link>
+            <Link href="/deal-room">Deal rooms</Link>
           </Button>
         }
       />
@@ -228,7 +230,9 @@ export default function RealEstatePage() {
                           <TableCell>
                             <div className="min-w-[240px]">
                               <div className="font-medium">{p?.title ?? h.propertyId}</div>
-                              <div className="text-xs text-muted-foreground">{p?.area ?? "—"} • {p?.type ?? "—"}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {p?.area ?? "—"} • {p?.type ?? "—"}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>{formatAED(h.purchasePrice)}</TableCell>
@@ -399,7 +403,9 @@ function OpportunityCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="font-medium truncate">{p.title}</div>
-            <div className="text-xs text-muted-foreground">{p.area} • {p.type}</div>
+            <div className="text-xs text-muted-foreground">
+              {p.area} • {p.type}
+            </div>
           </div>
           <Badge variant="secondary">Score {score}</Badge>
         </div>
@@ -417,4 +423,4 @@ function OpportunityCard({
   )
 }
 
-
+ 

@@ -1,12 +1,12 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { Shield } from "lucide-react"
 
 import { useApp } from "@/components/providers/app-provider"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Shield } from "lucide-react"
 
 export function ScopedInvestorGuard({
   investorId,
@@ -17,7 +17,10 @@ export function ScopedInvestorGuard({
 }) {
   const { role, scopedInvestorId } = useApp()
 
+  // Internal roles are not scoped.
   if (role !== "investor") return <>{children}</>
+
+  // Investor persona must be scoped to their own investorId.
   if (!scopedInvestorId) return <>{children}</>
   if (investorId === scopedInvestorId) return <>{children}</>
 

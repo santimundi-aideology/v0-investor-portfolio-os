@@ -5,19 +5,19 @@ import { getListingById } from "@/lib/db/listings"
 import { getTrustRecord, upsertTrustRecordDb } from "@/lib/db/trust"
 import { AccessError, assertTenantScope, buildRequestContext } from "@/lib/security/rbac"
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
     assertTenantScope(ctx.tenantId!, ctx)
     if (ctx.role === "investor") throw new AccessError("Investors cannot modify trust records")
 
-    const listing = await getListingById(params.id)
+    const listing = await getListingById((await params).id)
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 })
 
     const body = await req.json()
     const record = await upsertTrustRecordDb({
       tenantId: ctx.tenantId!,
-      listingId: params.id,
+      listingId: (await params).id,
       status: body.status,
       reason: body.reason,
       evidenceId: body.evidenceId,
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         tenantId: ctx.tenantId!,
         actorId: ctx.userId,
         role: ctx.role,
-        listingId: params.id,
+        listingId: (await params).id,
         status: body.status,
         reason: body.reason,
       }),

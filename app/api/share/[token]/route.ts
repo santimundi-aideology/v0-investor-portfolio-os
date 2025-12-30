@@ -3,8 +3,8 @@ import { NextResponse } from "next/server"
 import { getInvestor, getMemo, resolveShareToken, saveMemo, store } from "@/lib/data/store"
 import { transitionMemo } from "@/lib/domain/memos"
 
-export async function GET(_req: Request, { params }: { params: { token: string } }) {
-  const share = resolveShareToken(params.token)
+export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+  const share = resolveShareToken((await params).token)
   if (!share) return NextResponse.json({ error: "Not found" }, { status: 404 })
   const memo = getMemo(share.memoId)
   if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -13,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   // idempotent sent->opened
   if (memo.state === "sent") {
     const next = transitionMemo(memo, "opened")
-    saveMemo(next)
+    saveMemo(next as any)
   }
 
   return NextResponse.json({ memoId: memo.id, investorId: memo.investorId, tenantId: store.tenantId })

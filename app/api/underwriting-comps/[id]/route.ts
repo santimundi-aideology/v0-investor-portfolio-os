@@ -6,10 +6,10 @@ import { deleteCompDb, getCompById } from "@/lib/db/comps"
 import { getUnderwritingById } from "@/lib/db/underwritings"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const comp = await getCompById(params.id)
+    const comp = await getCompById((await params).id)
     if (!comp) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const uw = await getUnderwritingById(comp.underwritingId)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -21,7 +21,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       if (!isMine) throw new AccessError("Forbidden")
     }
 
-    await deleteCompDb(params.id)
+    await deleteCompDb((await params).id)
 
     const write = createAuditEventWriter()
     await write(
@@ -30,7 +30,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
         actorId: ctx.userId,
         role: ctx.role,
         underwritingId: uw.id,
-        compId: params.id,
+        compId: (await params).id,
       }),
     )
 

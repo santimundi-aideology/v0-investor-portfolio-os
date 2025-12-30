@@ -1,5 +1,11 @@
 import { notFound } from "next/navigation"
-import { getInvestorById, getShortlistByInvestorId, getMemosByInvestorId, getTasksByInvestorId } from "@/lib/mock-data"
+import {
+  getDealRoomsByInvestorId,
+  getInvestorById,
+  getMemosByInvestorId,
+  getShortlistByInvestorId,
+  getTasksByInvestorId,
+} from "@/lib/mock-data"
 import { InvestorDetail } from "@/components/investors/investor-detail"
 
 interface PageProps {
@@ -17,12 +23,14 @@ export default async function InvestorDetailPage({ params }: PageProps) {
   const shortlist = getShortlistByInvestorId(id)
   const memos = getMemosByInvestorId(id)
   const tasks = getTasksByInvestorId(id)
+  const dealRooms = getDealRoomsByInvestorId(id)
 
   return (
     <InvestorDetail 
       investor={investor} 
       shortlist={shortlist} 
       memos={memos} 
+      dealRooms={dealRooms}
       tasks={tasks} 
     />
   )

@@ -43,6 +43,38 @@ export interface Investor {
   avatar?: string
 }
 
+export type PropertyReadinessStatus = "DRAFT" | "NEEDS_VERIFICATION" | "READY_FOR_MEMO"
+export type PropertySourceType = "developer" | "broker" | "portal" | "other"
+export type PropertyIntakeSource = "manual" | "upload" | "portal_link" | "crm" | "developer_feed"
+export type UnitType = "studio" | "1BR" | "2BR" | "3BR" | "4BR" | "5BR+" | "villa" | "townhouse" | "penthouse" | "office" | "retail" | "warehouse" | "land" | "other"
+
+export interface PropertySource {
+  type: PropertySourceType
+  name?: string
+  intakeSource: PropertyIntakeSource
+  ingestedAt: string
+  ingestedBy?: string
+  originalFile?: string
+  portalLink?: string
+}
+
+export interface PropertyIngestionHistory {
+  id: string
+  timestamp: string
+  action: "created" | "updated" | "status_changed" | "source_changed"
+  performedBy?: string
+  details?: string
+}
+
+export interface PropertyImage {
+  id: string
+  url: string
+  category: "exterior" | "interior" | "amenities" | "floor-plan" | "other"
+  title?: string
+  description?: string
+  order?: number
+}
+
 export interface Property {
   id: string
   title: string
@@ -50,18 +82,33 @@ export interface Property {
   area: string
   type: "residential" | "commercial" | "mixed-use" | "land"
   status: "available" | "under-offer" | "sold" | "off-market"
+  // New readiness status
+  readinessStatus: PropertyReadinessStatus
   price: number
   size: number
+  // New fields for intake
+  unitType?: UnitType
+  floor?: number
+  view?: string
+  parking?: number
+  paymentPlan?: string
+  notes?: string
+  currency?: string
+  // Source and ingestion tracking
+  source?: PropertySource
+  ingestionHistory?: PropertyIngestionHistory[]
   bedrooms?: number
   bathrooms?: number
   yearBuilt?: number
   roi?: number
   trustScore?: number
-  imageUrl?: string
+  imageUrl?: string // Legacy: primary/main image
+  images?: PropertyImage[] // New: array of images with categories
   description?: string
   features?: string[]
   risks?: string[]
   createdAt: string
+  updatedAt?: string
 }
 
 export interface ShortlistItem {
@@ -73,6 +120,94 @@ export interface ShortlistItem {
   status: "pending" | "presented" | "interested" | "rejected" | "under-offer"
   notes?: string
   addedAt: string
+}
+
+/**
+ * Counterfactual: A property evaluated but NOT recommended, with clear exclusion reasons.
+ * Used in realtor recommendation workflow to show why certain properties were excluded.
+ */
+export interface Counterfactual {
+  propertyId: string
+  title: string
+  reasonCodes: string[] // Machine-friendly codes (e.g., "yield_below_target", "over_budget")
+  reasonLabels: string[] // Human-friendly labels (e.g., "Yield below target by 0.8%")
+  details?: string
+  violatedConstraints?: {
+    key: string
+    expected?: any
+    actual?: any
+  }[]
+  whatWouldChangeMyMind?: string[] // Optional suggestions (e.g., "If price < AED 4.2M")
+  score?: number
+}
+
+export interface RecommendationBundle {
+  recommended: PortfolioOpportunity[]
+  counterfactuals: Counterfactual[]
+  source: "manual" | "ai_insight" | "nlp_query"
+}
+
+// --- Realtor Recommendations (internal CRM views) ---
+export type RecommendationStatus =
+  | "DRAFT"
+  | "SENT"
+  | "VIEWED"
+  | "QUESTIONS"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUPERSEDED"
+
+export type RecommendationTrigger = "manual" | "ai_insight" | "nlp_query"
+
+export type RecommendationQna = {
+  id: string
+  question: string
+  askedAt: string
+  askedBy: "investor"
+  draftAnswer?: string
+  finalAnswer?: string
+  answeredAt?: string
+  answeredBy?: "realtor"
+}
+
+export type RecommendationDecision = {
+  outcome: "APPROVED" | "REJECTED"
+  decidedAt: string
+  reasonTags?: string[]
+  note?: string
+}
+
+export type RecommendationActivity = {
+  at: string
+  type: string
+  label: string
+  meta?: any
+}
+
+export type RecommendationPropertyNote = {
+  includedDespite?: string
+  rationale?: string
+}
+
+export interface Recommendation {
+  id: string
+  investorId: string
+  createdByRole: "realtor" | "owner" | "admin"
+  title: string
+  summary: string
+  status: RecommendationStatus
+  trigger: RecommendationTrigger
+  createdAt: string
+  updatedAt: string
+  sentAt?: string
+  lastActivityAt?: string
+  propertyIds: string[]
+  counterfactuals: Counterfactual[]
+  propertyNotes?: Record<string, RecommendationPropertyNote>
+  qna: RecommendationQna[]
+  decision?: RecommendationDecision
+  activity: RecommendationActivity[]
+  supersededById?: string
 }
 
 export interface Memo {
@@ -152,3 +287,6 @@ export interface Activity {
   investorId?: string
   propertyId?: string
 }
+
+
+

@@ -73,9 +73,9 @@ export default async function DealRoomPage({ params }: DealRoomPageProps) {
     <div className="space-y-6">
       {/* Back Button */}
       <Button variant="ghost" size="sm" asChild>
-        <Link href="/investors">
+        <Link href="/deal-room">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Investors
+          Back to Deal Rooms
         </Link>
       </Button>
 

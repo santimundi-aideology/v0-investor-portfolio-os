@@ -4,10 +4,10 @@ import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { deleteInvestorDb, getInvestorById, updateInvestorDb } from "@/lib/db/investors"
 import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const investor = await getInvestorById(params.id)
+    const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
     return NextResponse.json(investor)
@@ -16,31 +16,31 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const investor = await getInvestorById(params.id)
+    const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
 
     const body = await req.json()
-    const updated = await updateInvestorDb(params.id, body)
+    const updated = await updateInvestorDb((await params).id, body)
     return NextResponse.json(updated)
   } catch (err) {
     return handleError(err)
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const investor = await getInvestorById(params.id)
+    const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
 
     if (ctx.role === "investor") throw new AccessError("Investors cannot delete investors")
 
-    await deleteInvestorDb(params.id)
+    await deleteInvestorDb((await params).id)
     return NextResponse.json({ ok: true })
   } catch (err) {
     return handleError(err)

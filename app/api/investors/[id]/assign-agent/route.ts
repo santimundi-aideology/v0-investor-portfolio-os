@@ -4,21 +4,21 @@ import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { getInvestorById, updateInvestorDb } from "@/lib/db/investors"
 import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only manager or super_admin can reassign investors")
     }
 
-    const investor = await getInvestorById(params.id)
+    const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
 
     const body = await req.json()
     if (!body.assignedAgentId) throw new AccessError("assignedAgentId is required")
 
-    const updated = await updateInvestorDb(params.id, { assignedAgentId: body.assignedAgentId })
+    const updated = await updateInvestorDb((await params).id, { assignedAgentId: body.assignedAgentId })
 
     const write = createAuditEventWriter()
     await write(
@@ -26,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         tenantId: ctx.tenantId!,
         actorId: ctx.userId,
         role: ctx.role,
-        investorId: params.id,
+        investorId: (await params).id,
         fromAgentId: investor.assignedAgentId,
         toAgentId: body.assignedAgentId,
       }),

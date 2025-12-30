@@ -5,13 +5,13 @@ import { getInvestor, getMemo, saveMemo } from "@/lib/data/store"
 import { transitionMemo } from "@/lib/domain/memos"
 import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/security/rbac"
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only managers can request changes")
     }
-    const memo = getMemo(params.id)
+    const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -19,7 +19,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const body = await req.json()
     const next = transitionMemo(memo, "draft")
-    saveMemo(next)
+    saveMemo(next as any)
 
     const write = createAuditEventWriter()
     await write(

@@ -1,6 +1,7 @@
 import { addMonths, differenceInMonths } from "date-fns"
 
 import { mockInvestors, mockProperties } from "@/lib/mock-data"
+import type { Counterfactual, RecommendationBundle, Mandate, Property } from "@/lib/types"
 
 export type PropertyHolding = {
   id: string
@@ -50,24 +51,12 @@ export const mockHoldings: PropertyHolding[] = [
     id: "hold-2",
     investorId: "inv-1",
     propertyId: "prop-2",
-    purchasePrice: 11200000,
-    purchaseDate: "2024-05-15",
-    currentValue: 12150000,
-    monthlyRent: 102000,
-    occupancyRate: 0.92,
-    annualExpenses: 260000,
-  },
-  // Another investor, for internal views
-  {
-    id: "hold-3",
-    investorId: "inv-2",
-    propertyId: "prop-3",
-    purchasePrice: 4300000,
-    purchaseDate: "2024-08-10",
-    currentValue: 4620000,
-    monthlyRent: 26500,
-    occupancyRate: 0.88,
-    annualExpenses: 60000,
+    purchasePrice: 11500000,
+    purchaseDate: "2024-01-15",
+    currentValue: 12000000,
+    monthlyRent: 112000,
+    occupancyRate: 0.98,
+    annualExpenses: 280000,
   },
 ]
 
@@ -76,45 +65,49 @@ export const mockMarketData: MarketData[] = [
     location: "Dubai Marina",
     trend: [
       { month: "2024-01", index: 100 },
-      { month: "2024-04", index: 102 },
-      { month: "2024-07", index: 105 },
-      { month: "2024-10", index: 108 },
-      { month: "2025-01", index: 110 },
+      { month: "2024-02", index: 102 },
+      { month: "2024-03", index: 104 },
+      { month: "2024-04", index: 105 },
+      { month: "2024-05", index: 107 },
+      { month: "2024-06", index: 108 },
     ],
-    avgYieldPct: 8.9,
-    avgYoYAppreciationPct: 6.4,
-    occupancyPct: 93,
+    avgYieldPct: 8.5,
+    avgYoYAppreciationPct: 5.2,
+    occupancyPct: 94,
   },
   {
     location: "Downtown Dubai",
     trend: [
       { month: "2024-01", index: 100 },
-      { month: "2024-04", index: 101 },
-      { month: "2024-07", index: 104 },
-      { month: "2024-10", index: 107 },
-      { month: "2025-01", index: 109 },
+      { month: "2024-02", index: 101 },
+      { month: "2024-03", index: 103 },
+      { month: "2024-04", index: 104 },
+      { month: "2024-05", index: 106 },
+      { month: "2024-06", index: 107 },
     ],
-    avgYieldPct: 9.6,
-    avgYoYAppreciationPct: 5.7,
-    occupancyPct: 91,
+    avgYieldPct: 7.8,
+    avgYoYAppreciationPct: 4.8,
+    occupancyPct: 96,
   },
   {
     location: "Business Bay",
     trend: [
       { month: "2024-01", index: 100 },
-      { month: "2024-04", index: 101 },
-      { month: "2024-07", index: 103 },
-      { month: "2024-10", index: 106 },
-      { month: "2025-01", index: 108 },
+      { month: "2024-02", index: 102 },
+      { month: "2024-03", index: 104 },
+      { month: "2024-04", index: 106 },
+      { month: "2024-05", index: 108 },
+      { month: "2024-06", index: 110 },
     ],
-    avgYieldPct: 9.1,
-    avgYoYAppreciationPct: 5.2,
-    occupancyPct: 90,
+    avgYieldPct: 9.2,
+    avgYoYAppreciationPct: 6.1,
+    occupancyPct: 92,
   },
 ]
 
 export function formatAED(value: number) {
-  return `AED ${Math.round(value).toLocaleString()}`
+  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0
+  return `AED ${safe.toLocaleString()}`
 }
 
 export function getHoldingsForInvestor(investorId: string) {
@@ -134,63 +127,64 @@ export function calcAnnualNetRent(holding: PropertyHolding) {
 }
 
 export function calcYieldPct(holding: PropertyHolding) {
-  if (holding.currentValue <= 0) return 0
-  return (calcAnnualNetRent(holding) / holding.currentValue) * 100
+  const netRent = calcAnnualNetRent(holding)
+  return (netRent / holding.currentValue) * 100
 }
 
 export function calcAppreciationPct(holding: PropertyHolding) {
-  if (holding.purchasePrice <= 0) return 0
   return ((holding.currentValue - holding.purchasePrice) / holding.purchasePrice) * 100
 }
 
 export function calcIncomeToDate(holding: PropertyHolding, asOf = new Date()) {
-  const months = Math.max(0, differenceInMonths(asOf, new Date(holding.purchaseDate)))
-  const gross = holding.monthlyRent * months * holding.occupancyRate
-  const monthlyExpenses = holding.annualExpenses / 12
-  const net = gross - monthlyExpenses * months
-  return { months, gross, net }
+  const purchaseDate = new Date(holding.purchaseDate)
+  const monthsHeld = differenceInMonths(asOf, purchaseDate)
+  const monthlyNet = calcAnnualNetRent(holding) / 12
+  return monthlyNet * monthsHeld
 }
 
 export function forecastMonthlyNetIncome(
   holding: PropertyHolding,
   monthsAhead = 12,
-  rentGrowthMonthlyPct = 0.0025,
+  occupancyRateOverride?: number,
 ) {
+  const occupancy = occupancyRateOverride ?? holding.occupancyRate
+  const monthlyGross = holding.monthlyRent * occupancy
   const monthlyExpenses = holding.annualExpenses / 12
+  const monthlyNet = monthlyGross - monthlyExpenses
   const points: { month: string; net: number; gross: number }[] = []
-  const start = new Date()
-  let rent = holding.monthlyRent
   for (let i = 0; i < monthsAhead; i++) {
-    const d = addMonths(start, i)
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    const gross = rent * holding.occupancyRate
-    const net = gross - monthlyExpenses
-    points.push({ month, net, gross })
-    rent = rent * (1 + rentGrowthMonthlyPct)
+    const monthDate = addMonths(new Date(), i)
+    const month = monthDate.toISOString().slice(0, 7)
+    points.push({
+      month,
+      net: monthlyNet,
+      gross: monthlyGross,
+    })
   }
   return points
 }
 
 export function getPortfolioSummary(investorId: string) {
   const holdings = getHoldingsForInvestor(investorId)
-  const totalPortfolioValue = holdings.reduce((acc, h) => acc + h.currentValue, 0)
-  const totalPurchaseCost = holdings.reduce((acc, h) => acc + h.purchasePrice, 0)
-  const totalMonthlyRental = holdings.reduce((acc, h) => acc + h.monthlyRent * h.occupancyRate, 0)
-  const totalAnnualNetRent = holdings.reduce((acc, h) => acc + calcAnnualNetRent(h), 0)
-  const avgYield = totalPortfolioValue > 0 ? (totalAnnualNetRent / totalPortfolioValue) * 100 : 0
-  const occupancyRate =
-    holdings.length > 0 ? (holdings.reduce((acc, h) => acc + h.occupancyRate, 0) / holdings.length) * 100 : 0
-  const appreciationPct = totalPurchaseCost > 0 ? ((totalPortfolioValue - totalPurchaseCost) / totalPurchaseCost) * 100 : 0
+  const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.currentValue, 0)
+  const totalPurchasePrice = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
+  const totalMonthlyRental = holdings.reduce((sum, h) => sum + forecastMonthlyNetIncome(h), 0)
+  const totalAnnualRental = totalMonthlyRental * 12
+  const avgYieldPct = holdings.length > 0 ? holdings.reduce((sum, h) => sum + calcYieldPct(h), 0) / holdings.length : 0
+  const avgOccupancyPct =
+    holdings.length > 0 ? holdings.reduce((sum, h) => sum + h.occupancyRate * 100, 0) / holdings.length : 0
+  const appreciationPct =
+    totalPurchasePrice > 0 ? ((totalPortfolioValue - totalPurchasePrice) / totalPurchasePrice) * 100 : 0
 
   return {
     holdings,
     totalPortfolioValue,
-    totalPurchaseCost,
-    appreciationPct,
+    totalPurchaseCost: totalPurchasePrice,
     totalMonthlyRental,
-    totalAnnualNetRent,
-    avgYieldPct: avgYield,
-    occupancyPct: occupancyRate,
+    totalAnnualRental,
+    avgYieldPct,
+    occupancyPct: avgOccupancyPct,
+    appreciationPct,
     propertyCount: holdings.length,
   }
 }
@@ -223,4 +217,218 @@ export function getOpportunitiesForInvestor(investorId: string): PortfolioOpport
     .slice(0, 4)
 }
 
+/**
+ * Build a recommendation bundle with both recommended properties and counterfactuals.
+ * 
+ * This function evaluates all candidate properties against the investor's mandate,
+ * budget, portfolio constraints, and trust policies. Properties that pass thresholds
+ * become recommendations; strong candidates that fail 1-2 constraints become counterfactuals.
+ * 
+ * TODO: Replace deterministic rule-based reason generation with real AI model outputs.
+ * The reasonCodes should map to a finite set that can be traced back to model reasoning.
+ */
+export function buildRecommendationBundle({
+  investorId,
+  mandate,
+  portfolioSnapshot,
+  evaluatedCandidates,
+  trustPolicy,
+  budget,
+}: {
+  investorId: string
+  mandate?: Mandate
+  portfolioSnapshot?: { holdings: PropertyHolding[] }
+  evaluatedCandidates?: Property[]
+  trustPolicy?: { minTrustScore?: number; requireVerification?: boolean }
+  budget?: { min?: number; max?: number }
+}): RecommendationBundle {
+  const investor = mockInvestors.find((i) => i.id === investorId)
+  const actualMandate = mandate || investor?.mandate
+  const actualPortfolio = portfolioSnapshot || { holdings: getHoldingsForInvestor(investorId) }
+  const actualCandidates = evaluatedCandidates || mockProperties
+  const actualTrustPolicy = trustPolicy || { minTrustScore: 70, requireVerification: false }
+  const actualBudget = budget || {
+    min: actualMandate?.minInvestment || 0,
+    max: actualMandate?.maxInvestment || Infinity,
+  }
 
+  const ownedIds = new Set(actualPortfolio.holdings.map((h) => h.propertyId))
+  const areaCounts = new Map<string, number>()
+  actualPortfolio.holdings.forEach((h) => {
+    const prop = mockProperties.find((p) => p.id === h.propertyId)
+    if (prop?.area) {
+      areaCounts.set(prop.area, (areaCounts.get(prop.area) || 0) + 1)
+    }
+  })
+
+  // Evaluate all candidates
+  const evaluated = actualCandidates
+    .filter((p) => !ownedIds.has(p.id))
+    .map((p) => {
+      const score =
+        (p.trustScore ?? 60) * 0.55 +
+        (p.roi ?? 7) * 3.5 +
+        (actualMandate?.propertyTypes?.includes(p.type) ? 10 : 0)
+
+      const reasons: string[] = []
+      if (p.trustScore && p.trustScore >= 85) reasons.push("High trust score")
+      if (p.roi && p.roi >= 9) reasons.push("Strong yield")
+      if (actualMandate?.preferredAreas?.includes(p.area)) reasons.push(`Matches preferred area (${p.area})`)
+      if (actualMandate?.propertyTypes?.includes(p.type)) reasons.push(`Matches mandate type (${p.type})`)
+
+      return {
+        property: p,
+        score: Math.round(score),
+        reasons: reasons.slice(0, 3),
+      }
+    })
+    .sort((a, b) => b.score - a.score)
+
+  const recommended: PortfolioOpportunity[] = []
+  const counterfactuals: Counterfactual[] = []
+
+  // Determine yield target from mandate
+  const yieldTarget = actualMandate?.yieldTarget
+    ? parseFloat(actualMandate.yieldTarget.replace("%", "").split("-")[0])
+    : 8.0
+
+  for (const candidate of evaluated) {
+    const p = candidate.property
+    const reasonCodes: string[] = []
+    const reasonLabels: string[] = []
+    const violatedConstraints: Counterfactual["violatedConstraints"] = []
+    const whatWouldChange: string[] = []
+
+    // Check constraints
+    let passesAll = true
+
+    // Budget check
+    if (p.price > actualBudget.max) {
+      passesAll = false
+      const overBy = p.price - actualBudget.max
+      reasonCodes.push("over_budget")
+      reasonLabels.push(`Over budget by AED ${(overBy / 1000).toFixed(0)}k`)
+      violatedConstraints.push({
+        key: "budget_max",
+        expected: actualBudget.max,
+        actual: p.price,
+      })
+      whatWouldChange.push(`If price < AED ${(actualBudget.max / 1000000).toFixed(1)}M`)
+    } else if (p.price < actualBudget.min) {
+      reasonCodes.push("under_budget_min")
+      reasonLabels.push(`Below minimum investment threshold`)
+      violatedConstraints.push({
+        key: "budget_min",
+        expected: actualBudget.min,
+        actual: p.price,
+      })
+    }
+
+    // Yield check
+    if (p.roi && p.roi < yieldTarget) {
+      passesAll = false
+      const diff = yieldTarget - p.roi
+      reasonCodes.push("yield_below_target")
+      reasonLabels.push(`Yield below target by ${diff.toFixed(1)}%`)
+      violatedConstraints.push({
+        key: "yield_target",
+        expected: yieldTarget,
+        actual: p.roi,
+      })
+      whatWouldChange.push(`If yield >= ${yieldTarget}%`)
+    }
+
+    // Trust/verification check
+    if (p.trustScore && p.trustScore < actualTrustPolicy.minTrustScore!) {
+      passesAll = false
+      reasonCodes.push("low_trust_score")
+      reasonLabels.push(`Trust score below threshold (${p.trustScore} < ${actualTrustPolicy.minTrustScore})`)
+      violatedConstraints.push({
+        key: "trust_score",
+        expected: actualTrustPolicy.minTrustScore,
+        actual: p.trustScore,
+      })
+      whatWouldChange.push(`If trust score >= ${actualTrustPolicy.minTrustScore}`)
+    }
+
+    if (actualTrustPolicy.requireVerification && p.readinessStatus === "NEEDS_VERIFICATION") {
+      passesAll = false
+      reasonCodes.push("needs_verification")
+      reasonLabels.push("Needs verification: portal source")
+      violatedConstraints.push({
+        key: "readiness_status",
+        expected: "READY_FOR_MEMO",
+        actual: p.readinessStatus,
+      })
+      whatWouldChange.push("If trust verified")
+    }
+
+    // Concentration risk
+    const areaCount = areaCounts.get(p.area) || 0
+    if (areaCount >= 2) {
+      passesAll = false
+      reasonCodes.push("concentration_risk")
+      reasonLabels.push(`Concentration risk: already ${areaCount} assets in ${p.area}`)
+      violatedConstraints.push({
+        key: "area_concentration",
+        expected: "< 2",
+        actual: areaCount,
+      })
+    }
+
+    // Area mismatch (soft constraint)
+    if (actualMandate?.preferredAreas?.length && !actualMandate.preferredAreas.includes(p.area)) {
+      reasonCodes.push("area_mismatch")
+      reasonLabels.push(`Not in preferred area (${p.area})`)
+    }
+
+    // Type mismatch (soft constraint)
+    if (actualMandate?.propertyTypes?.length && !actualMandate.propertyTypes.includes(p.type)) {
+      reasonCodes.push("type_mismatch")
+      reasonLabels.push(`Not preferred type (${p.type})`)
+    }
+
+    // Liquidity risk (mock: check if property has low comps)
+    // In real implementation, this would check market data
+    if (p.source?.type === "portal" && !p.trustScore) {
+      reasonCodes.push("liquidity_risk")
+      reasonLabels.push("Liquidity risk: limited comps in last 6 months")
+    }
+
+    if (passesAll && reasonCodes.length === 0) {
+      // Recommended
+      recommended.push({
+        propertyId: p.id,
+        score: candidate.score,
+        reasons: candidate.reasons,
+      })
+    } else if (reasonCodes.length > 0 && reasonCodes.length <= 2 && candidate.score > 50) {
+      // Counterfactual: failed 1-2 constraints but still strong candidate
+      counterfactuals.push({
+        propertyId: p.id,
+        title: p.title,
+        reasonCodes,
+        reasonLabels,
+        details: `This property scored ${candidate.score} but was excluded due to: ${reasonLabels.join(", ")}`,
+        violatedConstraints,
+        whatWouldChangeMyMind: whatWouldChange.length > 0 ? whatWouldChange : undefined,
+        score: candidate.score,
+      })
+    }
+  }
+
+  // Limit recommendations to top 4-6
+  const finalRecommended = recommended.slice(0, 6)
+  const recommendedIds = new Set(finalRecommended.map((r) => r.propertyId))
+
+  // Filter counterfactuals to exclude duplicates and limit to 3-10
+  const finalCounterfactuals = counterfactuals
+    .filter((c) => !recommendedIds.has(c.propertyId))
+    .slice(0, 10)
+
+  return {
+    recommended: finalRecommended,
+    counterfactuals: finalCounterfactuals,
+    source: "ai_insight",
+  }
+}

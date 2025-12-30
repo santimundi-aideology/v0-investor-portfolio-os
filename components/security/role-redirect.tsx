@@ -23,5 +23,3 @@ export function RoleRedirect({
   if (!allow.includes(role)) return null
   return null
 }
-
-

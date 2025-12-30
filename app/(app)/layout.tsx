@@ -45,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto bg-surface-warm">
             <div className="mx-auto w-full max-w-7xl p-4 lg:p-6">{children}</div>
             {pathname.startsWith("/settings") ? (
               <>

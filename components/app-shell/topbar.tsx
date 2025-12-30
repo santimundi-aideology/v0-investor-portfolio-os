@@ -1,17 +1,19 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Bell, CircleHelp, Menu, Search, Sparkles, User2 } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   DropdownMenuShortcut,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -27,17 +29,28 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
   const personas = usePersonas()
   const unreadCount = notifications.filter((n) => n.unread).length
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  const notificationsButton = (
+    <Button id="notifications-trigger" variant="ghost" size="icon" className="relative" suppressHydrationWarning>
+      <Bell className="h-5 w-5" />
+      {unreadCount > 0 ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" /> : null}
+      <span className="sr-only">Notifications</span>
+    </Button>
+  )
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
       <div className="flex items-center gap-2">
-        {/* Mobile menu button */}
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
           <span className="sr-only">Open navigation</span>
         </Button>
 
-        {/* Org switcher */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button id="org-switcher-trigger" variant="ghost" className="h-9 gap-2 px-2">
@@ -72,13 +85,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </DropdownMenu>
       </div>
 
-      {/* Global search / command */}
       <div className="hidden flex-1 px-4 md:block">
-        <Button
-          variant="outline"
-          onClick={() => setCommandOpen(true)}
-          className="text-muted-foreground w-full justify-start gap-2"
-        >
+        <Button variant="outline" onClick={() => setCommandOpen(true)} className="text-muted-foreground w-full justify-start gap-2">
           <Search className="size-4" />
           <span className="flex-1 text-left">Search…</span>
           <span className="hidden text-xs tracking-widest md:inline">
@@ -91,24 +99,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </Button>
       </div>
 
-      {/* Right side */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setCommandOpen(true)}>
           <Search className="h-5 w-5" />
           <span className="sr-only">Open search</span>
         </Button>
 
-        {/* Notifications */}
+        {isHydrated ? (
         <Popover>
-          <PopoverTrigger asChild>
-            <Button id="notifications-trigger" variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 ? (
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
-              ) : null}
-              <span className="sr-only">Notifications</span>
-            </Button>
-          </PopoverTrigger>
+            <PopoverTrigger asChild>{notificationsButton}</PopoverTrigger>
           <PopoverContent align="end" className="w-96">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium">Notifications</div>
@@ -133,8 +132,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             </div>
           </PopoverContent>
         </Popover>
+        ) : (
+          notificationsButton
+        )}
 
-        {/* Help */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button id="help-trigger" variant="ghost" size="icon">
@@ -157,7 +158,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button id="user-menu-trigger" variant="ghost" className="relative h-9 w-9 rounded-full">

@@ -41,6 +41,8 @@ export async function POST(req: Request) {
       currency: body.currency,
       handoverDate: body.handoverDate,
     })
+    
+    if (!record) throw new Error("Failed to create listing")
 
     const write = createAuditEventWriter()
     await write(

@@ -1,22 +1,23 @@
+import type { ComponentType } from "react"
 import type { UserRole } from "@/lib/types"
 import {
-  LayoutDashboard,
-  LineChart,
-  Users,
   Building2,
   CheckSquare,
-  FolderKanban,
   FileText,
+  FolderKanban,
+  LayoutDashboard,
+  LineChart,
   Radar,
-  UsersRound,
-  Settings,
   ScrollText,
+  Settings,
+  Users,
+  UsersRound,
 } from "lucide-react"
 
 export type NavItem = {
   label: string
   href: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   rolesAllowed: UserRole[]
 }
 
@@ -39,7 +40,7 @@ export const navSections: NavSection[] = [
       { label: "Investors", href: "/investors", icon: Users, rolesAllowed: INTERNAL_ROLES },
       { label: "Properties", href: "/properties", icon: Building2, rolesAllowed: INTERNAL_ROLES },
       { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES },
-      { label: "Deal Rooms", href: "/deal-room/deal-1", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
+      { label: "Deal Rooms", href: "/deal-room", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
     ],
   },
   {
@@ -79,5 +80,3 @@ export function findNavItemByHref(href: string) {
   }
   return null
 }
-
-

@@ -4,15 +4,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FileText } from "lucide-react"
+import Link from "next/link"
 
 export default async function NewMemoPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ investorId?: string; propertyId?: string }>
+  searchParams?: Promise<{ investorId?: string; propertyId?: string; memoId?: string }>
 }) {
   const sp = searchParams ? await searchParams : undefined
   const investorId = sp?.investorId
   const propertyId = sp?.propertyId
+  const memoId = sp?.memoId
 
   return (
     <div className="space-y-6">
@@ -44,16 +46,21 @@ export default async function NewMemoPage({
             <Label htmlFor="notes">Notes</Label>
             <Input id="notes" placeholder="Add any context you want included in the memo…" />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" type="button">
-              Cancel
+          <div className="flex justify-between">
+            <Button variant="outline" asChild>
+              <Link href={`/properties/new?memoId=${memoId || 'new'}&returnTo=memo${investorId ? `&investorId=${investorId}` : ''}`}>
+                Add property to memo
+              </Link>
             </Button>
-            <Button type="button">Generate (mock)</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" type="button" asChild>
+                <Link href="/memos">Cancel</Link>
+              </Button>
+              <Button type="button">Generate (mock)</Button>
+            </div>
           </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-
-

@@ -18,7 +18,11 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { getPropertyById } from "@/lib/mock-data"
-import type { Property } from "@/lib/types"
+import { getPropertyById as getPropertyFromStore, getShortlistInvestors, getPropertyMemos } from "@/lib/property-store"
+import type { Property, PropertyReadinessStatus } from "@/lib/types"
+import { RoleRedirect } from "@/components/security/role-redirect"
+import { PropertyImageGallery } from "@/components/properties/property-image-gallery"
+import "@/lib/init-property-store"
 
 interface PropertyPageProps {
   params: Promise<{ id: string }>
@@ -54,13 +58,37 @@ function getTrustScoreLabel(score: number): string {
   return "Needs Review"
 }
 
+const readinessStatusColors: Record<PropertyReadinessStatus, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  NEEDS_VERIFICATION: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  READY_FOR_MEMO: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+}
+
 export default async function PropertyPage({ params }: PropertyPageProps) {
   const { id } = await params
-  const property = getPropertyById(id)
+  
+  return (
+    <>
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <PropertyPageContent id={id} />
+    </>
+  )
+}
+
+async function PropertyPageContent({ id }: { id: string }) {
+  // Try store first, fallback to mock data
+  let property = getPropertyFromStore(id)
+  if (!property) {
+    property = getPropertyById(id)
+  }
 
   if (!property) {
     notFound()
   }
+
+  // Get associations
+  const shortlistInvestors = getShortlistInvestors(id)
+  const linkedMemos = getPropertyMemos(id)
 
   return (
     <div className="space-y-6">
@@ -80,6 +108,14 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
             <Badge variant="outline" className={statusColors[property.status]}>
               {property.status.replace("-", " ")}
             </Badge>
+            {property.readinessStatus && (
+              <Badge
+                variant="outline"
+                className={readinessStatusColors[property.readinessStatus]}
+              >
+                {property.readinessStatus.replace(/_/g, " ")}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="h-4 w-4" />
@@ -99,6 +135,13 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
           </Button>
         </div>
       </div>
+
+      {/* Image Gallery */}
+      <PropertyImageGallery
+        images={property.images ?? []}
+        primaryImageUrl={property.imageUrl}
+        propertyTitle={property.title}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
@@ -221,6 +264,147 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Source & Ingestion History */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Source & Ingestion</CardTitle>
+              <CardDescription>How this property was added to the system</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {property.source ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Source Type</p>
+                      <p className="font-medium capitalize">{property.source.type}</p>
+                    </div>
+                    {property.source.name && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Source Name</p>
+                        <p className="font-medium">{property.source.name}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm text-muted-foreground">Intake Method</p>
+                      <p className="font-medium capitalize">{property.source.intakeSource.replace(/_/g, " ")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Ingested At</p>
+                      <p className="font-medium">
+                        {new Date(property.source.ingestedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {property.source.originalFile && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Original File</p>
+                        <p className="font-medium">{property.source.originalFile}</p>
+                      </div>
+                    )}
+                  </div>
+                  {property.ingestionHistory && property.ingestionHistory.length > 0 && (
+                    <div className="mt-4">
+                      <p className="mb-2 text-sm font-medium">History</p>
+                      <div className="space-y-2">
+                        {property.ingestionHistory.map((entry) => (
+                          <div key={entry.id} className="rounded-lg border p-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="capitalize">{entry.action.replace(/_/g, " ")}</span>
+                              <span className="text-muted-foreground text-xs">
+                                {new Date(entry.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            {entry.details && (
+                              <p className="mt-1 text-xs text-muted-foreground">{entry.details}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No source information available</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Trust & Readiness */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Trust & Readiness</CardTitle>
+              <CardDescription>Property verification and readiness status</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Readiness Status</p>
+                  {property.readinessStatus ? (
+                    <Badge
+                      variant="outline"
+                      className={readinessStatusColors[property.readinessStatus]}
+                    >
+                      {property.readinessStatus.replace(/_/g, " ")}
+                    </Badge>
+                  ) : (
+                    <p className="font-medium">Not set</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Trust Score</p>
+                  {property.trustScore ? (
+                    <p className="font-medium">{property.trustScore}/100</p>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">Not verified yet</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Linked Objects */}
+          {(shortlistInvestors.length > 0 || linkedMemos.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Linked Objects</CardTitle>
+                <CardDescription>Investors and memos associated with this property</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {shortlistInvestors.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">Investors ({shortlistInvestors.length})</p>
+                    <div className="space-y-1">
+                      {shortlistInvestors.map((invId) => (
+                        <Link
+                          key={invId}
+                          href={`/investors/${invId}`}
+                          className="block text-sm text-primary hover:underline"
+                        >
+                          {invId}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {linkedMemos.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">Memos ({linkedMemos.length})</p>
+                    <div className="space-y-1">
+                      {linkedMemos.map((memoId) => (
+                        <Link
+                          key={memoId}
+                          href={`/memos/${memoId}`}
+                          className="block text-sm text-primary hover:underline"
+                        >
+                          {memoId}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Risks */}
           {property.risks && property.risks.length > 0 && (

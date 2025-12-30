@@ -15,13 +15,12 @@ export async function GET(req: Request) {
 
     if (ctx.role === "agent") {
       const investorIds = new Set((await listInvestorsByAgent(tenantId, ctx.userId)).map((i) => i.id))
-      const list = await listUnderwritingsForAgent(tenantId, async (invId) => investorIds.has(invId))
+      const list = await listUnderwritingsForAgent(tenantId, ctx.userId, async (invId) => investorIds.has(invId))
       return NextResponse.json(list)
     }
 
-    const all = store.underwritings.filter((u) => u.tenantId === tenantId)
     const dbAll = await listUnderwritingsForTenant(tenantId)
-    return NextResponse.json(dbAll.length ? dbAll : all)
+    return NextResponse.json(dbAll)
   } catch (err) {
     return handleError(err)
   }

@@ -6,10 +6,10 @@ import { getUnderwritingById, updateUnderwritingDb } from "@/lib/db/underwriting
 import { computeConfidence, computeScenarios } from "@/lib/domain/underwriting"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const uw = await getUnderwritingById(params.id)
+    const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "investor") throw new AccessError("Investors cannot access underwritings")
 
@@ -25,10 +25,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = buildRequestContext(req as any)
-    const uw = await getUnderwritingById(params.id)
+    const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "manager") throw new AccessError("Managers are read-only on underwritings")
     if (ctx.role === "investor") throw new AccessError("Investors cannot access underwritings")
@@ -46,7 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       vacancy: body.inputs?.vacancy ?? uw.inputs?.vacancy,
     })
 
-    const updated = await updateUnderwritingDb(params.id, {
+    const updated = await updateUnderwritingDb((await params).id, {
       inputs: body.inputs ?? uw.inputs,
       scenarios,
       confidence: computeConfidence([], body.inputs ?? uw.inputs), // comps pulled separately
@@ -58,7 +58,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         tenantId: ctx.tenantId!,
         actorId: ctx.userId,
         role: ctx.role,
-        underwritingId: params.id,
+        underwritingId: (await params).id,
       }),
     )
 
