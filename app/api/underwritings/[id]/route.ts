@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { getInvestorById, listInvestorsByAgent } from "@/lib/db/investors"
+import { listInvestorsByAgent } from "@/lib/db/investors"
 import { getUnderwritingById, updateUnderwritingDb } from "@/lib/db/underwritings"
 import { computeConfidence, computeScenarios } from "@/lib/domain/underwriting"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "investor") throw new AccessError("Investors cannot access underwritings")
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "manager") throw new AccessError("Managers are read-only on underwritings")

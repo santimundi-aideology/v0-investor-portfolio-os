@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,7 @@ import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { PropertyCard } from "./property-card"
 import { cn } from "@/lib/utils"
+import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 
 const statusColors: Record<Property["status"], string> = {
   available: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
@@ -38,11 +39,10 @@ const typeLabels: Record<Property["type"], string> = {
   land: "Land",
 }
 
-function formatPrice(price: number): string {
-  if (price >= 1000000) {
-    return `AED ${(price / 1000000).toFixed(1)}M`
-  }
-  return `AED ${(price / 1000).toFixed(0)}K`
+function formatPrice(price: number, listingType: "sale" | "rent" = "sale"): string {
+  const formatted =
+    price >= 1000000 ? `AED ${(price / 1000000).toFixed(1)}M` : `AED ${(price / 1000).toFixed(0)}K`
+  return listingType === "rent" ? `${formatted}/yr` : formatted
 }
 
 function isNewListing(createdAt: string) {
@@ -58,10 +58,12 @@ export function PropertiesContent() {
   const [searchQuery, setSearchQuery] = useState("")
   const [areaFilter, setAreaFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [listingFilter, setListingFilter] = useState<string>("all")
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
+  const [shareTarget, setShareTarget] = useState<Property | null>(null)
 
   // Use property store, fallback to mock data for backward compatibility
-  const allProperties = getAllProperties().length > 0 ? getAllProperties() : mockProperties
+  const allProperties = useMemo(() => (getAllProperties().length > 0 ? getAllProperties() : mockProperties), [])
   const areas = [...new Set(allProperties.map((p) => p.area))]
 
   const filteredProperties = allProperties.filter((property) => {
@@ -70,17 +72,24 @@ export function PropertiesContent() {
       property.address.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesArea = areaFilter === "all" || property.area === areaFilter
     const matchesStatus = statusFilter === "all" || property.status === statusFilter
-    return matchesSearch && matchesArea && matchesStatus
+    const matchesListing =
+      listingFilter === "all" || (property.listingType ?? "sale") === listingFilter
+    return matchesSearch && matchesArea && matchesStatus && matchesListing
   })
 
   const handleFavoriteToggle = (propertyId: string) => {
-    console.log("Toggle favorite for property:", propertyId)
     // TODO: Implement favorite toggle logic
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _property = allProperties.find((item) => item.id === propertyId)
   }
 
   const handleShare = (propertyId: string) => {
-    console.log("Share property:", propertyId)
-    // TODO: Implement share logic
+    const property = allProperties.find((item) => item.id === propertyId)
+    if (property) setShareTarget(property)
+  }
+
+  const handleShareDialogChange = (open: boolean) => {
+    if (!open) setShareTarget(null)
   }
 
   return (
@@ -135,6 +144,16 @@ export function PropertiesContent() {
                   <SelectItem value="under-offer">Under Offer</SelectItem>
                   <SelectItem value="sold">Sold</SelectItem>
                   <SelectItem value="off-market">Off Market</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={listingFilter} onValueChange={setListingFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Listing Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="sale">For sale</SelectItem>
+                  <SelectItem value="rent">For rent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -246,6 +265,7 @@ export function PropertiesContent() {
                         <TableHead className="text-right">ROI</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Readiness</TableHead>
+                        <TableHead>Listing</TableHead>
                         <TableHead>Source</TableHead>
                         <TableHead />
                       </TableRow>
@@ -266,7 +286,9 @@ export function PropertiesContent() {
                             <Badge variant="outline">{typeLabels[property.type]}</Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{property.area}</TableCell>
-                          <TableCell className="text-right font-medium">{formatPrice(property.price)}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatPrice(property.price, property.listingType ?? "sale")}
+                          </TableCell>
                           <TableCell className="text-right text-muted-foreground">{property.size.toLocaleString()}</TableCell>
                           <TableCell className="text-right">
                             {property.roi ? (
@@ -289,6 +311,11 @@ export function PropertiesContent() {
                               className={readinessStatusColors[property.readinessStatus ?? "DRAFT"]}
                             >
                               {property.readinessStatus?.replace(/_/g, " ") ?? "DRAFT"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {(property.listingType ?? "sale") === "rent" ? "Rent" : "Sale"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
@@ -328,6 +355,8 @@ export function PropertiesContent() {
           </CardContent>
         </Card>
       )}
+
+      <PropertyShareDialog property={shareTarget} open={!!shareTarget} onOpenChange={handleShareDialogChange} />
     </div>
   )
 }

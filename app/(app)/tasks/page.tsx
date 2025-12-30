@@ -167,7 +167,9 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
   const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
-    setIsHydrated(true)
+    // Use setTimeout to defer state update to avoid cascading renders
+    const timeout = setTimeout(() => setIsHydrated(true), 0)
+    return () => clearTimeout(timeout)
   }, [])
 
   if (!isHydrated) {

@@ -75,7 +75,7 @@ export async function deleteInvestorDb(id: string) {
   return true
 }
 
-function mapRow(row: any): InvestorRecord {
+function mapRow(row: Record<string, unknown>): InvestorRecord {
   return {
     id: row.id,
     tenantId: row.tenant_id,

@@ -5,7 +5,7 @@ import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/securi
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)
@@ -20,8 +20,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       id: crypto.randomUUID(),
       memoId: memo.id,
       body: `Based on memo v${version}: assumptions=${JSON.stringify(
-        (content as any).assumptions ?? [],
-      )}, scenarios=${JSON.stringify((content as any).scenarios ?? {})}`,
+        (content as Record<string, unknown>).assumptions ?? [],
+      )}, scenarios=${JSON.stringify((content as Record<string, unknown>).scenarios ?? {})}`,
       versionContext: version,
       senderId: "ai",
       createdAt: new Date().toISOString(),

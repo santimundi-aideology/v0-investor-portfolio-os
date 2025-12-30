@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { createShareToken, getInvestor, getMemo, saveMemo, store } from "@/lib/data/store"
+import { createShareToken, getMemo, saveMemo } from "@/lib/data/store"
 import { transitionMemo } from "@/lib/domain/memos"
 import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/security/rbac"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can share memos")
 
     const memo = getMemo((await params).id)
@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
     const next = transitionMemo(memo, "sent")
-    saveMemo(next as any)
+    saveMemo(next)
     const token = createShareToken(memo.id, memo.investorId)
 
     const write = createAuditEventWriter()

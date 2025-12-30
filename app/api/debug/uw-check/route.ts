@@ -8,7 +8,7 @@ import { buildRequestContext } from "@/lib/security/rbac"
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const ctx = buildRequestContext(req as any)
+  const ctx = buildRequestContext(req)
   if (ctx.role !== "super_admin") return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!ctx.tenantId) return NextResponse.json({ error: "tenant required" }, { status: 400 })
 

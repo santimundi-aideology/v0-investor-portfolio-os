@@ -2,12 +2,11 @@ import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { createMemo, getInvestor, store } from "@/lib/data/store"
-import { editMemoContent } from "@/lib/domain/memos"
 import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const tenantId = store.tenantId
     if (ctx.role === "investor") {
       const mine = store.memos.filter((m) => m.tenantId === tenantId && m.investorId === ctx.investorId)
@@ -29,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const body = await req.json()
     const investor = getInvestor(body.investorId)
     if (!investor) throw new AccessError("Investor not found")

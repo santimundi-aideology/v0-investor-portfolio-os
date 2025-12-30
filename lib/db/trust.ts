@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { TrustRecord } from "@/lib/data/store"
 
-function mapRow(row: any): TrustRecord {
+function mapRow(row: Record<string, unknown>): TrustRecord {
   return {
     id: row.id,
     tenantId: row.tenant_id,

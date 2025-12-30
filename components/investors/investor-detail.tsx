@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 
 import { useBreadcrumbs } from "@/components/providers/app-provider"
 import { PageHeader } from "@/components/layout/page-header"
@@ -11,9 +12,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { EditableAvatar } from "@/components/ui/editable-avatar"
 
-import type { DealRoom, Investor, Memo, ShortlistItem, Task } from "@/lib/types"
+import type { DealRoom, Investor, Memo, Property, ShortlistItem, Task } from "@/lib/types"
 import { MandateTab } from "@/components/investors/tabs/mandate-tab"
 import { ShortlistTab } from "@/components/investors/tabs/shortlist-tab"
 import { MemosTab } from "@/components/investors/tabs/memos-tab"
@@ -21,6 +22,9 @@ import { TasksTab } from "@/components/investors/tabs/tasks-tab"
 import { DocumentsTab } from "@/components/investors/tabs/documents-tab"
 import { RecommendationsTab } from "@/components/investors/tabs/recommendations-tab"
 import { DealRoomsTab } from "@/components/investors/tabs/deal-rooms-tab"
+import { EditInvestorProfileDialog } from "@/components/investors/edit-investor-profile-dialog"
+import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
+import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 
 export function InvestorDetail({
   investor,
@@ -35,6 +39,15 @@ export function InvestorDetail({
   tasks: Task[]
   dealRooms: DealRoom[]
 }) {
+  const [shareConfig, setShareConfig] = React.useState<{ property: Property; investorIds?: string[] } | null>(null)
+
+  const openShareDialog = React.useCallback(
+    (property: Property, investorId?: string) => {
+      setShareConfig({ property, investorIds: investorId ? [investorId] : undefined })
+    },
+    [],
+  )
+
   const crumbs = React.useMemo(
     () => [
       { label: "Investors", href: "/investors" },
@@ -64,15 +77,27 @@ export function InvestorDetail({
       <PageHeader
         title={
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={investor.avatar || "/placeholder.svg"} />
-              <AvatarFallback>
-                {investor.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
-            </Avatar>
+            <EditableAvatar
+              storageKey={`investor:${investor.id}`}
+              name={investor.name}
+              src={investor.avatar}
+              size={40}
+              onPersist={async (next) => {
+                // Best-effort persist. Works when API is wired + Supabase env exists.
+                try {
+                  const res = await fetch(`/api/investors/${investor.id}`, {
+                    method: "PATCH",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ avatar: next }),
+                  })
+                  if (!res.ok) throw new Error("Failed")
+                } catch {
+                  toast.message("Saved locally", {
+                    description: "Photo is saved on this device (server persistence not configured).",
+                  })
+                }
+              }}
+            />
             <span>{investor.name}</span>
           </div>
         }
@@ -100,6 +125,7 @@ export function InvestorDetail({
             <Button variant="outline" asChild>
               <a href={`/tasks?investorId=${investor.id}`}>Add task</a>
             </Button>
+            <EditInvestorProfileDialog investor={investor} />
           </>
         }
       />
@@ -145,9 +171,48 @@ export function InvestorDetail({
               <DocumentsTab />
             </TabsContent>
           </Tabs>
+
+          <InvestorRecommendedProperties investor={investor} onShare={(property) => openShareDialog(property, investor.id)} />
         </div>
 
         <ContextPanel title="Context">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Profile</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Segment</span>
+                  <span className="font-medium">{investor.segment?.replace(/_/g, " ") ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium">{investor.location ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Preferred contact</span>
+                  <span className="font-medium">{investor.preferredContactMethod ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">AUM</span>
+                  <span className="font-medium">
+                    {typeof investor.aumAed === "number" ? `AED ${investor.aumAed.toLocaleString()}` : "—"}
+                  </span>
+                </div>
+              </div>
+              {investor.tags?.length ? (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {investor.tags.slice(0, 6).map((t) => (
+                    <Badge key={t} variant="secondary" className="rounded-full">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Next best actions</CardTitle>
@@ -173,18 +238,27 @@ export function InvestorDetail({
               <CardTitle className="text-base">Recent notes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <div className="rounded-md border p-3">
-                Prefers Grade A assets with clear downside protection. Focus on Dubai Marina and Business Bay.
-              </div>
-              <div className="rounded-md border p-3">
-                Interested in off-market opportunities; expects quick turnaround once underwriting is complete.
-              </div>
+              {investor.notes ? (
+                <div className="rounded-md border p-3 whitespace-pre-wrap">{investor.notes}</div>
+              ) : (
+                <div className="rounded-md border p-3 text-muted-foreground">
+                  No notes yet. Use “Edit profile” to add relationship notes.
+                </div>
+              )}
             </CardContent>
           </Card>
         </ContextPanel>
       </div>
       </div>
     </ScopedInvestorGuard>
+      <PropertyShareDialog
+        property={shareConfig?.property ?? null}
+        initialInvestorIds={shareConfig?.investorIds}
+        open={!!shareConfig}
+        onOpenChange={(open) => {
+          if (!open) setShareConfig(null)
+        }}
+      />
     </>
   )
 }

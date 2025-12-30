@@ -7,7 +7,7 @@ import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/securi
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only managers can approve memos")
     }
@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
     const next = transitionMemo(memo, "ready")
-    saveMemo(next as any)
+    saveMemo(next)
 
     const write = createAuditEventWriter()
     await write(

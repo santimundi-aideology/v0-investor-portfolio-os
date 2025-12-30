@@ -41,6 +41,17 @@ export interface Investor {
   lastContact: string
   totalDeals: number
   avatar?: string
+
+  // --- Enriched profile (editable by internal roles) ---
+  location?: string
+  timezone?: string
+  preferredContactMethod?: "whatsapp" | "email" | "phone"
+  segment?: "family_office" | "hnwi" | "institutional" | "developer" | "other"
+  aumAed?: number
+  liquidityWindow?: "immediate" | "30-90d" | "90-180d" | "180d+"
+  leadSource?: string
+  tags?: string[]
+  notes?: string
 }
 
 export type PropertyReadinessStatus = "DRAFT" | "NEEDS_VERIFICATION" | "READY_FOR_MEMO"
@@ -86,6 +97,18 @@ export interface Property {
   readinessStatus: PropertyReadinessStatus
   price: number
   size: number
+  // Listing mode: sale vs rental
+  listingType?: "sale" | "rent"
+  // Rental management (only relevant when listingType === "rent")
+  leaseStatus?: "listed" | "vacant" | "occupied"
+  rentPaymentFrequency?: "monthly" | "quarterly" | "annually"
+  securityDepositAed?: number
+  furnished?: boolean
+  tenantName?: string
+  tenantEmail?: string
+  tenantPhone?: string
+  leaseStart?: string
+  leaseEnd?: string
   // New fields for intake
   unitType?: UnitType
   floor?: number
@@ -134,8 +157,8 @@ export interface Counterfactual {
   details?: string
   violatedConstraints?: {
     key: string
-    expected?: any
-    actual?: any
+    expected?: unknown
+    actual?: unknown
   }[]
   whatWouldChangeMyMind?: string[] // Optional suggestions (e.g., "If price < AED 4.2M")
   score?: number
@@ -181,7 +204,7 @@ export type RecommendationActivity = {
   at: string
   type: string
   label: string
-  meta?: any
+  meta?: Record<string, unknown>
 }
 
 export type RecommendationPropertyNote = {
@@ -210,6 +233,66 @@ export interface Recommendation {
   supersededById?: string
 }
 
+export interface MemoAnalysisMetric {
+  label: string
+  value: string
+  trend?: string
+}
+
+export interface MemoAnalysisComparable {
+  name: string
+  distance: string
+  size: string
+  closingDate: string
+  price: number
+  pricePerSqft: number
+  note?: string
+}
+
+export interface MemoAnalysis {
+  summary: string
+  keyPoints?: string[]
+  neighborhood?: {
+    name: string
+    grade: string
+    profile: string
+    highlights: string[]
+    metrics: MemoAnalysisMetric[]
+  }
+  property?: {
+    description: string
+    condition: string
+    specs: { label: string; value: string }[]
+    highlights: string[]
+  }
+  market?: {
+    overview: string
+    drivers: string[]
+    supply?: string
+    demand?: string
+    absorption?: string
+  }
+  pricing?: {
+    askingPrice: number
+    pricePerSqft: number
+    marketAvgPricePerSqft?: number
+    recommendedOffer: number
+    valueAddBudget?: number
+    stabilizedValue?: number
+    rentCurrent?: number
+    rentPotential?: number
+    irr?: number
+    equityMultiple?: number
+  }
+  comparables?: MemoAnalysisComparable[]
+  strategy?: {
+    plan: string
+    holdPeriod: string
+    exit: string
+    focusPoints: string[]
+  }
+}
+
 export interface Memo {
   id: string
   title: string
@@ -219,6 +302,7 @@ export interface Memo {
   propertyTitle: string
   status: "draft" | "review" | "approved" | "sent"
   content: string
+  analysis?: MemoAnalysis
   createdAt: string
   updatedAt: string
 }
@@ -251,6 +335,15 @@ export interface DealRoom {
   checklist: ChecklistItem[]
   timeline: TimelineEvent[]
   createdAt: string
+
+  // --- Enriched deal context (editable in future; shown in CRM) ---
+  lastUpdatedAt?: string
+  ticketSizeAed?: number
+  offerPriceAed?: number
+  targetCloseDate?: string
+  probability?: number // 0-100
+  nextStep?: string
+  summary?: string
 }
 
 export interface DealParty {
@@ -259,6 +352,7 @@ export interface DealParty {
   role: string
   email: string
   phone?: string
+  avatar?: string
 }
 
 export interface ChecklistItem {

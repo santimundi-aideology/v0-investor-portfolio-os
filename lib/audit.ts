@@ -46,9 +46,8 @@ export function createAuditEventWriter(insertFn?: (row: Record<string, unknown>)
       const supabase = getSupabaseAdminClient()
       const { error } = await supabase.from("audit_events").insert(row)
       if (error) throw error
-    } catch (e) {
+    } catch {
       // Fallback for local dev without DB wiring
-      // eslint-disable-next-line no-console
       console.info("[audit]", JSON.stringify(row))
     }
   }

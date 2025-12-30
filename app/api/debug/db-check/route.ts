@@ -22,18 +22,23 @@ export async function GET(req: Request) {
     results.audit_events = auditRes.error ? { ok: false, error: auditRes.error } : { ok: true };
 
     return Response.json({ ok: true, results }, { status: 200 });
-  } catch (err: any) {
-    console.error("db-check failed:", err);
+  } catch (err) {
+    const error = err as Error & {
+      code?: string;
+      hint?: string;
+      details?: string;
+    };
+    console.error("db-check failed:", error);
     return Response.json(
       {
         ok: false,
-        error: err?.message ?? String(err),
+        error: error?.message ?? String(err),
         // helpful for Supabase errors
         details: {
-          name: err?.name,
-          code: err?.code,
-          hint: err?.hint,
-          details: err?.details,
+          name: error?.name,
+          code: error?.code,
+          hint: error?.hint,
+          details: error?.details,
         },
         env: {
           NODE_ENV: process.env.NODE_ENV,

@@ -22,6 +22,7 @@ import { getPropertyById as getPropertyFromStore, getShortlistInvestors, getProp
 import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { RoleRedirect } from "@/components/security/role-redirect"
 import { PropertyImageGallery } from "@/components/properties/property-image-gallery"
+import { RentalManagementCard } from "@/components/properties/rental-management-card"
 import "@/lib/init-property-store"
 
 interface PropertyPageProps {
@@ -44,6 +45,12 @@ const typeLabels: Record<Property["type"], string> = {
 
 function formatPrice(price: number): string {
   return `AED ${price.toLocaleString()}`
+}
+
+function formatListingPrice(property: Property) {
+  const listingType = property.listingType ?? "sale"
+  const formatted = formatPrice(property.price)
+  return listingType === "rent" ? `${formatted}/yr` : formatted
 }
 
 function getTrustScoreColor(score: number): string {
@@ -108,6 +115,14 @@ async function PropertyPageContent({ id }: { id: string }) {
             <Badge variant="outline" className={statusColors[property.status]}>
               {property.status.replace("-", " ")}
             </Badge>
+            <Badge variant="secondary" className="capitalize">
+              {(property.listingType ?? "sale") === "rent" ? "For rent" : "For sale"}
+            </Badge>
+            {(property.listingType ?? "sale") === "rent" && property.leaseStatus ? (
+              <Badge variant="outline" className="capitalize">
+                {property.leaseStatus}
+              </Badge>
+            ) : null}
             {property.readinessStatus && (
               <Badge
                 variant="outline"
@@ -123,7 +138,7 @@ async function PropertyPageContent({ id }: { id: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <Badge variant="outline">{typeLabels[property.type]}</Badge>
-            <span className="text-2xl font-bold">{formatPrice(property.price)}</span>
+            <span className="text-2xl font-bold">{formatListingPrice(property)}</span>
           </div>
         </div>
         <div className="flex gap-2">
@@ -146,6 +161,9 @@ async function PropertyPageContent({ id }: { id: string }) {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main Content */}
         <div className="space-y-6 lg:col-span-2">
+          {/* Rental management */}
+          <RentalManagementCard property={property} />
+
           {/* Key Facts */}
           <Card>
             <CardHeader>

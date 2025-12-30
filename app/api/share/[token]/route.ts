@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { getInvestor, getMemo, resolveShareToken, saveMemo, store } from "@/lib/data/store"
+import { getMemo, resolveShareToken, saveMemo, store } from "@/lib/data/store"
 import { transitionMemo } from "@/lib/domain/memos"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -13,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   // idempotent sent->opened
   if (memo.state === "sent") {
     const next = transitionMemo(memo, "opened")
-    saveMemo(next as any)
+    saveMemo(next)
   }
 
   return NextResponse.json({ memoId: memo.id, investorId: memo.investorId, tenantId: store.tenantId })

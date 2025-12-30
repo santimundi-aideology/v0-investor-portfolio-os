@@ -7,7 +7,7 @@ import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/securi
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // Investor view auto-marks opened
     if (ctx.role === "investor" && memo.state === "sent") {
       const next = transitionMemo(memo, "opened")
-      saveMemo(next as any)
+      saveMemo(next)
       const write = createAuditEventWriter()
       await write(
         AuditEvents.memoOpened({
@@ -40,7 +40,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)
@@ -51,7 +51,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const body = await req.json()
     const updated = editMemoContent(memo, body.content ?? memo, ctx.userId)
-    saveMemo(updated as any)
+    saveMemo(updated)
 
     const write = createAuditEventWriter()
     await write(

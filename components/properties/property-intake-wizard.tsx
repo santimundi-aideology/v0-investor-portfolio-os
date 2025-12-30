@@ -137,7 +137,7 @@ export function PropertyIntakeWizard() {
     if (extractedData) {
       Object.entries(extractedData).forEach(([key, value]) => {
         if (value !== undefined) {
-          form.setValue(key as keyof PropertyFormData, value as any)
+          form.setValue(key as keyof PropertyFormData, value as never)
         }
       })
     }
@@ -163,7 +163,7 @@ export function PropertyIntakeWizard() {
       setExtractedData(extracted)
       setIsExtracting(false)
       setStep("review")
-    } catch (error) {
+    } catch {
       setIsExtracting(false)
       toast.error("Failed to extract property data")
     }
@@ -240,7 +240,7 @@ export function PropertyIntakeWizard() {
       } else {
         router.push(`/properties/${property.id}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to create property")
     }
   }
@@ -285,7 +285,6 @@ export function PropertyIntakeWizard() {
       {step === "review" && (
         <ReviewStep
           form={form}
-          extractedData={extractedData}
           uploadedFile={uploadedFile}
           intakeSource={intakeSource!}
           needsVerification={needsVerification}
@@ -781,7 +780,6 @@ function UploadStep({
 
 function ReviewStep({
   form,
-  extractedData,
   uploadedFile,
   intakeSource,
   needsVerification,

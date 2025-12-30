@@ -6,7 +6,7 @@ import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/se
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only manager or super_admin can reassign investors")
     }

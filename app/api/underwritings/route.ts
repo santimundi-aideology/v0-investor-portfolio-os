@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { listInvestorsByAgent, listInvestorsByTenant } from "@/lib/db/investors"
+import { listInvestorsByAgent } from "@/lib/db/investors"
 import { createUnderwritingDb, listUnderwritingsForAgent, listUnderwritingsForTenant } from "@/lib/db/underwritings"
 import { computeConfidence, computeScenarios } from "@/lib/domain/underwriting"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const tenantId = ctx.tenantId!
 
     if (ctx.role === "investor") throw new AccessError("Investors cannot access underwritings")
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can create underwritings")
 
     const body = await req.json()

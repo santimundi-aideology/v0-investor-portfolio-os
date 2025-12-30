@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Users, Building2, Calendar, Mail, Phone, CheckCircle2, Circle, FileText, Clock } from "lucide-react"
+import { ArrowLeft, Users, Building2, Calendar, CheckCircle2, Circle, FileText, Clock } from "lucide-react"
 import Link from "next/link"
 import { getDealRoomById } from "@/lib/mock-data"
 import type { DealRoom, TimelineEvent } from "@/lib/types"
+import { PartiesInvolvedCard } from "@/components/deal-room/parties-involved-card"
 
 interface DealRoomPageProps {
   params: Promise<{ id: string }>
@@ -196,39 +197,7 @@ export default async function DealRoomPage({ params }: DealRoomPageProps) {
 
         {/* Parties Involved */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Parties Involved</CardTitle>
-              <CardDescription>Key contacts for this deal</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {dealRoom.parties.map((party) => (
-                <div key={party.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{party.name}</p>
-                    <Badge variant="outline">{party.role}</Badge>
-                  </div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-3 w-3" />
-                      <a href={`mailto:${party.email}`} className="hover:text-foreground">
-                        {party.email}
-                      </a>
-                    </div>
-                    {party.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-3 w-3" />
-                        <a href={`tel:${party.phone}`} className="hover:text-foreground">
-                          {party.phone}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                  <Separator className="mt-3" />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <PartiesInvolvedCard dealRoomId={dealRoom.id} parties={dealRoom.parties} />
 
           {/* Deal Actions */}
           <Card>

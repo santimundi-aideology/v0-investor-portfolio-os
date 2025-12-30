@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { UnderwritingCompRecord } from "@/lib/data/store"
 
-function mapRow(row: any): UnderwritingCompRecord {
+function mapRow(row: Record<string, unknown>): UnderwritingCompRecord {
   return {
     id: row.id,
     tenantId: row.tenant_id,

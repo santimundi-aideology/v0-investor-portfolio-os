@@ -9,7 +9,6 @@ import type {
   Counterfactual,
   Recommendation,
   RecommendationDecision,
-  RecommendationStatus,
 } from "@/lib/types"
 import { getInvestorById, getPropertyById } from "@/lib/mock-data"
 
@@ -25,7 +24,7 @@ function newId() {
   return `rec-${seq}`
 }
 
-function pushActivity(rec: Recommendation, type: string, label: string, meta?: any) {
+function pushActivity(rec: Recommendation, type: string, label: string, meta?: Record<string, unknown>) {
   const at = nowIso()
   rec.activity.push({ at, type, label, meta })
   rec.lastActivityAt = at

@@ -6,7 +6,7 @@ import { AccessError, assertTenantScope, buildRequestContext } from "@/lib/secur
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     assertTenantScope(ctx.tenantId!, ctx)
     if (ctx.role === "investor") throw new AccessError("Investors cannot access listings")
     const listings = await listListings(ctx.tenantId!)
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") {
       throw new AccessError("Only agents can create listings")
     }

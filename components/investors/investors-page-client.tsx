@@ -5,8 +5,9 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Search, SlidersHorizontal, Users, UserPlus } from "lucide-react"
 
-import { mockInvestors } from "@/lib/mock-data"
 import type { Investor } from "@/lib/types"
+import { initInvestorStore, useInvestors } from "@/lib/investor-store"
+import { getDealRoomsByInvestorId, mockInvestors } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/layout/empty-state"
@@ -53,6 +54,12 @@ function safeDate(date: string) {
 export function InvestorsPageClient() {
   const { role } = useApp()
 
+  React.useEffect(() => {
+    initInvestorStore(mockInvestors)
+  }, [])
+
+  const allInvestors = useInvestors()
+
   const [query, setQuery] = React.useState("")
   const [status, setStatus] = React.useState<StatusFilter>("all")
   const [strategy, setStrategy] = React.useState<string>("all")
@@ -61,8 +68,8 @@ export function InvestorsPageClient() {
   const investors = React.useMemo(() => {
     // Investors must never see internal CRM views
     if (role === "investor") return []
-    return mockInvestors
-  }, [role])
+    return allInvestors
+  }, [allInvestors, role])
 
   const strategyOptions = React.useMemo(() => {
     const set = new Set<string>()
@@ -93,8 +100,12 @@ export function InvestorsPageClient() {
     const active = investors.filter((i) => i.status === "active").length
     const watching = investors.filter((i) => i.status === "pending").length
     const closed = investors.filter((i) => i.status === "inactive").length
-    const deals = investors.reduce((sum, i) => sum + (i.totalDeals ?? 0), 0)
-    return { total: investors.length, active, watching, closed, deals }
+    const deals = investors.reduce((sum, i) => sum + getDealRoomsByInvestorId(i.id).length, 0)
+    const ongoingDeals = investors.reduce(
+      (sum, i) => sum + getDealRoomsByInvestorId(i.id).filter((d) => d.status !== "completed").length,
+      0,
+    )
+    return { total: investors.length, active, watching, closed, deals, ongoingDeals }
   }, [investors])
 
   if (role === "investor") {
@@ -119,7 +130,7 @@ export function InvestorsPageClient() {
     <div className="space-y-6">
       <PageHeader
         title="Investors"
-        subtitle={`${stats.total} investors • ${stats.active} active • ${stats.watching} watching`}
+        subtitle={`${stats.total} investors • ${stats.active} active • ${stats.watching} watching • ${stats.ongoingDeals} active deals`}
         primaryAction={
           <Button
             onClick={() =>

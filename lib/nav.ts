@@ -3,6 +3,7 @@ import type { UserRole } from "@/lib/types"
 import {
   Building2,
   CheckSquare,
+  ClipboardList,
   FileText,
   FolderKanban,
   LayoutDashboard,
@@ -37,6 +38,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, rolesAllowed: ALL_ROLES },
       { label: "Real Estate", href: "/real-estate", icon: LineChart, rolesAllowed: ALL_ROLES },
+      { label: "Realtor Ops", href: "/realtor", icon: ClipboardList, rolesAllowed: INTERNAL_ROLES },
       { label: "Investors", href: "/investors", icon: Users, rolesAllowed: INTERNAL_ROLES },
       { label: "Properties", href: "/properties", icon: Building2, rolesAllowed: INTERNAL_ROLES },
       { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES },

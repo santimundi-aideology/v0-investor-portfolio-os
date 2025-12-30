@@ -48,9 +48,10 @@ export function PropertyCard({
 
   const priceLabel = useMemo(() => {
     if (!property.price) return "Price on request"
-    if (property.price >= 1_000_000) return `AED ${(property.price / 1_000_000).toFixed(1)}M`
-    return `AED ${(property.price / 1_000).toFixed(0)}K`
-  }, [property.price])
+    const formatted =
+      property.price >= 1_000_000 ? `AED ${(property.price / 1_000_000).toFixed(1)}M` : `AED ${(property.price / 1_000).toFixed(0)}K`
+    return (property.listingType ?? "sale") === "rent" ? `${formatted}/yr` : formatted
+  }, [property.price, property.listingType])
 
   const whyItFits = useMemo(() => {
     if (property.features?.length) return property.features.slice(0, 3)
@@ -97,6 +98,7 @@ export function PropertyCard({
           <div className="property-card__badges">
             {featured && <span className="property-badge property-badge--featured">Featured</span>}
             {isNew && <span className="property-badge property-badge--new">New</span>}
+            <span className="property-badge">{(property.listingType ?? "sale") === "rent" ? "For rent" : "For sale"}</span>
             <span className="property-badge capitalize">{property.type}</span>
           </div>
 

@@ -7,7 +7,7 @@ import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/securi
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const nextState = memo.state === "opened" ? "decided" : "decided"
     const next = transitionMemo(memo.state === "sent" ? transitionMemo(memo, "opened") : memo, nextState)
-    saveMemo(next as any)
+    saveMemo(next)
 
     const write = createAuditEventWriter()
     await write(

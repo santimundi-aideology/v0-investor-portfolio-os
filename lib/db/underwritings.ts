@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { UnderwritingRecord } from "@/lib/data/store"
 
-function mapRow(row: any): UnderwritingRecord {
+function mapRow(row: Record<string, unknown>): UnderwritingRecord {
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -47,8 +47,8 @@ export async function createUnderwritingDb(input: {
   tenantId: string
   investorId: string
   listingId: string
-  inputs?: any
-  scenarios?: any
+  inputs?: Record<string, unknown>
+  scenarios?: Record<string, unknown>
   createdBy?: string
   confidence?: string
 }) {

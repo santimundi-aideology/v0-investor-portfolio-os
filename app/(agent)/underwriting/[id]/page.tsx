@@ -5,12 +5,25 @@ import { useParams } from "next/navigation"
 
 import { evidenceWarnings, computeConfidence } from "@/lib/domain/underwriting"
 
+type UnderwritingInputs = {
+  price?: number
+  size?: number
+  fees?: number
+  rent?: number
+  vacancy?: number
+  exit?: number
+}
+
+type UnderwritingScenario = {
+  yield?: number
+}
+
 type Underwriting = {
   id: string
   investorId: string
   listingId?: string
-  inputs: any
-  scenarios: any
+  inputs: UnderwritingInputs
+  scenarios: Record<string, UnderwritingScenario>
   confidence?: string
   createdAt: string
   updatedAt: string

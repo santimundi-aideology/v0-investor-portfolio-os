@@ -3,9 +3,28 @@
 import * as React from "react"
 import { useParams } from "next/navigation"
 
+type Comp = {
+  description?: string
+  source?: string
+  source_detail?: string
+  price?: number
+  price_per_sqft?: number
+  rent_per_year?: number
+  observed_date?: string
+}
+
+type MemoContent = {
+  execSummary?: string
+  scenarios?: Record<string, unknown>
+  assumptions?: string[]
+  evidence?: {
+    comps?: Comp[]
+  }
+}
+
 type MemoVersion = {
   version: number
-  content: any
+  content: MemoContent
   createdAt: string
   createdBy: string
 }
@@ -52,9 +71,9 @@ export default function InvestorMemoDetailPage() {
   const [sending, setSending] = React.useState(false)
 
   const currentVersion = memo?.versions.find((v) => v.version === memo.currentVersion)
-  const content = (currentVersion?.content as any) ?? {}
-  const comps = (content.evidence?.comps as any[]) ?? []
-  const assumptions = (content.assumptions as string[]) ?? []
+  const content = currentVersion?.content ?? {}
+  const comps = content.evidence?.comps ?? []
+  const assumptions = content.assumptions ?? []
 
   React.useEffect(() => {
     async function load() {

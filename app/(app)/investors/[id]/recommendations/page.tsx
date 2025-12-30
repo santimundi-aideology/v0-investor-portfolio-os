@@ -101,7 +101,7 @@ export default function RecommendationsPage({ params }: { params: Promise<{ id: 
               <Badge variant="secondary">{bundle.recommended.length} recommended</Badge>
             </div>
             <CardDescription>
-              Properties that match the investor's mandate, budget, and portfolio constraints.
+              Properties that match the investor&apos;s mandate, budget, and portfolio constraints.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

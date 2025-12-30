@@ -2,7 +2,7 @@ import { differenceInDays } from "date-fns"
 
 export type ConfidenceLevel = "Low" | "Medium" | "High"
 
-export function computeConfidence(comps: { observedDate?: string }[], inputs: Record<string, unknown> = {}): ConfidenceLevel {
+export function computeConfidence(comps: { observedDate?: string }[], _inputs: Record<string, unknown> = {}): ConfidenceLevel {
   const freshComps = comps.filter((c) => {
     if (!c.observedDate) return false
     const days = Math.abs(differenceInDays(new Date(c.observedDate), new Date()))

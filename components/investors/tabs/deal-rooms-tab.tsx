@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, FolderKanban } from "lucide-react"
+import { Calendar, ExternalLink, FolderKanban, TrendingUp } from "lucide-react"
 import type { DealRoom } from "@/lib/types"
 
 interface DealRoomsTabProps {
@@ -71,13 +71,42 @@ export function DealRoomsTab({ dealRooms }: DealRoomsTabProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Created: {deal.createdAt}</span>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/deal-room/${deal.id}`}>
-                    Open <ExternalLink className="ml-1 h-3 w-3" />
-                  </Link>
-                </Button>
+              <div className="grid gap-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {deal.lastUpdatedAt ? `Updated: ${deal.lastUpdatedAt}` : `Created: ${deal.createdAt}`}
+                  </span>
+                  {typeof deal.ticketSizeAed === "number" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      AED {deal.ticketSizeAed.toLocaleString()}
+                    </span>
+                  ) : null}
+                  {typeof deal.probability === "number" ? (
+                    <Badge variant="secondary" className="rounded-full">
+                      {deal.probability}% probability
+                    </Badge>
+                  ) : null}
+                </div>
+
+                {deal.nextStep ? (
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Next step</div>
+                    <div className="text-sm">{deal.nextStep}</div>
+                  </div>
+                ) : null}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {deal.targetCloseDate ? `Target close: ${deal.targetCloseDate}` : " "}
+                  </span>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/deal-room/${deal.id}`}>
+                      Open <ExternalLink className="ml-1 h-3 w-3" />
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

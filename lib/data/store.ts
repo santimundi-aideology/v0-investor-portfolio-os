@@ -7,6 +7,7 @@ export type InvestorRecord = {
   company?: string
   email?: string
   phone?: string
+  avatar?: string
   status: "active" | "pending" | "inactive"
   mandate?: unknown
   createdAt: string
@@ -109,8 +110,8 @@ export type UnderwritingRecord = {
   tenantId: string
   investorId: string
   listingId: string
-  inputs: any
-  scenarios: any
+  inputs: Record<string, unknown>
+  scenarios: Record<string, unknown>
   confidence?: string
   createdBy?: string
   createdAt: string
@@ -145,6 +146,7 @@ export const store = {
       company: "Al-Fayed Investments",
       email: "m.alfayed@investments.ae",
       phone: "+971 50 123 4567",
+      avatar: "/placeholder-user.jpg",
       status: "active",
       createdAt: new Date().toISOString(),
       lastContact: new Date().toISOString(),
@@ -345,8 +347,8 @@ export function resolveShareToken(token: string) {
 export function createUnderwriting(input: {
   investorId: string
   listingId: string
-  inputs?: any
-  scenarios?: any
+  inputs?: Record<string, unknown>
+  scenarios?: Record<string, unknown>
   createdBy?: string
 }) {
   const now = new Date().toISOString()

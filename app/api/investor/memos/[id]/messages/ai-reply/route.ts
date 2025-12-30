@@ -2,12 +2,12 @@ import { createHash } from "crypto"
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addMessage, getInvestor, getMemo, store } from "@/lib/data/store"
+import { addMessage, getMemo, store } from "@/lib/data/store"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
@@ -17,9 +17,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
 
     const version = memo.currentVersion
-    const content = memo.versions.find((v) => v.version === version)?.content ?? {}
-    const assumptions = (content as any).assumptions ?? []
-    const scenarios = (content as any).numbers ?? (content as any).scenarios ?? {}
+    const content = memo.versions.find((v) => v.version === version)?.content ?? {} as Record<string, unknown>
+    const assumptions = (content.assumptions as string[]) ?? []
+    const scenarios = (content.numbers ?? content.scenarios ?? {}) as Record<string, unknown>
 
     const replyText = `Based on memo v${version}: assumptions=${JSON.stringify(
       assumptions,

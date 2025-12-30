@@ -1,10 +1,13 @@
+"use client"
+
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Building2, Calendar, Mail, Phone, Sparkles } from "lucide-react"
+import { Building2, Calendar, FolderKanban, Mail, Phone, Sparkles } from "lucide-react"
 import type { Investor } from "@/lib/types"
 import { Button } from "@/components/ui/button"
+import { EditableAvatar } from "@/components/ui/editable-avatar"
+import { getDealRoomsByInvestorId } from "@/lib/mock-data"
 
 interface InvestorCardProps {
   investor: Investor
@@ -20,21 +23,22 @@ export function InvestorCard({ investor }: InvestorCardProps) {
   const strategy = investor.mandate?.strategy
   const yieldTarget = investor.mandate?.yieldTarget
   const preferredAreasCount = investor.mandate?.preferredAreas?.length ?? 0
+  const ongoingDeals = getDealRoomsByInvestorId(investor.id).filter((d) => d.status !== "completed").length
+  const aumLabel = typeof investor.aumAed === "number" ? `AED ${(investor.aumAed / 1_000_000).toFixed(0)}M AUM` : null
 
   return (
     <Card className="group border-border/60 transition-all hover:-translate-y-0.5 hover:shadow-md">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-10 w-10 shrink-0">
-              <AvatarImage src={investor.avatar || "/placeholder.svg"} />
-              <AvatarFallback>
-                {investor.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
-            </Avatar>
+            <EditableAvatar
+              storageKey={`investor:${investor.id}`}
+              name={investor.name}
+              src={investor.avatar}
+              size={40}
+              editable={false}
+              className="shrink-0"
+            />
             <div className="min-w-0">
               <CardTitle className="text-base">
                 <Link href={`/investors/${investor.id}`} className="hover:underline">
@@ -80,10 +84,12 @@ export function InvestorCard({ investor }: InvestorCardProps) {
               <div className="font-medium">{yieldTarget ?? "—"}</div>
             </div>
             <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">Preferred areas</div>
-              <div className="font-medium">{preferredAreasCount ? `${preferredAreasCount} areas` : "—"}</div>
+              <div className="text-xs text-muted-foreground">Deals</div>
+              <div className="font-medium">{ongoingDeals ? `${ongoingDeals} active` : preferredAreasCount ? `${preferredAreasCount} areas` : "—"}</div>
             </div>
           </div>
+
+          {aumLabel ? <div className="text-xs text-muted-foreground">{aumLabel}</div> : null}
 
           <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
@@ -103,6 +109,14 @@ export function InvestorCard({ investor }: InvestorCardProps) {
                 Recommend
               </Link>
             </Button>
+            {ongoingDeals ? (
+              <Button size="sm" variant="ghost" asChild className="flex-1 sm:flex-none">
+                <Link href={`/investors/${investor.id}#dealRooms`}>
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  Deals
+                </Link>
+              </Button>
+            ) : null}
           </div>
         </div>
       </CardContent>

@@ -5,7 +5,7 @@ import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
     const investor = getInvestor(ctx.investorId)

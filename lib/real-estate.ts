@@ -139,7 +139,10 @@ export function calcIncomeToDate(holding: PropertyHolding, asOf = new Date()) {
   const purchaseDate = new Date(holding.purchaseDate)
   const monthsHeld = differenceInMonths(asOf, purchaseDate)
   const monthlyNet = calcAnnualNetRent(holding) / 12
-  return monthlyNet * monthsHeld
+  return {
+    net: monthlyNet * monthsHeld,
+    months: monthsHeld,
+  }
 }
 
 export function forecastMonthlyNetIncome(

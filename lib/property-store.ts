@@ -16,12 +16,12 @@
  * - Trust scoring rails
  */
 
-import type { Property, PropertyReadinessStatus, PropertySource, PropertyIngestionHistory } from "./types"
+import type { Property, PropertyReadinessStatus, PropertyIngestionHistory } from "./types"
 
 // In-memory store
 let properties: Property[] = []
-let propertyShortlists: Map<string, string[]> = new Map() // propertyId -> investorId[]
-let propertyMemos: Map<string, string[]> = new Map() // propertyId -> memoId[]
+const propertyShortlists: Map<string, string[]> = new Map() // propertyId -> investorId[]
+const propertyMemos: Map<string, string[]> = new Map() // propertyId -> memoId[]
 
 /**
  * Initialize with seed data

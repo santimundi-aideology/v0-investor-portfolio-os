@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { ListingRecord } from "@/lib/data/store"
 
-function mapListingRow(row: any): ListingRecord {
+function mapListingRow(row: Record<string, unknown>): ListingRecord {
   return {
     id: row.id,
     tenantId: row.tenant_id,

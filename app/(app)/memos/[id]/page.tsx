@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,32 @@ function formatDate(dateString: string): string {
     month: "long",
     day: "numeric",
   })
+}
+
+const currencyFormatter = new Intl.NumberFormat("en-AE", {
+  style: "currency",
+  currency: "AED",
+  maximumFractionDigits: 0,
+})
+
+const percentFormatter = new Intl.NumberFormat("en-AE", {
+  style: "percent",
+  maximumFractionDigits: 1,
+})
+
+function formatCurrency(value?: number) {
+  if (typeof value !== "number") return "—"
+  return currencyFormatter.format(value)
+}
+
+function formatPerSqft(value?: number) {
+  if (typeof value !== "number") return "—"
+  return `${currencyFormatter.format(value)} / sq ft`
+}
+
+function formatPercent(value?: number) {
+  if (typeof value !== "number") return "—"
+  return percentFormatter.format(value)
 }
 
 function renderMemoContent(content: string) {
@@ -98,6 +125,8 @@ export default async function MemoPage({ params }: MemoPageProps) {
     notFound()
   }
 
+  const analysis = memo.analysis
+
   return (
     <div className="space-y-6">
       {/* Back Button */}
@@ -153,16 +182,202 @@ export default async function MemoPage({ params }: MemoPageProps) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Main Content */}
-        <Card className="lg:col-span-3">
-          <CardContent className="pt-6">
-            <div className="prose prose-sm max-w-none dark:prose-invert">{renderMemoContent(memo.content)}</div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-3 space-y-6">
+          {analysis ? (
+            <>
+              <AnalysisSection title="Executive Summary" description="How this property meets the mandate">
+                <p className="text-muted-foreground">{analysis.summary}</p>
+                {analysis.keyPoints?.length ? (
+                  <ul className="space-y-2 text-sm leading-6 text-foreground">
+                    {analysis.keyPoints.map((point, idx) => (
+                      <li key={`key-point-${idx}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </AnalysisSection>
 
-        {/* Sidebar */}
+              {analysis.neighborhood ? (
+                <AnalysisSection title="Neighborhood Analysis" description={analysis.neighborhood.name}>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <Badge variant="secondary" className="uppercase">
+                      Grade {analysis.neighborhood.grade}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">{analysis.neighborhood.profile}</p>
+                  {analysis.neighborhood.metrics?.length ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {analysis.neighborhood.metrics.map((metric) => (
+                        <StatTile key={`${metric.label}-${metric.value}`} label={metric.label} value={metric.value} hint={metric.trend} />
+                      ))}
+                    </div>
+                  ) : null}
+                  {analysis.neighborhood.highlights?.length ? (
+                    <ul className="space-y-2 text-sm text-foreground">
+                      {analysis.neighborhood.highlights.map((highlight, idx) => (
+                        <li key={`neighborhood-highlight-${idx}`} className="flex gap-2">
+                          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                          <span>{highlight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </AnalysisSection>
+              ) : null}
+
+              {analysis.property ? (
+                <AnalysisSection title="Property Description" description={analysis.property.condition}>
+                  <p className="text-muted-foreground">{analysis.property.description}</p>
+                  {analysis.property.specs?.length ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {analysis.property.specs.map((spec) => (
+                        <div key={spec.label} className="rounded-lg border bg-muted/40 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{spec.label}</p>
+                          <p className="text-base font-semibold">{spec.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {analysis.property.highlights?.length ? (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Highlights</p>
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {analysis.property.highlights.map((highlight, idx) => (
+                          <li key={`property-highlight-${idx}`} className="flex gap-2">
+                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                            <span>{highlight}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </AnalysisSection>
+              ) : null}
+
+              {analysis.market ? (
+                <AnalysisSection title="Market Analysis" description="Demand & supply signals">
+                  <p className="text-muted-foreground">{analysis.market.overview}</p>
+                  {analysis.market.drivers?.length ? (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Key drivers</p>
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {analysis.market.drivers.map((driver, idx) => (
+                          <li key={`market-driver-${idx}`} className="flex gap-2">
+                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                            <span>{driver}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {analysis.market.supply ? (
+                      <StatTile label="Supply" value={analysis.market.supply} hint="Pipeline view" />
+                    ) : null}
+                    {analysis.market.demand ? (
+                      <StatTile label="Demand" value={analysis.market.demand} hint="Tenant profile" />
+                    ) : null}
+                    {analysis.market.absorption ? (
+                      <StatTile label="Absorption" value={analysis.market.absorption} hint="Last 12 months" />
+                    ) : null}
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {analysis.pricing ? (
+                <AnalysisSection title="Pricing & Upside" description="Actual vs potential value">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <StatTile label="Asking price" value={formatCurrency(analysis.pricing.askingPrice)} />
+                    <StatTile label="Recommended offer" value={formatCurrency(analysis.pricing.recommendedOffer)} />
+                    <StatTile label="Stabilized value" value={formatCurrency(analysis.pricing.stabilizedValue)} />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <StatTile label="Price / sq ft" value={formatPerSqft(analysis.pricing.pricePerSqft)} hint="Subject" />
+                    <StatTile label="Market avg / sq ft" value={formatPerSqft(analysis.pricing.marketAvgPricePerSqft)} hint="Recent trades" />
+                    <StatTile label="Value-add budget" value={formatCurrency(analysis.pricing.valueAddBudget)} />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border bg-muted/40 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">In-place rent</p>
+                      <p className="text-xl font-semibold">{formatCurrency(analysis.pricing.rentCurrent)}</p>
+                      <p className="text-sm text-muted-foreground">Stabilized: {formatCurrency(analysis.pricing.rentPotential)}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/40 p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Projected returns</p>
+                      <p className="text-xl font-semibold">{formatPercent(analysis.pricing.irr)}</p>
+                      <p className="text-sm text-muted-foreground">Equity multiple: {analysis.pricing.equityMultiple?.toFixed(2) ?? "—"}x</p>
+                    </div>
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {analysis.comparables?.length ? (
+                <AnalysisSection title="Comparable Sales" description="Recent reference trades">
+                  <div className="space-y-3">
+                    {analysis.comparables.map((comp) => (
+                      <div key={`${comp.name}-${comp.closingDate}`} className="rounded-lg border bg-card/50 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
+                          <span>{comp.name}</span>
+                          <span className="text-muted-foreground">{comp.distance}</span>
+                        </div>
+                        <p className="text-xs uppercase text-muted-foreground">{comp.closingDate}</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <p className="text-xs uppercase text-muted-foreground">Price</p>
+                            <p className="text-base font-semibold">{formatCurrency(comp.price)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-muted-foreground">Size</p>
+                            <p className="text-base font-semibold">{comp.size}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-muted-foreground">Price / sq ft</p>
+                            <p className="text-base font-semibold">{formatPerSqft(comp.pricePerSqft)}</p>
+                          </div>
+                        </div>
+                        {comp.note ? <p className="mt-2 text-sm text-muted-foreground">{comp.note}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {analysis.strategy ? (
+                <AnalysisSection title="Strategy & Execution" description={`${analysis.strategy.holdPeriod} • ${analysis.strategy.exit}`}>
+                  <p className="text-muted-foreground">{analysis.strategy.plan}</p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {analysis.strategy.focusPoints.map((point, idx) => (
+                      <li key={`strategy-point-${idx}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AnalysisSection>
+              ) : null}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Full Memo Narrative</CardTitle>
+                  <CardDescription>Original markdown memo</CardDescription>
+                </CardHeader>
+                <CardContent className="prose prose-sm max-w-none dark:prose-invert">{renderMemoContent(memo.content)}</CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Memo Content</CardTitle>
+                <CardDescription>Full memo text</CardDescription>
+              </CardHeader>
+              <CardContent className="prose prose-sm max-w-none dark:prose-invert">{renderMemoContent(memo.content)}</CardContent>
+        </Card>
+          )}
+        </div>
+
         <div className="space-y-6">
-          {/* Status Card */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Status</CardTitle>
@@ -188,7 +403,6 @@ export default async function MemoPage({ params }: MemoPageProps) {
             </CardContent>
           </Card>
 
-          {/* Workflow Card */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Workflow</CardTitle>
@@ -215,12 +429,11 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 </Button>
               )}
               {memo.status === "sent" && (
-                <p className="text-sm text-muted-foreground text-center py-2">Memo has been sent to investor</p>
+                <p className="py-2 text-center text-sm text-muted-foreground">Memo has been sent to investor</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Quick Links */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Related</CardTitle>
@@ -242,6 +455,40 @@ export default async function MemoPage({ params }: MemoPageProps) {
           </Card>
         </div>
       </div>
+    </div>
+  )
+}
+
+interface AnalysisSectionProps {
+  title: string
+  description?: string
+  children: ReactNode
+}
+
+function AnalysisSection({ title, description, children }: AnalysisSectionProps) {
+  return (
+    <Card className="border-muted/60">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">{children}</CardContent>
+    </Card>
+  )
+}
+
+interface StatTileProps {
+  label: string
+  value?: string | number
+  hint?: string
+}
+
+function StatTile({ label, value, hint }: StatTileProps) {
+  return (
+    <div className="rounded-lg border bg-muted/50 p-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold">{value ?? "—"}</p>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

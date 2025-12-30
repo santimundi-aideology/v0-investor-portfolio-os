@@ -2,12 +2,11 @@ import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { createInvestorDb, listInvestorsByAgent, listInvestorsByTenant } from "@/lib/db/investors"
-import { getInvestor } from "@/lib/data/store"
-import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
+import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const tenantId = ctx.tenantId!
 
     if (ctx.role === "investor") {
@@ -29,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role === "investor") throw new AccessError("Investors cannot create investors")
     const body = await req.json()
 

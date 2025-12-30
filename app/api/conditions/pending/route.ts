@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 
-import { getDecisionByMemo, getInvestor, getMemo, store } from "@/lib/data/store"
+import { getInvestor, store } from "@/lib/data/store"
 import { AccessError, buildRequestContext } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     const tenantId = ctx.tenantId!
 
     if (ctx.role === "investor") throw new AccessError("Forbidden")
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
         return { decision: d, memo, investor }
       })
       .filter(({ memo, investor }) => memo && investor)
-      .filter(({ memo, investor }) => {
+      .filter(({ investor }) => {
         if (ctx.role === "manager" || ctx.role === "super_admin") return true
         if (ctx.role === "agent") return investor!.assignedAgentId === ctx.userId
         return false

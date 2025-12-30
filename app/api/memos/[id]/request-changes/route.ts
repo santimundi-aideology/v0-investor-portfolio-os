@@ -7,7 +7,7 @@ import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/securi
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only managers can request changes")
     }
@@ -19,7 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const body = await req.json()
     const next = transitionMemo(memo, "draft")
-    saveMemo(next as any)
+    saveMemo(next)
 
     const write = createAuditEventWriter()
     await write(

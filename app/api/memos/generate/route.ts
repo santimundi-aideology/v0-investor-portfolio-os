@@ -8,7 +8,7 @@ import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/se
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req as any)
+    const ctx = buildRequestContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can generate memos")
 
     const body = await req.json()
@@ -92,8 +92,8 @@ function buildMemoContent({
   warnings,
   confidence,
 }: {
-  uw: any
-  comps: any[]
+  uw: Record<string, unknown>
+  comps: Record<string, unknown>[]
   trustStatus: string
   trustReason?: string
   warnings: string[]
