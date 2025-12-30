@@ -35,7 +35,7 @@ function coerceNumber(v: unknown): number | null {
   return null
 }
 
-export function computeTargetsForSignal(args: {
+export async function computeTargetsForSignal(args: {
   orgId: string
   signal: MarketSignalRow
   investors: InvestorWithMandate[]

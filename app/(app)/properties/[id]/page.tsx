@@ -18,12 +18,10 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { getPropertyById } from "@/lib/mock-data"
-import { getPropertyById as getPropertyFromStore, getShortlistInvestors, getPropertyMemos } from "@/lib/property-store"
 import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { RoleRedirect } from "@/components/security/role-redirect"
 import { PropertyImageGallery } from "@/components/properties/property-image-gallery"
 import { RentalManagementCard } from "@/components/properties/rental-management-card"
-import "@/lib/init-property-store"
 
 interface PropertyPageProps {
   params: Promise<{ id: string }>
@@ -83,19 +81,17 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
 }
 
 async function PropertyPageContent({ id }: { id: string }) {
-  // Try store first, fallback to mock data
-  let property = getPropertyFromStore(id)
-  if (!property) {
-    property = getPropertyById(id)
-  }
+  // Server-rendered property pages should not rely on client-side stores.
+  // Use mock data (or replace with DB lookup in production).
+  const property = getPropertyById(id)
 
   if (!property) {
     notFound()
   }
 
-  // Get associations
-  const shortlistInvestors = getShortlistInvestors(id)
-  const linkedMemos = getPropertyMemos(id)
+  // Store-backed associations are client-side; keep placeholders on server for now.
+  const shortlistInvestors: string[] = []
+  const linkedMemos: string[] = []
 
   return (
     <div className="space-y-6">

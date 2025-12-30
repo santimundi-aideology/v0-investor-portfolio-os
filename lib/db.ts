@@ -180,15 +180,21 @@ export const db = {
 
   /**
    * Upserts market signals into `market_signal` when present; otherwise logs and no-ops.
+   * Returns the number of rows upserted (or 0 if table doesn't exist).
    */
-  async upsertMarketSignals(rows: UpsertMarketSignalInput[]) {
-    if (rows.length === 0) return
+  async upsertMarketSignals(rows: UpsertMarketSignalInput[]): Promise<number> {
+    if (rows.length === 0) return 0
     try {
       const supabase = getSupabaseAdminClient()
-      const { error } = await supabase.from("market_signal").upsert(rows, { onConflict: "signal_key" })
+      const { data, error } = await supabase
+        .from("market_signal")
+        .upsert(rows, { onConflict: "signal_key" })
+        .select("id")
       if (error) throw error
+      return data?.length ?? rows.length
     } catch (e) {
       console.warn("[db] unable to upsert into market_signal; skipping.", e)
+      return 0
     }
   },
 }

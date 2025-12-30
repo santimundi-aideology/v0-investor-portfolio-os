@@ -48,7 +48,7 @@ function getActivityIcon(type: string) {
   }
 }
 
-export default function DashboardPage() {
+function DashboardPage() {
   const { role, scopedInvestorId } = useApp()
 
   if (role === "investor") {
@@ -459,3 +459,5 @@ function TaskRow({ task, today }: { task: Task; today: Date }) {
     </div>
   )
 }
+
+export default DashboardPage

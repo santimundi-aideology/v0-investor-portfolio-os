@@ -91,7 +91,8 @@ export async function detectSignalsPortal(orgId: string) {
     }
   }
 
-  await db.upsertMarketSignals(toUpsert)
+  const created = await db.upsertMarketSignals(toUpsert)
+  return { created }
 }
 
 

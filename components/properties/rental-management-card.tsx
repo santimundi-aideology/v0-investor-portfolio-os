@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Home, KeyRound, Save } from "lucide-react"
 
 import type { Property } from "@/lib/types"
+import "@/lib/init-property-store"
 import { updateProperty } from "@/lib/property-store"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

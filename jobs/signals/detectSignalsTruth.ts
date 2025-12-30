@@ -141,7 +141,8 @@ export async function detectSignalsTruth(orgId: string) {
     }
   }
 
-  await db.upsertMarketSignals(toUpsert)
+  const created = await db.upsertMarketSignals(toUpsert)
+  return { created }
 }
 
 

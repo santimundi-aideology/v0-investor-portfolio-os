@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Building2, MapPin, TrendingUp, Plus, LayoutGrid, List } from "lucide-react"
 import Link from "next/link"
 import { mockProperties, currentUser } from "@/lib/mock-data"
+import "@/lib/init-property-store"
 import { getAllProperties } from "@/lib/property-store"
 import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
@@ -360,4 +361,6 @@ export function PropertiesContent() {
     </div>
   )
 }
+
+export default PropertiesContent
 
