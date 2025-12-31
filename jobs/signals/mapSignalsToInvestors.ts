@@ -56,6 +56,8 @@ export async function computeTargetsForSignal(args: {
     if (!inv?.id) continue
 
     let score = 0
+    const contributions: Record<string, number> = {}
+    const meta: Record<string, unknown> = {}
     const matched: string[] = []
     const details: Record<string, unknown> = {}
 
@@ -69,7 +71,9 @@ export async function computeTargetsForSignal(args: {
         continue
       }
       if (signal.current_value >= target) {
-        score += 0.3
+        const add = 0.3
+        score += add
+        contributions.yield = add
         matched.push("yield")
         details.yield = { yield_target: target, signal_yield: signal.current_value }
       } else {
@@ -85,11 +89,15 @@ export async function computeTargetsForSignal(args: {
 
     const areaMatched = preferredAreas.includes(signal.geo_id) || preferredProjects.includes(signal.geo_id)
     if (areaMatched) {
-      score += 0.35
+      const add = 0.35
+      score += add
+      contributions.area = add
       matched.push("area")
       details.area = { matched_geo_id: signal.geo_id }
     } else if (open) {
-      score += 0.15
+      const add = 0.15
+      score += add
+      contributions.area_open = add
       matched.push("area_open")
       details.area = { open: true }
     } else {
@@ -102,14 +110,18 @@ export async function computeTargetsForSignal(args: {
     const budgetMax = coerceNumber(mandate.budget_max)
 
     if (!priceRelated || budgetMin === null || budgetMax === null) {
-      score += 0.1
+      const add = 0.1
+      score += add
+      contributions.budget_soft = add
       matched.push("budget_soft")
       details.budget = { applied: "soft", price_related: priceRelated, budget_min: budgetMin, budget_max: budgetMax }
     } else {
       const within = signal.current_value >= budgetMin && signal.current_value <= budgetMax
       details.budget = { applied: "hard", price_related: true, budget_min: budgetMin, budget_max: budgetMax, within }
       if (within) {
-        score += 0.25
+        const add = 0.25
+        score += add
+        contributions.budget = add
         matched.push("budget")
       }
     }
@@ -117,7 +129,9 @@ export async function computeTargetsForSignal(args: {
     // --- Portfolio exposure boost (hook) ---
     const exposure = await getExposure(orgId, inv.id, signal.geo_id)
     if (exposure?.hasExposure) {
-      score += 0.1
+      const add = 0.1
+      score += add
+      contributions.portfolio_exposure = add
       matched.push("portfolio_exposure")
       details.portfolio_exposure = exposure.details ?? { geo_id: signal.geo_id }
     }
@@ -126,11 +140,25 @@ export async function computeTargetsForSignal(args: {
     const riskyTypes = new Set(["risk_flag", "discounting_spike", "supply_spike", "staleness_rise"])
     const riskTolerance = (mandate.risk_tolerance ?? "medium") as string
     if (riskyTypes.has(signal.type) && riskTolerance === "low") {
-      if (score > 0.65) score = 0.65
+      meta.pre_cap_score = score
+      if (score > 0.65) {
+        meta.cap_applied = true
+        meta.cap_value = 0.65
+        score = 0.65
+      } else {
+        meta.cap_applied = false
+        meta.cap_value = 0.65
+      }
       details.risk_note = "low_risk_tolerance_cap_applied"
     }
 
     score = clamp01(score)
+    meta.final_score = score
+    details.score_breakdown = {
+      contributions,
+      meta,
+      min_score: 0.35,
+    }
 
     if (score < 0.35) {
       skipped.push({ investorId: inv.id, reason: "below_threshold" })

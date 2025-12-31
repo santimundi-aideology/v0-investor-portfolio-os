@@ -30,7 +30,7 @@ const columns = [
   { id: "done", title: "Done", status: "done" as const },
 ]
 
-export default function TasksPage() {
+function TasksPage() {
   return (
     <>
       <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/real-estate" />
@@ -241,3 +241,5 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
     </Dialog>
   )
 }
+
+export default TasksPage

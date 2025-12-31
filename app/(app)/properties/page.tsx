@@ -1,7 +1,7 @@
 import { Suspense } from "react"
-import { PropertiesContent } from "@/components/properties/properties-content"
 import { LoadingSkeleton } from "@/components/layout/loading-skeleton"
 import { RoleRedirect } from "@/components/security/role-redirect"
+import { PropertiesContent } from "@/components/properties/properties-content"
 
 export default function PropertiesPage() {
   return (

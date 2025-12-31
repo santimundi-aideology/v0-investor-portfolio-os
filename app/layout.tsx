@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
+import { GlobalAskAIWidget } from "@/components/ai/global-ask-ai-widget"
 import "./globals.css"
 
 const inter = Inter({ 
@@ -45,6 +46,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
+        <GlobalAskAIWidget />
         <Toaster position="top-right" />
         <Analytics />
       </body>

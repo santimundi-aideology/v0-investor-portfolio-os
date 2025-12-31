@@ -23,9 +23,7 @@ export function EmptyState({
       )}
     >
       {icon ? (
-        <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-md">
-          {icon}
-        </div>
+        <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-md">{icon}</div>
       ) : null}
       <div>
         <div className="font-medium">{title}</div>

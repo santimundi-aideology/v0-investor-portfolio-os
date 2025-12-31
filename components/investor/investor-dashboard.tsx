@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowUpRight, Bell, Building2, CalendarClock, FileText, FolderKanban } from "lucide-react"
+import { ArrowUpRight, Bell, Building2, CalendarClock, FileText, FolderKanban, Radar } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { ContextPanel } from "@/components/layout/context-panel"
@@ -17,6 +17,8 @@ import { MiniLineSparkline } from "@/components/charts/mini-line-sparkline"
 import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
 import { cn } from "@/lib/utils"
 import { mockDealRooms, mockMemos, mockProperties } from "@/lib/mock-data"
+import { notifications } from "@/lib/mock-session"
+import { formatMarketSignalType, mockMarketSignals } from "@/lib/mock-market-signals"
 import type { DealRoom } from "@/lib/types"
 import {
   calcAppreciationPct,
@@ -104,6 +106,9 @@ export function InvestorDashboard({
     () => mockMemos.filter((m) => m.investorId === investorId).slice(0, 3),
     [investorId],
   )
+
+  const latestNotifications = React.useMemo(() => notifications.slice(0, 3), [])
+  const latestSignals = React.useMemo(() => mockMarketSignals.slice(0, 3), [])
 
   const aiQuestions = [
     "How is my portfolio performing vs market?",
@@ -293,8 +298,81 @@ export function InvestorDashboard({
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <AlertRow title="Rent renewal window" body="One lease is within 45 days of renewal. Consider a re-price strategy." />
-              <AlertRow title="Market signal" body="Dubai Marina office demand remains resilient; cap rates stable." />
               <AlertRow title="Document request" body="A due diligence document is pending in your Deal Room." />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Bell className="size-4 text-primary" />
+                  Latest notifications
+                </CardTitle>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/notifications">View all</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {latestNotifications.length ? (
+                latestNotifications.map((n) => (
+                  <Button key={n.id} asChild variant="outline" className="w-full justify-between">
+                    <Link href={n.href ?? "/notifications"}>
+                      <span className="truncate">{n.title}</span>
+                      {n.unread ? (
+                        <Badge variant="secondary" className="ml-3 shrink-0">
+                          New
+                        </Badge>
+                      ) : null}
+                    </Link>
+                  </Button>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">No notifications yet.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Radar className="size-4 text-primary" />
+                  Latest market signals
+                </CardTitle>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/market-signals">Open feed</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {latestSignals.length ? (
+                latestSignals.map((s) => (
+                  <Button key={s.id} asChild variant="outline" className="w-full justify-between">
+                    <Link href="/market-signals">
+                      <span className="truncate">
+                        {formatMarketSignalType(s.type)} • {s.geoName} ({s.segment})
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "ml-3 shrink-0 capitalize",
+                          s.severity === "urgent"
+                            ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                            : s.severity === "watch"
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                              : "border-border",
+                        )}
+                      >
+                        {s.severity}
+                      </Badge>
+                    </Link>
+                  </Button>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">No signals yet.</div>
+              )}
             </CardContent>
           </Card>
 

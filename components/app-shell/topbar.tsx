@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { useApp, usePersonas } from "@/components/providers/app-provider"
 import { notifications } from "@/lib/mock-session"
+import { NotificationCenter } from "@/components/notifications/notification-center"
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -28,7 +29,8 @@ interface TopbarProps {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
   const personas = usePersonas()
-  const unreadCount = notifications.filter((n) => n.unread).length
+  const [notificationItems, setNotificationItems] = useState(notifications)
+  const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
@@ -108,32 +110,12 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </Button>
 
         {isHydrated ? (
-        <Popover>
+          <Popover>
             <PopoverTrigger asChild>{notificationsButton}</PopoverTrigger>
-          <PopoverContent align="end" className="w-96">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-medium">Notifications</div>
-              {unreadCount ? <Badge variant="secondary">{unreadCount} new</Badge> : null}
-            </div>
-            <div className="mt-3 space-y-3">
-              {notifications.map((n) => (
-                <div key={n.id} className="flex gap-3 rounded-md border p-3">
-                  <div className="bg-muted flex size-9 items-center justify-center rounded-md">
-                    <Sparkles className="size-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="truncate text-sm font-medium">{n.title}</div>
-                      {n.unread ? <Badge variant="outline">New</Badge> : null}
-                    </div>
-                    <div className="text-muted-foreground mt-0.5 text-sm">{n.body}</div>
-                    <div className="text-muted-foreground mt-1 text-xs">{n.createdAt}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+            <PopoverContent align="end" className="w-[28rem]">
+              <NotificationCenter notifications={notificationItems} onChange={setNotificationItems} variant="popover" />
+            </PopoverContent>
+          </Popover>
         ) : (
           notificationsButton
         )}

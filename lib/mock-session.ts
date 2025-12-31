@@ -11,6 +11,7 @@ export type Notification = {
   body: string
   createdAt: string
   unread?: boolean
+  href?: string
 }
 
 export const orgs: Org[] = [
@@ -27,17 +28,20 @@ export const notifications: Notification[] = [
     body: "Schedule site visit for Marina Tower Office Suite",
     createdAt: "Today • 10:12",
     unread: true,
+    href: "/tasks",
   },
   {
     id: "n-2",
     title: "IC memo approved",
     body: "Marina Tower Office Suite memo was approved",
     createdAt: "Yesterday • 18:40",
+    href: "/memos",
   },
   {
     id: "n-3",
     title: "Deal room updated",
     body: "JVC Villa moved to due diligence phase",
     createdAt: "2 days ago • 09:05",
+    href: "/deal-room",
   },
 ]

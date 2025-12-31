@@ -1,3 +1,7 @@
+/**
+ * AI Banker chat dialog shown in realtor flows.
+ * The file had multiple duplicate copies; reduced to a single export.
+ */
 "use client"
 
 import * as React from "react"
@@ -88,12 +92,16 @@ export function AIBankerChatInterface({
             pagePath,
             scopedInvestorId,
             propertyId,
-            messages: [
-              { role: "user", content: trimmed },
-            ],
+            messages: [{ role: "user", content: trimmed }],
           }),
         })
-        const json = await res.json()
+        const json = await res.json().catch(() => null)
+        if (!res.ok) {
+          const err = (json && (json.detail || json.error)) || `Request failed (${res.status})`
+          setMessages((prev) => [...prev, { role: "assistant", content: String(err) }])
+          return
+        }
+
         const reply = json?.message?.content ?? "I couldn’t generate a response."
         setMessages((prev) => [...prev, { role: "assistant", content: String(reply) }])
       } finally {
@@ -136,9 +144,7 @@ export function AIBankerChatInterface({
                       key={idx}
                       className={cn(
                         "max-w-[90%] rounded-lg border p-3 text-sm leading-relaxed",
-                        m.role === "user"
-                          ? "ml-auto bg-muted"
-                          : "mr-auto bg-background",
+                        m.role === "user" ? "ml-auto bg-muted" : "mr-auto bg-background",
                       )}
                     >
                       <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
@@ -203,5 +209,7 @@ export function AIBankerChatInterface({
     </Dialog>
   )
 }
+
+export default AIBankerChatInterface
 
 

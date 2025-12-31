@@ -141,7 +141,13 @@ export async function runMapSignalsToInvestorsDemo() {
     signalId: string
     signalType: string
     geoName: string
-    targets: Array<{ investorId: string; score: number; matched: string[] }>
+    targets: Array<{
+      investorId: string
+      score: number
+      matched: string[]
+      breakdown?: unknown
+      risk_note?: unknown
+    }>
     skipped: Array<{ investorId: string; reason: string }>
   }> = []
 
@@ -172,9 +178,39 @@ export async function runMapSignalsToInvestorsDemo() {
       const investor = investors.find((inv) => inv.id === target.investor_id)
       const reason = target.reason as Record<string, unknown>
       const matched = (reason?.matched as string[]) || []
+      const detailsObj = (reason?.details as Record<string, unknown>) || ({} as Record<string, unknown>)
+      const breakdown = (detailsObj.score_breakdown as Record<string, unknown>) || ({} as Record<string, unknown>)
+      const contributions = (breakdown.contributions as Record<string, unknown>) || ({} as Record<string, unknown>)
+      const meta = (breakdown.meta as Record<string, unknown>) || ({} as Record<string, unknown>)
       console.log(`      ✅ ${investor?.name || target.investor_id}`)
       console.log(`         Score: ${(target.relevance_score * 100).toFixed(0)}%`)
       console.log(`         Matched: ${matched.join(", ")}`)
+      console.log(`         Breakdown:`)
+
+      const ordered: Array<[string, unknown]> = [
+        ["yield", contributions.yield],
+        ["area", contributions.area],
+        ["area_open", contributions.area_open],
+        ["budget", contributions.budget],
+        ["budget_soft", contributions.budget_soft],
+        ["portfolio_exposure", contributions.portfolio_exposure],
+      ]
+
+      for (const [k, v] of ordered) {
+        if (typeof v === "number") {
+          console.log(`           - ${k}: +${v.toFixed(2)}`)
+        }
+      }
+
+      if (meta.cap_applied === true) {
+        const pre = typeof meta.pre_cap_score === "number" ? meta.pre_cap_score : null
+        const cap = typeof meta.cap_value === "number" ? meta.cap_value : null
+        if (pre !== null && cap !== null) {
+          console.log(`           - cap_applied: pre=${pre.toFixed(2)} → cap=${cap.toFixed(2)}`)
+        } else {
+          console.log(`           - cap_applied: true`)
+        }
+      }
     }
 
     if (res.skipped.length > 0) {
@@ -189,11 +225,17 @@ export async function runMapSignalsToInvestorsDemo() {
       signalId: signal.id,
       signalType: signal.type,
       geoName: signal.geo_name || signal.geo_id,
-      targets: res.rows.map((t) => ({
-        investorId: t.investor_id,
-        score: t.relevance_score,
-        matched: ((t.reason as Record<string, unknown>)?.matched as string[]) || [],
-      })),
+      targets: res.rows.map((t) => {
+        const reason = t.reason as Record<string, unknown>
+        const details = (reason?.details as Record<string, unknown>) || {}
+        return {
+          investorId: t.investor_id,
+          score: t.relevance_score,
+          matched: (reason?.matched as string[]) || [],
+          breakdown: details.score_breakdown,
+          risk_note: details.risk_note,
+        }
+      }),
       skipped: res.skipped,
     })
   }
