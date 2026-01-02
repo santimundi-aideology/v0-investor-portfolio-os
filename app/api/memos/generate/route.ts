@@ -99,12 +99,13 @@ function buildMemoContent({
   warnings: string[]
   confidence: string
 }) {
+  const inputs = (uw["inputs"] ?? {}) as Record<string, unknown>
   const assumptions = [
-    uw.inputs?.price ? `Purchase price: ${uw.inputs.price}` : "Purchase price: Unknown",
-    uw.inputs?.rent ? `Rent: ${uw.inputs.rent}` : "Rent: Unknown",
-    uw.inputs?.fees ? `Fees: ${uw.inputs.fees}` : "Fees: Unknown",
-    uw.inputs?.vacancy ? `Vacancy (months): ${uw.inputs.vacancy}` : "Vacancy: Unknown",
-    uw.inputs?.exit ? `Exit price: ${uw.inputs.exit}` : "Exit: Unknown",
+    typeof inputs["price"] === "number" ? `Purchase price: ${inputs["price"]}` : "Purchase price: Unknown",
+    typeof inputs["rent"] === "number" ? `Rent: ${inputs["rent"]}` : "Rent: Unknown",
+    typeof inputs["fees"] === "number" ? `Fees: ${inputs["fees"]}` : "Fees: Unknown",
+    typeof inputs["vacancy"] === "number" ? `Vacancy (months): ${inputs["vacancy"]}` : "Vacancy: Unknown",
+    typeof inputs["exit"] === "number" ? `Exit price: ${inputs["exit"]}` : "Exit: Unknown",
   ]
 
   const risks = []
@@ -115,7 +116,7 @@ function buildMemoContent({
   return {
     execSummary: "Draft IC memo generated from underwriting.",
     mandateFit: "Mandate details not captured. Clarify budget, areas, and risk tolerance.",
-    numbers: uw.scenarios ?? {},
+    numbers: (uw["scenarios"] ?? {}) as Record<string, unknown>,
     evidence: { comps },
     assumptions,
     risks: risks.length ? risks : ["No explicit risks captured."],

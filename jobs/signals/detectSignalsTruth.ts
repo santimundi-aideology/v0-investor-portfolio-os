@@ -2,11 +2,18 @@ import { SIGNAL_THRESHOLDS } from "../../config/marketSignals"
 import { db } from "../../lib/db"
 import { makeSignalKey } from "../../lib/signalKey"
 
+function severityFromDeltaPct(deltaPct: number) {
+  const a = Math.abs(deltaPct)
+  if (a >= 0.12) return "urgent"
+  if (a >= 0.06) return "watch"
+  return "info"
+}
+
 export async function detectSignalsTruth(orgId: string) {
   // Pull snapshot pairs for QoQ (you implement getTruthSnapshotPairs)
   const pairs = await db.getTruthSnapshotPairs(orgId, "QoQ")
 
-  const toUpsert: Record<string, unknown>[] = []
+  const toUpsert: Array<Record<string, unknown> & { org_id: string; signal_key: string }> = []
 
   for (const p of pairs) {
     if (!p.prev || p.prev.value === 0) continue
@@ -40,6 +47,8 @@ export async function detectSignalsTruth(orgId: string) {
         source_type: "official",
         source: p.source,
         type: "price_change",
+        severity: severityFromDeltaPct(deltaPct),
+        status: "new",
         geo_type: p.geo_type,
         geo_id: p.geo_id,
         geo_name: p.geo_name,
@@ -84,6 +93,8 @@ export async function detectSignalsTruth(orgId: string) {
         source_type: "official",
         source: p.source,
         type: "rent_change",
+        severity: severityFromDeltaPct(deltaPct),
+        status: "new",
         geo_type: p.geo_type,
         geo_id: p.geo_id,
         geo_name: p.geo_name,
@@ -124,6 +135,8 @@ export async function detectSignalsTruth(orgId: string) {
         source_type: "official",
         source: "derived",
         type: "yield_opportunity",
+        severity: p.current.value >= SIGNAL_THRESHOLDS.truth.yieldOpportunityMin * 1.2 ? "urgent" : "watch",
+        status: "new",
         geo_type: p.geo_type,
         geo_id: p.geo_id,
         geo_name: p.geo_name,

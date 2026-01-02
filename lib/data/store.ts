@@ -154,7 +154,7 @@ export const store = {
       assignedAgentId: "agent-1",
       ownerUserId: "investor-1",
     },
-  ] satisfies InvestorRecord[],
+  ] as InvestorRecord[],
   listings: [
     {
       id: "listing-1",
@@ -166,7 +166,7 @@ export const store = {
       size: 2500,
       createdAt: new Date().toISOString(),
     },
-  ] satisfies ListingRecord[],
+  ] as ListingRecord[],
   trust: [] as TrustRecord[],
   memos: [] as MemoRecord[],
   decisions: [] as DecisionRecord[],

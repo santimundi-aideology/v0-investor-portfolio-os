@@ -1,10 +1,12 @@
+import Link from "next/link"
+import { FileText } from "lucide-react"
+
 import { PageHeader } from "@/components/layout/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { FileText } from "lucide-react"
-import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { MemoEditor } from "@/components/memos/memo-editor"
+import { getMemoById, mockInvestors, mockProperties } from "@/lib/mock-data"
 
 export default async function NewMemoPage({
   searchParams,
@@ -16,17 +18,31 @@ export default async function NewMemoPage({
   const propertyId = sp?.propertyId
   const memoId = sp?.memoId
 
+  const memo = memoId ? getMemoById(memoId) : undefined
+  const investor = investorId ? mockInvestors.find((i) => i.id === investorId) : undefined
+  const property = propertyId ? mockProperties.find((p) => p.id === propertyId) : undefined
+
+  const headerBadges = (
+    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+      {investor?.name ? <Badge variant="outline">Investor: {investor.name}</Badge> : null}
+      {property?.title ? <Badge variant="outline">Property: {property.title}</Badge> : null}
+      {!investor && investorId ? <Badge variant="secondary">Investor ID: {investorId}</Badge> : null}
+      {!property && propertyId ? <Badge variant="secondary">Property ID: {propertyId}</Badge> : null}
+    </div>
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Generate IC memo"
-        subtitle="Create an investment committee memo from mock data (no backend yet)."
-        badges={
-          <div className="text-muted-foreground text-xs">
-            {investorId ? `Investor: ${investorId}` : null}
-            {investorId && propertyId ? " • " : null}
-            {propertyId ? `Property: ${propertyId}` : null}
-          </div>
+        title={memo ? "Edit IC memo" : "Generate IC memo"}
+        subtitle={memo ? "Refine and share this memo with AI assistance." : "Draft an investment committee memo with AI helpers."}
+        badges={headerBadges}
+        primaryAction={
+          <Button variant="outline" asChild>
+            <Link href="/memos">
+              Back to memos
+            </Link>
+          </Button>
         }
       />
 
@@ -34,33 +50,23 @@ export default async function NewMemoPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-muted-foreground" />
-            Memo inputs
+            Memo context
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" placeholder="Investment Committee Memo - Marina Tower Office Suite" />
+        <CardContent className="grid gap-2 text-sm text-muted-foreground">
+          <div>
+            <span className="font-medium text-foreground">Investor:</span> {memo?.investorName ?? investor?.name ?? "Not set"}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Input id="notes" placeholder="Add any context you want included in the memo…" />
+          <div>
+            <span className="font-medium text-foreground">Property:</span> {memo?.propertyTitle ?? property?.title ?? "Not set"}
           </div>
-          <div className="flex justify-between">
-            <Button variant="outline" asChild>
-              <Link href={`/properties/new?memoId=${memoId || 'new'}&returnTo=memo${investorId ? `&investorId=${investorId}` : ''}`}>
-                Add property to memo
-              </Link>
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" type="button" asChild>
-                <Link href="/memos">Cancel</Link>
-              </Button>
-              <Button type="button">Generate (mock)</Button>
-            </div>
+          <div>
+            <span className="font-medium text-foreground">Status:</span> {memo?.status ?? "draft"}
           </div>
         </CardContent>
       </Card>
+
+      <MemoEditor initialMemo={memo} investorName={memo?.investorName ?? investor?.name} propertyTitle={memo?.propertyTitle ?? property?.title} />
     </div>
   )
 }

@@ -285,6 +285,7 @@ export function PropertyIntakeWizard() {
       {step === "review" && (
         <ReviewStep
           form={form}
+          extractedData={extractedData}
           uploadedFile={uploadedFile}
           intakeSource={intakeSource!}
           needsVerification={needsVerification}
@@ -939,7 +940,7 @@ function ReviewStep({
                           : "outline"
                     }
                   >
-                    {readinessStatus.replace(/_/g, " ")}
+                    {readinessStatus?.replace(/_/g, " ") ?? "Draft"}
                   </Badge>
                 </p>
               </div>

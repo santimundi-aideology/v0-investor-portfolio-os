@@ -2,20 +2,22 @@ import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { UnderwritingCompRecord } from "@/lib/data/store"
 
 function mapRow(row: Record<string, unknown>): UnderwritingCompRecord {
+  const asNumber = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
+  const asStringOpt = (v: unknown) => (typeof v === "string" && v.length ? v : undefined)
   return {
-    id: row.id,
-    tenantId: row.tenant_id,
-    underwritingId: row.underwriting_id,
-    description: row.description,
-    price: row.price ?? undefined,
-    pricePerSqft: row.price_per_sqft ?? undefined,
-    rentPerYear: row.rent_per_year ?? undefined,
-    source: row.source,
-    sourceDetail: row.source_detail ?? undefined,
-    observedDate: row.observed_date ?? undefined,
-    attachmentId: row.attachment_id ?? undefined,
-    addedBy: row.added_by ?? undefined,
-    addedAt: row.added_at,
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    underwritingId: String(row.underwriting_id),
+    description: String(row.description ?? ""),
+    price: asNumber(row.price),
+    pricePerSqft: asNumber(row.price_per_sqft),
+    rentPerYear: asNumber(row.rent_per_year),
+    source: String(row.source ?? ""),
+    sourceDetail: asStringOpt(row.source_detail),
+    observedDate: asStringOpt(row.observed_date),
+    attachmentId: asStringOpt(row.attachment_id),
+    addedBy: asStringOpt(row.added_by),
+    addedAt: String(row.added_at),
   }
 }
 

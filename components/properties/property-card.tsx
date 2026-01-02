@@ -195,4 +195,6 @@ export function PropertyCard({
   )
 }
 
+export default PropertyCard
+
 

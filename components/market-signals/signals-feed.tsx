@@ -21,7 +21,7 @@ type ViewMode = "cards" | "table"
 
 type DataState = "loading" | "ready" | "error"
 
-export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalItem[] }) {
+export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; initialSignals?: MarketSignalItem[] }) {
   const [viewMode, setViewMode] = React.useState<ViewMode>("cards")
   const [query, setQuery] = React.useState("")
   const [sourceType, setSourceType] = React.useState<MarketSignalSourceType | "all">("all")
@@ -34,14 +34,15 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
   const [rows, setRows] = React.useState<MarketSignalItem[]>(() => initialSignals ?? mockMarketSignals)
 
   React.useEffect(() => {
-    // Mock fetch (keeps UI contract for backend later)
+    // DB-backed feed can be server-provided via `initialSignals`.
+    // We keep a small loading delay to preserve UX parity with real fetches.
     let cancelled = false
     setDataState("loading")
     const t = setTimeout(() => {
       if (cancelled) return
       setRows(initialSignals ?? mockMarketSignals)
       setDataState("ready")
-    }, 350)
+    }, 200)
     return () => {
       cancelled = true
       clearTimeout(t)
@@ -97,8 +98,31 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
     setTimeout(() => setDataState("ready"), 350)
   }
 
-  function markAcknowledged(id: string) {
+  async function markAcknowledged(id: string) {
+    // Server-side status update (best-effort). UI remains usable even if API fails.
+    try {
+      await fetch(`/api/signals/${id}/acknowledge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId }),
+      })
+    } catch {
+      // ignore
+    }
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "acknowledged" } : r)))
+  }
+
+  async function dismissSignal(id: string) {
+    try {
+      await fetch(`/api/signals/${id}/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId }),
+      })
+    } catch {
+      // ignore
+    }
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "dismissed" } : r)))
   }
 
   return (
@@ -153,7 +177,10 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
             </div>
 
             <div className="md:col-span-2">
-              <Select value={sourceType} onValueChange={(v) => setSourceType(v as any)}>
+              <Select
+                value={sourceType}
+                onValueChange={(v) => setSourceType(v === "all" ? "all" : (v as MarketSignalSourceType))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Source" />
                 </SelectTrigger>
@@ -166,7 +193,7 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
             </div>
 
             <div className="md:col-span-2">
-              <Select value={timeframe} onValueChange={(v) => setTimeframe(v as any)}>
+              <Select value={timeframe} onValueChange={(v) => setTimeframe(v === "all" ? "all" : (v as "QoQ" | "WoW"))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Timeframe" />
                 </SelectTrigger>
@@ -179,7 +206,7 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
             </div>
 
             <div className="md:col-span-3">
-              <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <Select value={type} onValueChange={(v) => setType(v === "all" ? "all" : (v as MarketSignalType))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
@@ -197,7 +224,7 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
 
           <div className="grid gap-3 md:grid-cols-12">
             <div className="md:col-span-3">
-              <Select value={severity} onValueChange={(v) => setSeverity(v as any)}>
+              <Select value={severity} onValueChange={(v) => setSeverity(v === "all" ? "all" : (v as MarketSignalSeverity))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Severity" />
                 </SelectTrigger>
@@ -211,7 +238,7 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
             </div>
 
             <div className="md:col-span-3">
-              <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+              <Select value={status} onValueChange={(v) => setStatus(v === "all" ? "all" : (v as MarketSignalStatus))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -290,7 +317,7 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
       ) : viewMode === "cards" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((s) => (
-            <SignalCard key={s.id} signal={s} onAcknowledge={() => markAcknowledged(s.id)} />
+            <SignalCard key={s.id} signal={s} onAcknowledge={() => markAcknowledged(s.id)} onDismiss={() => dismissSignal(s.id)} />
           ))}
         </div>
       ) : (
@@ -349,17 +376,22 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
-                        onClick={() => markAcknowledged(s.id)}
-                        disabled={s.status !== "new"}
-                      >
-                        <Check className="h-4 w-4" />
-                        Acknowledge
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => markAcknowledged(s.id)}
+                          disabled={s.status !== "new"}
+                        >
+                          <Check className="h-4 w-4" />
+                          Acknowledge
+                        </Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => dismissSignal(s.id)} disabled={s.status === "dismissed"}>
+                          Dismiss
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -372,13 +404,21 @@ export function SignalsFeed({ initialSignals }: { initialSignals?: MarketSignalI
       <Separator />
 
       <div className="text-xs text-muted-foreground">
-        Mock-driven feed (like Topbar notifications). Backend can later replace `mockMarketSignals` with an API call returning the same shape.
+        DB-backed feed. Detectors read only snapshot tables (`market_metric_snapshot`, `portal_listing_snapshot`) and upsert signals deterministically via `signal_key`.
       </div>
     </div>
   )
 }
 
-function SignalCard({ signal, onAcknowledge }: { signal: MarketSignalItem; onAcknowledge: () => void }) {
+function SignalCard({
+  signal,
+  onAcknowledge,
+  onDismiss,
+}: {
+  signal: MarketSignalItem
+  onAcknowledge: () => void
+  onDismiss: () => void
+}) {
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
@@ -429,6 +469,9 @@ function SignalCard({ signal, onAcknowledge }: { signal: MarketSignalItem; onAck
           <Button type="button" variant="outline" size="sm" className="gap-2" onClick={onAcknowledge} disabled={signal.status !== "new"}>
             <Check className="h-4 w-4" />
             Acknowledge
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onDismiss} disabled={signal.status === "dismissed"}>
+            Dismiss
           </Button>
           <Button type="button" variant="ghost" size="sm" className="gap-2" onClick={() => {}}>
             <Radar className="h-4 w-4" />

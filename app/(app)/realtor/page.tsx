@@ -488,7 +488,7 @@ function StageColumn({ stage, deals }: { stage: DealStageKey; deals: DealRoom[] 
               {deal.nextStep ? <div className="mt-1 text-[11px] text-primary">Next: {deal.nextStep}</div> : null}
               <div className="mt-2 flex items-center justify-between">
                 <span>Prob {deal.probability ?? 0}%</span>
-                <Button variant="outline" size="xs" asChild>
+                <Button variant="outline" size="sm" asChild>
                   <Link href={`/deal-room/${deal.id}`}>Open</Link>
                 </Button>
               </div>

@@ -117,9 +117,9 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
                     <Badge variant="outline" className="capitalize">
                       {property.type}
                     </Badge>
-                    {property.readinessStatus && (
-                      <Badge variant="secondary">{property.readinessStatus.replace(/_/g, " ")}</Badge>
-                    )}
+                    <Badge variant="secondary">
+                      {property.readinessStatus?.replace(/_/g, " ") ?? "Draft"}
+                    </Badge>
                   </div>
                   <div>
                     <p className="text-lg font-semibold">{property.title}</p>

@@ -60,7 +60,7 @@ export function CounterfactualCard({
                     : "bg-gray-500/10 text-gray-600 border-gray-500/20"
               )}
             >
-              {readinessStatus.replace(/_/g, " ")}
+              {readinessStatus?.replace(/_/g, " ") ?? "Draft"}
             </Badge>
           )}
         </div>
@@ -106,11 +106,11 @@ export function CounterfactualCard({
                         <span className="font-medium">{constraint.key}:</span> Expected{" "}
                         {typeof constraint.expected === "number"
                           ? constraint.expected.toLocaleString()
-                          : constraint.expected}{" "}
+                          : String(constraint.expected)}{" "}
                         but got{" "}
                         {typeof constraint.actual === "number"
                           ? constraint.actual.toLocaleString()
-                          : constraint.actual}
+                          : String(constraint.actual)}
                       </span>
                     </li>
                   ))}

@@ -5,6 +5,19 @@ import { getSupabaseAdminClient } from "@/lib/db/client"
 export { getSupabaseAdminClient }
 export type { SupabaseClient } from "@supabase/supabase-js"
 
+/**
+ * MARKET SIGNALS - SNAPSHOT READS (AUDIT NOTE)
+ * -------------------------------------------
+ * Codebase audit finding:
+ * - Earlier scaffold code referenced placeholder tables `truth_snapshots` and `portal_snapshots`.
+ * - CRITICAL ARCHITECTURE (non-negotiable): Market Signals must ONLY read from:
+ *     - `market_metric_snapshot`
+ *     - `portal_listing_snapshot`
+ *
+ * This module is the single adapter used by detectors (`detectSignalsTruth`/`detectSignalsPortal`).
+ * If you ever need to change snapshot table names, do it here and update migrations accordingly.
+ */
+
 export type SnapshotRow = {
   id: string
   org_id: string
@@ -145,36 +158,74 @@ function buildPortalPairs(rows: PortalSnapshotRow[]): PortalSnapshotPair[] {
   const out: PortalSnapshotPair[] = []
   for (const list of groups.values()) {
     list.sort((a, b) => a.as_of_date.localeCompare(b.as_of_date))
-    for (let i = 0; i < list.length; i++) {
+
+    // IMPORTANT (hardening):
+    // - For WoW signals we must compare *week-over-week*, not "previous snapshot in time".
+    // - If snapshots are daily, using i-1 would create day-over-day deltas and can violate WoW semantics.
+    // - Therefore, for timeframe === "WoW", we only pair with the snapshot exactly 7 days prior (if present).
+    const byDate = new Map<string, PortalSnapshotRow>()
+    for (const r of list) byDate.set(r.as_of_date, r)
+
+    for (const r of list) {
+      let prev: PortalSnapshotRow | null = null
+      if (r.timeframe === "WoW") {
+        const prevDate = isoDate(addDays(parseIsoDate(r.as_of_date), -7))
+        prev = byDate.get(prevDate) ?? null
+      } else {
+        // Fallback: adjacent pairing for any other timeframe (not used by current pipeline).
+        const idx = list.findIndex((x) => x.id === r.id)
+        prev = idx > 0 ? list[idx - 1] : null
+      }
+
       out.push({
-        portal: list[i].portal,
-        geo_type: list[i].geo_type,
-        geo_id: list[i].geo_id,
-        geo_name: list[i].geo_name ?? null,
-        segment: list[i].segment,
-        timeframe: list[i].timeframe,
-        current: list[i],
-        prev: i > 0 ? list[i - 1] : null,
+        portal: r.portal,
+        geo_type: r.geo_type,
+        geo_id: r.geo_id,
+        geo_name: r.geo_name ?? null,
+        segment: r.segment,
+        timeframe: r.timeframe,
+        current: r,
+        prev,
       })
     }
   }
   return out
 }
 
+function parseIsoDate(s: string) {
+  // `as_of_date` is stored as DATE; Supabase returns YYYY-MM-DD.
+  // We parse as UTC midnight to keep deterministic -7 day math.
+  return new Date(`${s}T00:00:00Z`)
+}
+
+function addDays(d: Date, days: number) {
+  const out = new Date(d.getTime())
+  out.setUTCDate(out.getUTCDate() + days)
+  return out
+}
+
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+
 export const db = {
   /**
-   * Returns ordered snapshot pairs for QoQ logic. Backed by `truth_snapshots` when present.
+   * Returns ordered snapshot pairs for QoQ logic.
+   *
+   * IMPORTANT: signals read ONLY from `market_metric_snapshot`.
    */
   async getTruthSnapshotPairs(orgId: string, timeframe: string): Promise<SnapshotPair[]> {
-    const rows = await safeSelectSnapshots("truth_snapshots", orgId, timeframe)
+    const rows = await safeSelectSnapshots("market_metric_snapshot", orgId, timeframe)
     return buildPairs(rows)
   },
 
   /**
-   * Returns ordered snapshot pairs for WoW logic. Backed by `portal_snapshots` when present.
+   * Returns ordered snapshot pairs for WoW logic.
+   *
+   * IMPORTANT: signals read ONLY from `portal_listing_snapshot`.
    */
   async getPortalSnapshotPairs(orgId: string, timeframe: string): Promise<PortalSnapshotPair[]> {
-    const rows = await safeSelectPortalSnapshots("portal_snapshots", orgId, timeframe)
+    const rows = await safeSelectPortalSnapshots("portal_listing_snapshot", orgId, timeframe)
     return buildPortalPairs(rows)
   },
 

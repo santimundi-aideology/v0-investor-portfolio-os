@@ -4,22 +4,27 @@ import OpenAI from "openai"
 import { aiAgents, type AIAgentId } from "@/lib/ai/agents"
 import { buildAIContext, buildPageContext } from "@/lib/ai/context"
 import { getSupabaseAdminClient } from "@/lib/db/client"
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { answerQualifiedInventory } from "@/lib/ai/realtor-actions"
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string }
 
-type ChatRequest = {
-  agentId: AIAgentId
-  messages: ChatMessage[]
+/**
+ * Backwards-compatible body:
+ * - Old mock payload: { agentId?, mode?, context?, messages? }
+ * - New chat payload: { agentId, messages, pagePath?, scopedInvestorId?, propertyId?, tenantId? }
+ */
+type ChatBody = {
+  agentId?: AIAgentId | string
+  mode?: "rewrite" | "concise" | "bullet" | "expand" | "polish"
+  context?: Record<string, unknown>
+  messages?: { role: string; content: string }[]
   pagePath?: string
   scopedInvestorId?: string
   propertyId?: string
   tenantId?: string
 }
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 function isUuid(value: string | undefined | null): value is string {
   if (!value) return false
@@ -68,7 +73,6 @@ async function resolveTenantAndInvestorIds(input: {
     null
 
   if (!investorId) {
-    // Prefer demo investor if seeded
     const { data: demoInvestor, error: demoInvestorError } = await supabase
       .from("investors")
       .select("id")
@@ -80,7 +84,6 @@ async function resolveTenantAndInvestorIds(input: {
   }
 
   if (!investorId) {
-    // Otherwise pick first investor in tenant
     const { data: anyInvestor, error: anyInvestorError } = await supabase
       .from("investors")
       .select("id")
@@ -97,58 +100,71 @@ async function resolveTenantAndInvestorIds(input: {
   return { tenantId, investorId }
 }
 
-/**
- * Build AI response using OpenAI with real Supabase data as context
- */
-async function buildAIResponse(
-  messages: ChatMessage[],
-  systemPrompt: string,
-): Promise<string> {
-  try {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured")
-    }
-
-    // Convert messages to OpenAI format
-    const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemPrompt },
-      ...messages.map((m) => ({
-        role: m.role as "user" | "assistant" | "system",
-        content: m.content,
-      })),
-    ]
-
-    // Call OpenAI with streaming disabled for simpler implementation
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Fast and cost-effective
-      messages: openaiMessages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    })
-
-    const response = completion.choices[0]?.message?.content || "I apologize, but I couldn't generate a response."
-    return response
-  } catch (error) {
-    console.error("[chat] OpenAI error:", error)
-    throw error
+function buildModeInstruction(mode?: ChatBody["mode"]) {
+  switch (mode) {
+    case "concise":
+      return "Rewrite the user message concisely (max ~4 lines)."
+    case "bullet":
+      return "Rewrite the user message as bullets."
+    case "expand":
+      return "Expand the user message with helpful context and next steps."
+    case "polish":
+      return "Polish the user message for clarity and professionalism."
+    case "rewrite":
+      return "Rewrite the user message."
+    default:
+      return ""
   }
+}
+
+async function buildAIResponse(messages: ChatMessage[], systemPrompt: string): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured")
+
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini"
+  const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role, content: m.content })),
+  ]
+
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: openaiMessages,
+    temperature: 0.4,
+    max_tokens: 900,
+  })
+
+  return completion.choices[0]?.message?.content?.trim() || "I couldn’t generate a response."
 }
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as ChatRequest
-    const agent = aiAgents[body.agentId]
-    
-    if (!agent) {
-      return NextResponse.json({ error: "Unknown agentId" }, { status: 400 })
-    }
+    const body = (await req.json().catch(() => null)) as ChatBody | null
+    if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+
+    const agentId = (body.agentId as AIAgentId) || "real_estate_advisor"
+    const agent = aiAgents[agentId]
+    if (!agent) return NextResponse.json({ error: "Unknown agentId" }, { status: 400 })
 
     const { tenantId, investorId } = await resolveTenantAndInvestorIds({
       tenantId: body.tenantId,
       investorId: body.scopedInvestorId,
     })
-    
-    // Build AI context from Supabase
+
+    const lastUserText =
+      (body.messages ?? []).slice().reverse().find((m) => (m?.role ?? "") === "user")?.content ??
+      (body.messages ?? []).slice(-1)[0]?.content ??
+      ""
+
+    // Fast, deterministic actions for common copilot prompts (grounded in Supabase).
+    if (/qualified inventory|need qualified inventory|need inventory/i.test(lastUserText)) {
+      const content = await answerQualifiedInventory(tenantId)
+      return NextResponse.json({
+        agentId,
+        message: { role: "assistant", content },
+      })
+    }
+
+    const pageContext = buildPageContext(body.pagePath)
     const aiContext = await buildAIContext({
       investorId,
       tenantId,
@@ -158,55 +174,60 @@ export async function POST(req: Request) {
       propertyId: body.propertyId,
     })
 
-    // Build page-specific context
-    const pageContext = buildPageContext(body.pagePath)
-
-    // Construct system prompt with real data
-    let systemPrompt = agent.personaPrompt
-    if (body.agentId === "real_estate_advisor") {
-      systemPrompt = `${agent.personaPrompt}
+    const modeInstruction = buildModeInstruction(body.mode)
+    const systemPrompt = `${agent.personaPrompt}
 
 PAGE CONTEXT:
 ${pageContext}
 
-${aiContext.contextText}`
-    }
+${aiContext.contextText}
 
-    // Generate AI response using OpenAI with real Supabase context
-    const content = await buildAIResponse(body.messages, systemPrompt)
+${modeInstruction ? `MODE INSTRUCTION:\n${modeInstruction}\n` : ""}`.trim()
+
+    // Normalize messages to ChatMessage[] (only user/assistant/system)
+    const rawMessages = body.messages ?? []
+    const messages: ChatMessage[] = rawMessages
+      .filter((m) => m && typeof m.content === "string")
+      .map((m) => ({
+        role: (m.role === "assistant" || m.role === "system" ? m.role : "user") as ChatMessage["role"],
+        content: String(m.content),
+      }))
+
+    const content = await buildAIResponse(messages, systemPrompt)
 
     return NextResponse.json({
-      agentId: body.agentId,
-      systemPrompt,
-      message: { role: "assistant", content },
+      agentId,
+      message: {
+        role: "assistant",
+        content,
+      },
     })
   } catch (error) {
     console.error("[chat] Error processing request:", error)
     const message = error instanceof Error ? error.message : String(error)
+    const extra =
+      error && typeof error === "object"
+        ? {
+            status: "status" in error ? (error as Record<string, unknown>).status : undefined,
+            code: "code" in error ? (error as Record<string, unknown>).code : undefined,
+            type: "type" in error ? (error as Record<string, unknown>).type : undefined,
+          }
+        : undefined
     const debug =
       process.env.NODE_ENV !== "production"
         ? {
             name: error instanceof Error ? error.name : "UnknownError",
             message,
-            // Some SDK errors carry these fields (safe to ignore when absent)
-            ...(typeof error === "object" && error !== null
-              ? {
-                  // @ts-expect-error best-effort debug serialization
-                  status: (error as any).status,
-                  // @ts-expect-error best-effort debug serialization
-                  code: (error as any).code,
-                  // @ts-expect-error best-effort debug serialization
-                  type: (error as any).type,
-                }
-              : null),
+            ...extra,
           }
-        : null
+        : undefined
     return NextResponse.json(
       {
         error: "Failed to process chat request",
         ...(process.env.NODE_ENV !== "production" ? { detail: message, debug } : null),
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
+

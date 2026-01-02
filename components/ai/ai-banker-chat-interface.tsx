@@ -1,11 +1,14 @@
+"use client"
+
 /**
  * AI Banker chat dialog shown in realtor flows.
  * The file had multiple duplicate copies; reduced to a single export.
  */
-"use client"
 
 import * as React from "react"
 import { Building2 } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 import type { AIAgentId } from "@/lib/ai/agents"
 import { cn } from "@/lib/utils"
@@ -14,6 +17,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import type { ChatActionBlock } from "@/components/ai/chat-action-types"
+import { ChatActionRenderer } from "@/components/ai/chat-action-renderer"
 
 type Theme = {
   icon: React.ComponentType<{ className?: string }>
@@ -44,6 +49,20 @@ export const agentThemes: Record<AIAgentId, Theme> = {
 }
 
 type ChatMessage = { role: "user" | "assistant"; content: string }
+
+function extractActionBlock(raw: string): { text: string; block: ChatActionBlock | null } {
+  const re = /```action\s*([\s\S]*?)```/m
+  const m = raw.match(re)
+  if (!m) return { text: raw, block: null }
+  const jsonText = (m[1] ?? "").trim()
+  try {
+    const parsed = JSON.parse(jsonText) as ChatActionBlock
+    const cleaned = raw.replace(re, "").trim()
+    return { text: cleaned, block: parsed }
+  } catch {
+    return { text: raw, block: null }
+  }
+}
 
 export function AIBankerChatInterface({
   open,
@@ -147,7 +166,15 @@ export function AIBankerChatInterface({
                         m.role === "user" ? "ml-auto bg-muted" : "mr-auto bg-background",
                       )}
                     >
-                      <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
+                      {(() => {
+                        const { text, block } = extractActionBlock(m.content)
+                        return (
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                            {block ? <ChatActionRenderer block={block} /> : null}
+                          </div>
+                        )
+                      })()}
                     </div>
                   ))}
                   {loading ? (

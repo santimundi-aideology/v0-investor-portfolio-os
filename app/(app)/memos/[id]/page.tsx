@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Download, Send, Edit, Calendar, User, Building2 } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building2, Send } from "lucide-react"
 import Link from "next/link"
-import { getMemoById } from "@/lib/mock-data"
+import { MemoActions } from "@/components/memos/memo-actions"
+import { getMemoById, getPropertyById } from "@/lib/mock-data"
 import type { Memo } from "@/lib/types"
 
 interface MemoPageProps {
@@ -58,6 +59,18 @@ function renderMemoContent(content: string) {
   // Simple markdown-like rendering
   const lines = content.split("\n")
   return lines.map((line, index) => {
+    // Images
+    const imageMatch = line.match(/^!\[(.*?)\]\((.*?)\)/)
+    if (imageMatch) {
+      const [, alt, src] = imageMatch
+      return (
+        <div key={index} className="my-4 overflow-hidden rounded-lg border bg-muted/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={alt || "Memo image"} className="w-full object-cover" />
+          {alt ? <p className="px-3 py-2 text-xs text-muted-foreground">{alt}</p> : null}
+        </div>
+      )
+    }
     // Headers
     if (line.startsWith("# ")) {
       return (
@@ -120,6 +133,7 @@ function renderMemoContent(content: string) {
 export default async function MemoPage({ params }: MemoPageProps) {
   const { id } = await params
   const memo = getMemoById(id)
+  const property = memo ? getPropertyById(memo.propertyId) : undefined
 
   if (!memo) {
     notFound()
@@ -165,24 +179,44 @@ export default async function MemoPage({ params }: MemoPageProps) {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
-          <Button>
-            <Send className="mr-2 h-4 w-4" />
-            Send to Investor
-          </Button>
-        </div>
+        <MemoActions memo={memo} property={property} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-3 space-y-6">
+          {property?.images?.length || property?.imageUrl ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Property photos</CardTitle>
+                <CardDescription>Auto-pulled from the property record.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {(property.images && property.images.length
+                    ? property.images
+                    : [{ url: property.imageUrl, description: undefined, category: undefined }])
+                    ?.filter((img) => Boolean((img as { url?: unknown } | null | undefined)?.url))
+                    .map((img, idx) => {
+                      const obj = img as { url?: unknown; description?: unknown; category?: unknown }
+                      const url = typeof obj.url === "string" ? obj.url : null
+                      if (!url) return null
+                      const description = typeof obj.description === "string" ? obj.description : undefined
+                      const category = typeof obj.category === "string" ? obj.category : undefined
+                      return (
+                        <div key={`${url}-${idx}`} className="overflow-hidden rounded-lg border bg-muted/30">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={description || property.title} className="h-40 w-full object-cover" />
+                          <div className="px-3 py-2 text-xs text-muted-foreground line-clamp-2">
+                            {description || category || property.title}
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {analysis ? (
             <>
               <AnalysisSection title="Executive Summary" description="How this property meets the mandate">

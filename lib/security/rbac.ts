@@ -1,5 +1,3 @@
-import type { NextRequest } from "next/server"
-
 export type PlatformRole = "agent" | "manager" | "investor" | "super_admin"
 
 export type RequestContext = {
@@ -99,7 +97,7 @@ export function assertMemoAccess(memo: MemoScope, ctx: RequestContext, investor?
  *  - x-role (agent|manager|investor|super_admin)
  *  - x-investor-id (optional, for investor portal scoping)
  */
-export function buildRequestContext(req: NextRequest): RequestContext {
+export function buildRequestContext(req: Request): RequestContext {
   const role = (req.headers.get("x-role") as PlatformRole | null) ?? "investor"
   const userId = req.headers.get("x-user-id") ?? ""
   const tenantId = req.headers.get("x-tenant-id") ?? undefined

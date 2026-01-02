@@ -30,6 +30,26 @@ export interface SignalsPipelineResult {
 }
 
 /**
+ * HOW MARKET SIGNALS WORK (for future devs)
+ * ----------------------------------------
+ * External sources (DLD/Ejari/Bayut/PF) → raw ingestion tables → SNAPSHOT tables → signals → mapping → notifications.
+ *
+ * Non‑negotiable rule:
+ *   Detectors MUST ONLY read snapshot tables:
+ *     - `market_metric_snapshot`
+ *     - `portal_listing_snapshot`
+ *
+ * Codebase audit (what was missing / why signals were empty):
+ * - Snapshot writers were stubs (`computeTruthSnapshots` / `computePortalSnapshots` returned 0).
+ * - The snapshot adapter (`lib/db.ts`) previously pointed at placeholder tables; detectors were effectively starved.
+ * - UI was mock-driven (`mockMarketSignals`) and never queried DB.
+ *
+ * This pipeline fixes the missing links:
+ * 1) Writes snapshots
+ * 2) Detects signals deterministically (idempotent via `signal_key`)
+ * 3) Maps signals to investors deterministically (idempotent via unique keys)
+ * 4) Publishes notifications (idempotent via `notification_key`)
+ *
  * Orchestrates the full Market Signals pipeline (DAG):
  *
  * 1) computeTruthSnapshots(orgId)
@@ -114,11 +134,11 @@ export async function runSignalsPipeline(orgId: string): Promise<SignalsPipeline
 
     // Paginate through all unmapped signals
     do {
-      const mappingResult = await mapSignalsToInvestors(orgId, { limit: 100, cursor })
+      const mappingResult = await mapSignalsToInvestors(orgId, { batchSize: 100, cursor })
       totalSignalsProcessed += mappingResult.signalsProcessed
       totalTargetsCreated += mappingResult.targetsCreated
       totalTargetsSkipped += mappingResult.targetsSkipped
-      cursor = mappingResult.nextCursor
+      cursor = mappingResult.nextCursor ?? undefined
     } while (cursor)
 
     result.mappings = {

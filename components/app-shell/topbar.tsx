@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Bell, CircleHelp, Menu, Search, Sparkles, User2 } from "lucide-react"
+import { Bell, CircleHelp, Menu, Search, User2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {

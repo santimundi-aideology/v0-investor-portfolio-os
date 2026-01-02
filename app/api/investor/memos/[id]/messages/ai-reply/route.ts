@@ -17,9 +17,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
 
     const version = memo.currentVersion
-    const content = memo.versions.find((v) => v.version === version)?.content ?? {} as Record<string, unknown>
-    const assumptions = (content.assumptions as string[]) ?? []
-    const scenarios = (content.numbers ?? content.scenarios ?? {}) as Record<string, unknown>
+    const content = (memo.versions.find((v) => v.version === version)?.content ?? {}) as Record<string, unknown>
+    const assumptions = (Array.isArray(content["assumptions"]) ? (content["assumptions"] as string[]) : []) ?? []
+    const scenarios = ((content["numbers"] ?? content["scenarios"] ?? {}) as Record<string, unknown>) ?? {}
 
     const replyText = `Based on memo v${version}: assumptions=${JSON.stringify(
       assumptions,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { createShareToken, getMemo, saveMemo } from "@/lib/data/store"
+import { createShareToken, getInvestor, getMemo, saveMemo } from "@/lib/data/store"
 import { transitionMemo } from "@/lib/domain/memos"
 import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/security/rbac"
 

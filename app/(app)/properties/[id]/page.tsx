@@ -124,7 +124,7 @@ async function PropertyPageContent({ id }: { id: string }) {
                 variant="outline"
                 className={readinessStatusColors[property.readinessStatus]}
               >
-                {property.readinessStatus.replace(/_/g, " ")}
+                {property.readinessStatus?.replace(/_/g, " ") ?? "Draft"}
               </Badge>
             )}
           </div>
@@ -358,7 +358,7 @@ async function PropertyPageContent({ id }: { id: string }) {
                       variant="outline"
                       className={readinessStatusColors[property.readinessStatus]}
                     >
-                      {property.readinessStatus.replace(/_/g, " ")}
+                      {property.readinessStatus?.replace(/_/g, " ") ?? "Draft"}
                     </Badge>
                   ) : (
                     <p className="font-medium">Not set</p>

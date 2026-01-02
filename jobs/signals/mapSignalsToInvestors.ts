@@ -35,11 +35,91 @@ function coerceNumber(v: unknown): number | null {
   return null
 }
 
+function coerceYieldTarget(v: unknown): number | null {
+  // Supports:
+  // - 0.065
+  // - "0.065"
+  // - "8%"
+  // - "8-10%"
+  // - "8-12%" (legacy seed data)
+  if (typeof v === "number" && Number.isFinite(v)) {
+    if (v > 1 && v <= 100) return v / 100
+    return v
+  }
+  if (typeof v !== "string") return null
+  const nums = v.match(/(\d+(\.\d+)?)/g)?.map(Number).filter((n) => Number.isFinite(n)) ?? []
+  if (nums.length === 0) return null
+  const n = nums[0]!
+  if (v.includes("%") || (n > 1 && n <= 100)) return n / 100
+  return n
+}
+
+function normalizeRiskTolerance(v: unknown): "low" | "medium" | "high" | string {
+  const s = typeof v === "string" ? v.toLowerCase() : ""
+  if (s === "low" || s === "conservative") return "low"
+  if (s === "high" || s === "aggressive") return "high"
+  if (s === "medium" || s === "moderate") return "medium"
+  return (v as string) ?? "medium"
+}
+
+function normalizeMandate(raw: InvestorWithMandate["mandate"]) {
+  // Hardening: support both the repo's current snake_case mandate fields and older camelCase shapes
+  // seen in seed data / mock scaffolds, without redesigning mandate storage.
+  const r = (raw ?? {}) as Record<string, unknown>
+
+  const preferred_areas =
+    (r.preferred_areas as string[] | null | undefined) ??
+    (r.preferredAreas as string[] | null | undefined) ??
+    []
+
+  const preferred_projects =
+    (r.preferred_projects as string[] | null | undefined) ??
+    (r.preferredProjects as string[] | null | undefined) ??
+    []
+
+  const open = Boolean(r.open) || Boolean(r.isOpen)
+
+  const budget_min =
+    (r.budget_min as number | null | undefined) ??
+    (r.minInvestment as number | null | undefined) ??
+    (r.min_investment as number | null | undefined) ??
+    null
+
+  const budget_max =
+    (r.budget_max as number | null | undefined) ??
+    (r.maxInvestment as number | null | undefined) ??
+    (r.max_investment as number | null | undefined) ??
+    null
+
+  const yield_target =
+    (r.yield_target as unknown) ??
+    (r.yieldTarget as unknown) ??
+    (r.yield_target_pct as unknown) ??
+    null
+
+  const risk_tolerance =
+    normalizeRiskTolerance((r.risk_tolerance as unknown) ?? (r.riskTolerance as unknown) ?? (r.riskToleranceLevel as unknown) ?? "medium")
+
+  return {
+    preferred_areas: Array.isArray(preferred_areas) ? preferred_areas : [],
+    preferred_projects: Array.isArray(preferred_projects) ? preferred_projects : [],
+    open,
+    budget_min,
+    budget_max,
+    yield_target,
+    risk_tolerance,
+  }
+}
+
 export async function computeTargetsForSignal(args: {
   orgId: string
   signal: MarketSignalRow
   investors: InvestorWithMandate[]
-  getExposure: (orgId: string, investorId: string, geoId: string) => Promise<{ hasExposure: boolean; details: Record<string, unknown> }>
+  getExposure: (
+    orgId: string,
+    investorId: string,
+    geoId: string
+  ) => Promise<{ hasExposure: boolean; details: Record<string, unknown> | null }>
 }) {
   const { orgId, signal, investors, getExposure } = args
 
@@ -61,11 +141,11 @@ export async function computeTargetsForSignal(args: {
     const matched: string[] = []
     const details: Record<string, unknown> = {}
 
-    const mandate = inv.mandate ?? {}
+    const mandate = normalizeMandate(inv.mandate ?? ({} as InvestorWithMandate["mandate"]))
 
     // --- Yield match gate (only for yield_opportunity) ---
     if (signal.type === "yield_opportunity") {
-      const target = coerceNumber(mandate.yield_target)
+      const target = coerceYieldTarget(mandate.yield_target)
       if (target === null) {
         skipped.push({ investorId: inv.id, reason: "missing_yield_target" })
         continue
