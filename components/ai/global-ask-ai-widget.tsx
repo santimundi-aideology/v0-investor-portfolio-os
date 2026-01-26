@@ -12,8 +12,16 @@ const suggestedQuestions = [
   "List tasks due this week and who they impact.",
 ]
 
+// Pages where the AI widget should not appear
+const EXCLUDED_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password"]
+
 export function GlobalAskAIWidget() {
   const pathname = usePathname()
+
+  // Don't show on auth pages
+  if (EXCLUDED_PATHS.some((path) => pathname.startsWith(path))) {
+    return null
+  }
 
   return (
     <AskAIBankerWidget

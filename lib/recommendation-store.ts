@@ -1,8 +1,12 @@
 /**
- * Mock Recommendation Store (internal CRM)
+ * Recommendation Store (internal CRM)
  *
- * In-memory repository for Realtor Recommendations.
- * Mirrors the style of `lib/property-store.ts` (CRUD + simple domain actions).
+ * Repository for Realtor Recommendations.
+ * Uses Supabase for persistence with in-memory fallback.
+ * 
+ * Note: Recommendations are stored using a combination of:
+ * - memos table (for persisted recommendations)
+ * - shortlists table (for property selections)
  */
 
 import type {
@@ -11,8 +15,11 @@ import type {
   RecommendationDecision,
 } from "@/lib/types"
 import { getInvestorById, getPropertyById } from "@/lib/mock-data"
+import { getSupabaseAdminClient } from "@/lib/db/client"
+import { getInvestorById as getInvestorByIdDb } from "@/lib/db/investors"
 
-let recommendations: Recommendation[] = []
+// In-memory store as fallback
+let localRecommendations: Recommendation[] = []
 let seq = 1
 
 function nowIso() {
@@ -32,20 +39,247 @@ function pushActivity(rec: Recommendation, type: string, label: string, meta?: R
 }
 
 export function initRecommendationStore(seed: Recommendation[]) {
-  recommendations = [...seed]
+  localRecommendations = [...seed]
 }
 
+/**
+ * List recommendations by investor - async version
+ */
+export async function listRecommendationsByInvestorAsync(investorId: string): Promise<Recommendation[]> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    
+    // Get memos for investor that have recommendations
+    const { data: memos, error } = await supabase
+      .from("memos")
+      .select(`
+        id,
+        investor_id,
+        created_by,
+        state,
+        created_at,
+        updated_at,
+        memo_versions (
+          id,
+          version,
+          title,
+          summary,
+          content,
+          created_at
+        )
+      `)
+      .eq("investor_id", investorId)
+      .order("created_at", { ascending: false })
+    
+    if (error || !memos) {
+      console.warn("[recommendation-store] Error fetching memos:", error?.message)
+      return listRecommendationsByInvestor(investorId)
+    }
+    
+    // Map memos to recommendations
+    const recs: Recommendation[] = memos.map(memo => {
+      const latestVersion = Array.isArray(memo.memo_versions) 
+        ? memo.memo_versions.sort((a: { version: number }, b: { version: number }) => b.version - a.version)[0]
+        : null
+      
+      return {
+        id: memo.id,
+        investorId: memo.investor_id,
+        createdByRole: "realtor" as const,
+        title: latestVersion?.title || "Recommendation",
+        summary: latestVersion?.summary || "",
+        status: mapMemoStateToRecStatus(memo.state),
+        trigger: "ai_insight" as const,
+        createdAt: memo.created_at,
+        updatedAt: memo.updated_at,
+        propertyIds: [], // Would need to parse from memo content
+        counterfactuals: [],
+        qna: [],
+        activity: [{
+          at: memo.created_at,
+          type: "created",
+          label: "Created recommendation"
+        }],
+        lastActivityAt: memo.updated_at,
+        propertyNotes: {},
+      }
+    })
+    
+    return recs
+  } catch (err) {
+    console.warn("[recommendation-store] Error fetching recommendations:", err)
+    return listRecommendationsByInvestor(investorId)
+  }
+}
+
+function mapMemoStateToRecStatus(state: string): Recommendation["status"] {
+  switch (state) {
+    case "draft": return "DRAFT"
+    case "pending_review": return "DRAFT"
+    case "ready": return "DRAFT"
+    case "sent": return "SENT"
+    case "opened": return "VIEWED"
+    case "decided": return "APPROVED"
+    default: return "DRAFT"
+  }
+}
+
+/**
+ * List recommendations by investor - sync version
+ */
 export function listRecommendationsByInvestor(investorId: string) {
-  return recommendations
+  return localRecommendations
     .filter((r) => r.investorId === investorId)
     .slice()
     .sort((a, b) => (b.lastActivityAt ?? b.updatedAt).localeCompare(a.lastActivityAt ?? a.updatedAt))
 }
 
-export function getRecommendationById(id: string) {
-  return recommendations.find((r) => r.id === id) ?? null
+/**
+ * Get recommendation by ID - async version
+ */
+export async function getRecommendationByIdAsync(id: string): Promise<Recommendation | null> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    
+    const { data: memo, error } = await supabase
+      .from("memos")
+      .select(`
+        id,
+        investor_id,
+        created_by,
+        state,
+        created_at,
+        updated_at,
+        memo_versions (
+          id,
+          version,
+          title,
+          summary,
+          content,
+          created_at
+        )
+      `)
+      .eq("id", id)
+      .maybeSingle()
+    
+    if (error || !memo) {
+      return getRecommendationById(id)
+    }
+    
+    const latestVersion = Array.isArray(memo.memo_versions)
+      ? memo.memo_versions.sort((a: { version: number }, b: { version: number }) => b.version - a.version)[0]
+      : null
+    
+    return {
+      id: memo.id,
+      investorId: memo.investor_id,
+      createdByRole: "realtor" as const,
+      title: latestVersion?.title || "Recommendation",
+      summary: latestVersion?.summary || "",
+      status: mapMemoStateToRecStatus(memo.state),
+      trigger: "ai_insight" as const,
+      createdAt: memo.created_at,
+      updatedAt: memo.updated_at,
+      propertyIds: [],
+      counterfactuals: [],
+      qna: [],
+      activity: [{
+        at: memo.created_at,
+        type: "created",
+        label: "Created recommendation"
+      }],
+      lastActivityAt: memo.updated_at,
+      propertyNotes: {},
+    }
+  } catch (err) {
+    console.warn("[recommendation-store] Error fetching recommendation:", err)
+    return getRecommendationById(id)
+  }
 }
 
+export function getRecommendationById(id: string) {
+  return localRecommendations.find((r) => r.id === id) ?? null
+}
+
+/**
+ * Create recommendation - async version with DB persistence
+ */
+export async function createRecommendationAsync(input: {
+  investorId: string
+  createdByRole: Recommendation["createdByRole"]
+  trigger: Recommendation["trigger"]
+  title?: string
+  summary?: string
+  propertyIds?: string[]
+  counterfactuals?: Counterfactual[]
+  tenantId?: string
+  createdBy?: string
+}): Promise<Recommendation> {
+  const at = nowIso()
+  
+  try {
+    const supabase = getSupabaseAdminClient()
+    
+    // Create memo in database
+    const { data: memo, error } = await supabase
+      .from("memos")
+      .insert({
+        investor_id: input.investorId,
+        created_by: input.createdBy || null,
+        state: "draft",
+        created_at: at,
+        updated_at: at,
+      })
+      .select("id")
+      .maybeSingle()
+    
+    if (error || !memo) {
+      console.warn("[recommendation-store] Error creating memo:", error?.message)
+      return createRecommendation(input)
+    }
+    
+    // Create initial memo version
+    await supabase
+      .from("memo_versions")
+      .insert({
+        memo_id: memo.id,
+        version: 1,
+        title: input.title ?? "New recommendation",
+        summary: input.summary ?? "",
+        content: JSON.stringify({
+          propertyIds: input.propertyIds ?? [],
+          counterfactuals: input.counterfactuals ?? [],
+          trigger: input.trigger,
+        }),
+        created_at: at,
+      })
+    
+    return {
+      id: memo.id,
+      investorId: input.investorId,
+      createdByRole: input.createdByRole,
+      title: input.title ?? "New recommendation",
+      summary: input.summary ?? "",
+      status: "DRAFT",
+      trigger: input.trigger,
+      createdAt: at,
+      updatedAt: at,
+      propertyIds: input.propertyIds ?? [],
+      counterfactuals: input.counterfactuals ?? [],
+      qna: [],
+      activity: [{ at, type: "created", label: "Created recommendation" }],
+      lastActivityAt: at,
+      propertyNotes: {},
+    }
+  } catch (err) {
+    console.warn("[recommendation-store] Error creating recommendation:", err)
+    return createRecommendation(input)
+  }
+}
+
+/**
+ * Create recommendation - sync version (local only)
+ */
 export function createRecommendation(input: {
   investorId: string
   createdByRole: Recommendation["createdByRole"]
@@ -74,8 +308,70 @@ export function createRecommendation(input: {
     propertyNotes: {},
   }
 
-  recommendations.push(rec)
+  localRecommendations.push(rec)
   return rec
+}
+
+/**
+ * Update recommendation - async version
+ */
+export async function updateRecommendationAsync(
+  id: string,
+  patch: Partial<Pick<Recommendation, "title" | "summary" | "status" | "trigger" | "propertyNotes">>,
+): Promise<Recommendation | null> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    const at = nowIso()
+    
+    // Update memo state if status changed
+    if (patch.status) {
+      const stateMap: Record<string, string> = {
+        "DRAFT": "draft",
+        "SENT": "sent",
+        "VIEWED": "opened",
+        "QUESTIONS": "pending_review",
+        "APPROVED": "decided",
+        "REJECTED": "decided",
+        "SUPERSEDED": "decided",
+      }
+      
+      await supabase
+        .from("memos")
+        .update({ 
+          state: stateMap[patch.status] || "draft",
+          updated_at: at
+        })
+        .eq("id", id)
+    }
+    
+    // If title/summary changed, create new version
+    if (patch.title || patch.summary) {
+      // Get latest version number
+      const { data: versions } = await supabase
+        .from("memo_versions")
+        .select("version")
+        .eq("memo_id", id)
+        .order("version", { ascending: false })
+        .limit(1)
+      
+      const nextVersion = (versions?.[0]?.version || 0) + 1
+      
+      await supabase
+        .from("memo_versions")
+        .insert({
+          memo_id: id,
+          version: nextVersion,
+          title: patch.title,
+          summary: patch.summary,
+          created_at: at,
+        })
+    }
+    
+    return await getRecommendationByIdAsync(id)
+  } catch (err) {
+    console.warn("[recommendation-store] Error updating recommendation:", err)
+    return updateRecommendation(id, patch)
+  }
 }
 
 export function updateRecommendation(
@@ -347,8 +643,8 @@ function seeded(): Recommendation[] {
 }
 
 // Auto-init with demo data
-if (recommendations.length === 0) {
-  recommendations = seeded()
+if (localRecommendations.length === 0) {
+  localRecommendations = seeded()
   seq = 2000
 }
 

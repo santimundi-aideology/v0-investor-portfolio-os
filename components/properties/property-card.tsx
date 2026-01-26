@@ -4,12 +4,52 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { toast } from "sonner"
-import { Bath, BedDouble, Heart, MapPin, Ruler, Share2, Sparkles } from "lucide-react"
+import { ArrowDown, ArrowUp, Bath, BedDouble, Heart, MapPin, Minus, Ruler, Share2, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 
-import type { Property } from "@/lib/types"
+import type { Property, PriceContrast } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+
+/**
+ * Format price for display
+ */
+function formatPrice(value: number | undefined): string {
+  if (!value) return "—"
+  if (value >= 1_000_000) return `AED ${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `AED ${(value / 1_000).toFixed(0)}K`
+  return `AED ${Math.round(value).toLocaleString()}`
+}
+
+/**
+ * Get badge variant for price assessment
+ */
+function getPriceContrastVariant(assessment: PriceContrast['assessment']): "default" | "secondary" | "destructive" | "outline" {
+  switch (assessment) {
+    case 'underpriced':
+      return 'default' // Green-ish (good deal)
+    case 'overpriced':
+      return 'destructive' // Red (caution)
+    case 'fair':
+    default:
+      return 'secondary'
+  }
+}
+
+/**
+ * Get icon for price contrast
+ */
+function PriceContrastIcon({ assessment }: { assessment: PriceContrast['assessment'] }) {
+  switch (assessment) {
+    case 'underpriced':
+      return <TrendingDown className="h-3 w-3" />
+    case 'overpriced':
+      return <TrendingUp className="h-3 w-3" />
+    case 'fair':
+    default:
+      return <Minus className="h-3 w-3" />
+  }
+}
 
 interface PropertyCardProps {
   property: Property
@@ -83,7 +123,7 @@ export function PropertyCard({
 
   return (
     <Link href={`/properties/${property.id}`} className="block h-full">
-      <div className={cn("property-card group", featured && "ring-2 ring-emerald-500/40")}>
+      <div className={cn("property-card group", featured && "ring-2 ring-green-500/30")}>
         <div className="property-card__image-container">
           <Image
             src={property.imageUrl || "/placeholder.svg"}
@@ -119,7 +159,7 @@ export function PropertyCard({
 
         <div className="property-card__content">
           <div className="property-card__type">
-            <Sparkles className="h-4 w-4 text-emerald-600" />
+            <Sparkles className="h-4 w-4 text-primary" />
             {readinessLabels[property.readinessStatus ?? "DRAFT"]}
           </div>
 
@@ -152,7 +192,7 @@ export function PropertyCard({
             <Badge variant="secondary" className="rounded-full">
               {property.area}
             </Badge>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-500">
               {whyItFits.map((reason, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -168,6 +208,32 @@ export function PropertyCard({
               <div className="property-card__price-label">
                 {property.trustScore ? `Trust score ${property.trustScore}/100` : "Trust score pending"}
               </div>
+              {/* Price Contrast Section */}
+              {property.priceContrast && property.priceContrast.dldMedianPrice && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>DLD Market:</span>
+                    <span className="font-medium">{formatPrice(property.priceContrast.dldMedianPrice)}</span>
+                    {property.priceContrast.dldQuarter && (
+                      <span className="text-[10px]">({property.priceContrast.dldQuarter})</span>
+                    )}
+                  </div>
+                  {property.priceContrast.assessment && (
+                    <Badge 
+                      variant={getPriceContrastVariant(property.priceContrast.assessment)}
+                      className="gap-1 text-[10px]"
+                    >
+                      <PriceContrastIcon assessment={property.priceContrast.assessment} />
+                      {property.priceContrast.assessmentLabel || property.priceContrast.assessment}
+                    </Badge>
+                  )}
+                  {property.priceContrast.estimatedGrossYield && (
+                    <div className="text-[10px] text-gray-500">
+                      Est. yield: {(property.priceContrast.estimatedGrossYield * 100).toFixed(1)}%
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="property-card__cta">View details</div>
           </div>

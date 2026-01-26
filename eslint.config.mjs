@@ -5,3 +5,21 @@ const config = [...coreWebVitals, ...typescript]
 export default config
 
 
+
+
+const config = [...coreWebVitals, ...typescript]
+export default config
+
+
+
+
+const config = [...coreWebVitals, ...typescript]
+export default config
+
+
+
+
+const config = [...coreWebVitals, ...typescript]
+export default config
+
+

@@ -103,5 +103,3 @@ export const defaultPersonaId: PersonaId = "realtor-primary"
 export function getPersonaById(id: PersonaId) {
   return personas.find((p) => p.id === id) ?? personas[0]
 }
-
-

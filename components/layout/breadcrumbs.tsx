@@ -71,7 +71,7 @@ export function AppBreadcrumbs({ className }: { className?: string }) {
                 ) : item.href ? (
                   <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
                 ) : (
-                  <span className="text-muted-foreground">{item.label}</span>
+                  <span className="text-gray-500">{item.label}</span>
                 )}
               </BreadcrumbItem>
               {!isLast && <BreadcrumbSeparator />}

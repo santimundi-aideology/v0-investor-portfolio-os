@@ -3,10 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Search, SlidersHorizontal, Users, UserPlus } from "lucide-react"
+import { Search, SlidersHorizontal, Users, UserPlus, Loader2 } from "lucide-react"
 
 import type { Investor } from "@/lib/types"
-import { initInvestorStore, useInvestors } from "@/lib/investor-store"
+import { initInvestorStore, useInvestors, replaceAllInvestors } from "@/lib/investor-store"
 import { getDealRoomsByInvestorId, mockInvestors } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
 import { PageHeader } from "@/components/layout/page-header"
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { InvestorCard } from "@/components/investors/investor-card"
+import { InvestorStatsBanner } from "@/components/investors/investor-stats-banner"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "grid" | "table"
@@ -51,11 +52,62 @@ function safeDate(date: string) {
   return d.toLocaleDateString("en-AE", { year: "numeric", month: "short", day: "2-digit" })
 }
 
+// Map database investor record to Investor type
+function mapDbToInvestor(record: Record<string, unknown>): Investor {
+  return {
+    id: record.id as string,
+    name: record.name as string,
+    company: (record.company as string) ?? "",
+    email: (record.email as string) ?? "",
+    phone: (record.phone as string) ?? "",
+    avatar: (record.avatar as string) ?? "/placeholder-user.jpg",
+    status: record.status as Investor["status"],
+    segment: "hnwi",
+    location: "",
+    timezone: "Asia/Dubai",
+    preferredContactMethod: "email",
+    aumAed: 0,
+    liquidityWindow: "30-90d",
+    leadSource: "",
+    tags: [],
+    notes: "",
+    mandate: record.mandate as Investor["mandate"] ?? undefined,
+    createdAt: (record.createdAt as string) ?? new Date().toISOString(),
+    lastContact: (record.lastContact as string) ?? new Date().toISOString(),
+    totalDeals: (record.totalDeals as number) ?? 0,
+  }
+}
+
 export function InvestorsPageClient() {
   const { role } = useApp()
+  const [loading, setLoading] = React.useState(true)
+  const [dbError, setDbError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    // Initialize with mock data first
     initInvestorStore(mockInvestors)
+    
+    // Then try to fetch from database
+    async function fetchFromDb() {
+      try {
+        const res = await fetch("/api/investors")
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            // Use database data, clear local storage cache
+            const dbInvestors = data.map(mapDbToInvestor)
+            replaceAllInvestors(dbInvestors, true)
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch investors from database, using mock data:", err)
+        setDbError("Using demo data (database not connected)")
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchFromDb()
   }, [])
 
   const allInvestors = useInvestors()
@@ -108,6 +160,14 @@ export function InvestorsPageClient() {
     return { total: investors.length, active, watching, closed, deals, ongoingDeals }
   }, [investors])
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    )
+  }
+
   if (role === "investor") {
     return (
       <div className="space-y-6">
@@ -128,64 +188,16 @@ export function InvestorsPageClient() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Investors"
-        subtitle={`${stats.total} investors • ${stats.active} active • ${stats.watching} watching • ${stats.ongoingDeals} active deals`}
-        primaryAction={
-          <Button
-            onClick={() =>
-              toast.info("New investor (demo)", {
-                description: "Investor creation UI is coming next. For now, use seeded demo investors.",
-              })
-            }
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            New investor
-          </Button>
-        }
-        secondaryActions={
-          <Button variant="outline" asChild>
-            <Link href="/dashboard">Back to dashboard</Link>
-          </Button>
-        }
-      />
+      {/* Visual Stats Banner */}
+      <InvestorStatsBanner investors={investors} />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <div className="text-2xl font-semibold">{stats.active}</div>
-            <Badge variant="secondary">Pipeline</Badge>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Watching</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <div className="text-2xl font-semibold">{stats.watching}</div>
-            <Badge variant="outline">Pre-mandate</Badge>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Deals (total)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <div className="text-2xl font-semibold">{stats.deals}</div>
-            <Badge variant="secondary">All time</Badge>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-border/60">
+      {/* Filters */}
+      <Card className="border-gray-100">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-1 items-center gap-3">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -242,7 +254,7 @@ export function InvestorsPageClient() {
                 <Button
                   size="sm"
                   variant={viewMode === "grid" ? "default" : "outline"}
-                  className={cn(viewMode === "grid" && "bg-primary text-primary-foreground")}
+                  className={cn(viewMode === "grid" && "bg-green-500 text-white")}
                   onClick={() => setViewMode("grid")}
                 >
                   Grid
@@ -250,7 +262,7 @@ export function InvestorsPageClient() {
                 <Button
                   size="sm"
                   variant={viewMode === "table" ? "default" : "outline"}
-                  className={cn(viewMode === "table" && "bg-primary text-primary-foreground")}
+                  className={cn(viewMode === "table" && "bg-green-500 text-white")}
                   onClick={() => setViewMode("table")}
                 >
                   Table
@@ -261,7 +273,7 @@ export function InvestorsPageClient() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center justify-between text-sm text-gray-500">
         <div>
           Showing <span className="font-medium text-foreground">{filtered.length}</span> of{" "}
           <span className="font-medium text-foreground">{stats.total}</span>
@@ -299,7 +311,7 @@ export function InvestorsPageClient() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-muted-foreground">
+                  <tr className="border-b text-left text-gray-500">
                     <th className="pb-3 pr-4 font-medium">Investor</th>
                     <th className="pb-3 pr-4 font-medium">Company</th>
                     <th className="pb-3 pr-4 font-medium">Status</th>
@@ -312,12 +324,12 @@ export function InvestorsPageClient() {
                   {filtered.map((inv) => (
                     <tr key={inv.id} className="border-b last:border-b-0">
                       <td className="py-4 pr-4 font-medium">{inv.name}</td>
-                      <td className="py-4 pr-4 text-muted-foreground">{inv.company}</td>
+                      <td className="py-4 pr-4 text-gray-500">{inv.company}</td>
                       <td className="py-4 pr-4">
                         <Badge variant={statusVariant(inv.status)}>{statusLabel(inv.status)}</Badge>
                       </td>
-                      <td className="py-4 pr-4 text-muted-foreground">{inv.mandate?.strategy ?? "—"}</td>
-                      <td className="py-4 pr-4 text-muted-foreground">{safeDate(inv.lastContact)}</td>
+                      <td className="py-4 pr-4 text-gray-500">{inv.mandate?.strategy ?? "—"}</td>
+                      <td className="py-4 pr-4 text-gray-500">{safeDate(inv.lastContact)}</td>
                       <td className="py-4 pr-0 text-right">
                         <Button size="sm" variant="outline" asChild>
                           <Link href={`/investors/${inv.id}`}>Open</Link>

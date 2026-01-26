@@ -177,7 +177,7 @@ function InvestorRealEstateView({ role, investorId }: { role: "owner" | "admin" 
               </CardHeader>
               <CardContent>
                 <AllocationPieChart data={allocation} />
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
                   {allocation.map((a) => (
                     <div key={a.name} className="flex items-center justify-between rounded-md border px-2 py-1">
                       <span className="capitalize">{a.name}</span>
@@ -196,7 +196,7 @@ function InvestorRealEstateView({ role, investorId }: { role: "owner" | "admin" 
               </CardHeader>
               <CardContent>
                 <RentalIncomeForecastChart data={forecast} />
-                <div className="mt-3 text-xs text-muted-foreground">
+                <div className="mt-3 text-xs text-gray-500">
                   Net forecast assumes occupancy stays stable and rents grow modestly.
                 </div>
               </CardContent>
@@ -255,7 +255,7 @@ function InvestorRealEstateView({ role, investorId }: { role: "owner" | "admin" 
                           <TableCell>
                             <div className="min-w-[240px]">
                               <div className="font-medium">{p?.title ?? h.propertyId}</div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-gray-500">
                                 {p?.area ?? "—"} • {p?.type ?? "—"}
                               </div>
                             </div>
@@ -267,7 +267,7 @@ function InvestorRealEstateView({ role, investorId }: { role: "owner" | "admin" 
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">{formatAED(inc.net)}</div>
-                            <div className="text-xs text-muted-foreground">{inc.months} months</div>
+                            <div className="text-xs text-gray-500">{inc.months} months</div>
                           </TableCell>
                           <TableCell>{pct(y)}</TableCell>
                           <TableCell className="text-right">
@@ -531,13 +531,13 @@ function RealtorRealEstateView() {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-secondary/40 p-6 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_0%_20%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(900px_circle_at_80%_0%,rgba(16,185,129,0.12),transparent_55%)]" />
         <div className="relative">
           <PageHeader
             title={
               <span className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
                   <ClipboardCheck className="size-5" />
                 </span>
                 <span>Real estate cockpit, {user.name}</span>
@@ -577,10 +577,10 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <Users className="size-4 text-primary" />
+              <Users className="size-4 text-green-600" />
               Mandate coverage
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Who still needs qualified product before next check-in.</p>
+            <p className="text-xs text-gray-500">Who still needs qualified product before next check-in.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="overflow-x-auto">
@@ -609,7 +609,7 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <Layers className="size-4 text-primary" />
+              <Layers className="size-4 text-green-600" />
               Inventory readiness
             </CardTitle>
           </CardHeader>
@@ -643,7 +643,7 @@ function RealtorRealEstateView() {
                   <div key={property.id} className="flex items-center justify-between rounded-lg border p-2">
                     <div>
                       <div className="font-medium">{property.title}</div>
-                      <div className="text-muted-foreground">{property.area}</div>
+                      <div className="text-gray-500">{property.area}</div>
                     </div>
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/properties/${property.id}`}>Open</Link>
@@ -651,7 +651,7 @@ function RealtorRealEstateView() {
                   </div>
                 ))
               ) : (
-                <div className="text-muted-foreground">No pending verifications 🎉</div>
+                <div className="text-gray-500">No pending verifications 🎉</div>
               )}
             </div>
           </CardContent>
@@ -662,16 +662,16 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <FolderKanban className="size-4 text-primary" />
+              <FolderKanban className="size-4 text-green-600" />
               Deal pipeline
             </CardTitle>
-            <p className="text-xs text-muted-foreground">See blockers before IC or closing deadlines slip.</p>
+            <p className="text-xs text-gray-500">See blockers before IC or closing deadlines slip.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {dealsToShow.length ? (
               dealsToShow.map((deal) => <DealPipelineRow key={deal.id} deal={deal} />)
             ) : (
-              <div className="text-sm text-muted-foreground">No active deals. Add an opportunity from the inventory page.</div>
+              <div className="text-sm text-gray-500">No active deals. Add an opportunity from the inventory page.</div>
             )}
             <Button variant="outline" asChild className="w-full">
               <Link href="/deal-room">Open deal board</Link>
@@ -682,16 +682,16 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <Clock className="size-4 text-primary" />
+              <Clock className="size-4 text-green-600" />
               Critical tasks
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Stay ahead of investor promises and diligence requests.</p>
+            <p className="text-xs text-gray-500">Stay ahead of investor promises and diligence requests.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {prioritizedTasks.length ? (
               prioritizedTasks.slice(0, 5).map((task) => <RealtorTaskRow key={task.id} task={task} today={today} />)
             ) : (
-              <div className="text-sm text-muted-foreground">All clear — no pending tasks.</div>
+              <div className="text-sm text-gray-500">All clear — no pending tasks.</div>
             )}
             <Button variant="outline" asChild className="w-full">
               <Link href="/tasks">Open task board</Link>
@@ -704,10 +704,10 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <Target className="size-4 text-primary" />
+              <Target className="size-4 text-green-600" />
               Shortlist pushes
             </CardTitle>
-            <p className="text-xs text-muted-foreground">High-confidence matches that need a nudge.</p>
+            <p className="text-xs text-gray-500">High-confidence matches that need a nudge.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {shortlistFocus.map(({ item, investor }) => (
@@ -719,10 +719,10 @@ function RealtorRealEstateView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
-              <MapPinned className="size-4 text-primary" />
+              <MapPinned className="size-4 text-green-600" />
               Area coverage
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Where your current book is concentrated.</p>
+            <p className="text-xs text-gray-500">Where your current book is concentrated.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {areaBreakdown.map((area) => (
@@ -755,14 +755,14 @@ function MetricCard({
   icon: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <Card className="border-border/60 bg-gradient-to-br from-card to-muted/60 shadow-sm">
+    <Card className="border-gray-100 bg-white shadow-sm">
       <CardContent className="flex items-center justify-between p-5">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/80">{label}</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-gray-500/80">{label}</div>
           <div className="mt-1 text-2xl font-bold text-foreground/90">{value}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{meta}</div>
+          <div className="mt-1 text-xs text-gray-500">{meta}</div>
         </div>
-        <div className="rounded-full bg-primary/10 p-3 text-primary">
+        <div className="rounded-full bg-green-50 p-3 text-green-600">
           <Icon className="size-5" />
         </div>
       </CardContent>
@@ -787,7 +787,7 @@ function MandateCoverageRow({
     <TableRow>
       <TableCell>
         <div className="font-medium">{row.investor.name}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-gray-500">
           {row.investor.mandate?.strategy ?? "—"} • {row.lastTouch}
         </div>
       </TableCell>
@@ -824,24 +824,24 @@ function DealPipelineRow({ deal }: { deal: DealRoom }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="font-semibold">{deal.propertyTitle}</div>
-          <div className="text-xs text-muted-foreground">{deal.investorName}</div>
+          <div className="text-xs text-gray-500">{deal.investorName}</div>
         </div>
         <Badge variant="secondary" className="capitalize">
           {deal.status.replaceAll("-", " ")}
         </Badge>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
         <span>{deal.ticketSizeAed ? formatAED(deal.ticketSizeAed) : "Ticket TBC"}</span>
         <span>•</span>
         <span>{targetLabel}</span>
       </div>
       {deal.nextStep ? (
         <div className="mt-2 text-xs">
-          <span className="font-semibold text-primary">Next:</span> {deal.nextStep}
+          <span className="font-semibold text-green-600">Next:</span> {deal.nextStep}
         </div>
       ) : null}
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">Prob {deal.probability ?? 0}%</span>
+        <span className="text-gray-500">Prob {deal.probability ?? 0}%</span>
         <Button variant="outline" size="sm" asChild>
           <Link href={`/deal-room/${deal.id}`}>Open</Link>
         </Button>
@@ -863,12 +863,12 @@ function RealtorTaskRow({ task, today }: { task: Task; today: Date }) {
 
   const dueClass =
     dueInDays === null
-      ? "text-muted-foreground"
+      ? "text-gray-500"
       : dueInDays < 0
         ? "text-destructive"
         : dueInDays <= 1
           ? "text-amber-600 dark:text-amber-300"
-          : "text-muted-foreground"
+          : "text-gray-500"
 
   return (
     <div className="rounded-lg border p-3">
@@ -878,7 +878,7 @@ function RealtorTaskRow({ task, today }: { task: Task; today: Date }) {
           {task.priority}
         </Badge>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">
+      <div className="mt-1 text-xs text-gray-500">
         {task.investorName ?? "Internal"} {task.propertyTitle ? `• ${task.propertyTitle}` : null}
       </div>
       <div className={`mt-2 text-xs font-semibold ${dueClass}`}>{dueLabel}</div>
@@ -895,7 +895,7 @@ function ShortlistPushCard({ item, investor }: { item: ShortlistItem; investor?:
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="font-semibold">{property.title}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-gray-500">
             {investor?.name ?? "Investor"} • Score {item.score}
           </div>
         </div>
@@ -903,8 +903,8 @@ function ShortlistPushCard({ item, investor }: { item: ShortlistItem; investor?:
           {item.status.replaceAll("-", " ")}
         </Badge>
       </div>
-      {item.notes ? <div className="mt-2 text-xs text-muted-foreground">{item.notes}</div> : null}
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+      {item.notes ? <div className="mt-2 text-xs text-gray-500">{item.notes}</div> : null}
+      <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
         <span>
           {property.area} • {property.type}
         </span>
@@ -931,11 +931,11 @@ function AreaCoverageRow({
     <div className="flex items-center justify-between rounded-lg border p-3 text-sm">
       <div>
         <div className="font-semibold">{area}</div>
-        <div className="text-xs text-muted-foreground">{listings} listings</div>
+        <div className="text-xs text-gray-500">{listings} listings</div>
       </div>
       <div className="flex items-center gap-3 text-xs">
         <Badge variant="secondary">Trust {avgTrust}</Badge>
-        <span className="font-semibold text-primary">{avgRoi ? `${avgRoi.toFixed(1)}%` : "—"}</span>
+        <span className="font-semibold text-green-600">{avgRoi ? `${avgRoi.toFixed(1)}%` : "—"}</span>
       </div>
     </div>
   )
@@ -953,11 +953,11 @@ function StatCard({
   trend?: string
 }) {
   return (
-    <Card className="overflow-hidden border-border/50 bg-gradient-to-br from-card to-secondary/40 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
+    <Card className="overflow-hidden border-gray-100 bg-white shadow-sm transition-all hover:shadow-md hover:border-green-200">
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-y-0 pb-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">{label}</p>
-          <div className="rounded-full bg-primary/10 p-2 text-primary">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500/80">{label}</p>
+          <div className="rounded-full bg-green-50 p-2 text-green-600">
             <Icon className="h-4 w-4" />
           </div>
         </div>
@@ -979,7 +979,7 @@ function Insight({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border p-3">
       <div className="text-sm font-medium">{title}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{body}</div>
+      <div className="mt-1 text-xs text-gray-500">{body}</div>
     </div>
   )
 }
@@ -998,11 +998,11 @@ function Category({
       <CardContent className="pt-6">
         <div className="flex items-start gap-3">
           <div className="flex size-10 items-center justify-center rounded-md bg-muted">
-            <Icon className="size-5 text-muted-foreground" />
+            <Icon className="size-5 text-gray-500" />
           </div>
           <div>
             <div className="font-medium">{title}</div>
-            <div className="text-xs text-muted-foreground">{subtitle}</div>
+            <div className="text-xs text-gray-500">{subtitle}</div>
           </div>
         </div>
       </CardContent>
@@ -1028,14 +1028,14 @@ function OpportunityCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="font-medium truncate">{p.title}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-gray-500">
               {p.area} • {p.type}
             </div>
           </div>
           <Badge variant="secondary">Score {score}</Badge>
         </div>
         <div className="text-sm font-semibold">{formatAED(p.price)}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-gray-500">
           {reasons.length ? reasons.join(" • ") : "Recommended based on your mandate"}
         </div>
         <div className="pt-2">

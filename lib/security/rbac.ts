@@ -1,3 +1,5 @@
+import { getSupabaseAdminClient } from "@/lib/db/client"
+
 export type PlatformRole = "agent" | "manager" | "investor" | "super_admin"
 
 export type RequestContext = {
@@ -90,7 +92,7 @@ export function assertMemoAccess(memo: MemoScope, ctx: RequestContext, investor?
 }
 
 /**
- * Extracts request context from headers.
+ * Extracts request context from headers (legacy mode).
  * Expected headers:
  *  - x-tenant-id (required for all roles; super_admin must also set it before acting)
  *  - x-user-id (required)
@@ -116,5 +118,114 @@ export function buildRequestContext(req: Request): RequestContext {
   }
 
   return { tenantId, userId, role, investorId }
+}
+
+/**
+ * Builds request context from session (authenticated mode).
+ * Fetches user data from database using the auth session.
+ */
+export async function buildSessionContext(authUserId: string): Promise<RequestContext | null> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id, tenant_id, role, is_active")
+      .eq("auth_user_id", authUserId)
+      .single()
+
+    if (error || !user) {
+      console.error("Failed to get user from session:", error)
+      return null
+    }
+
+    if (!user.is_active) {
+      throw new AccessError("User account is deactivated")
+    }
+
+    return {
+      tenantId: user.tenant_id,
+      userId: user.id,
+      role: user.role as PlatformRole,
+    }
+  } catch (err) {
+    if (err instanceof AccessError) throw err
+    console.error("Error building session context:", err)
+    return null
+  }
+}
+
+/**
+ * Check if user has permission to perform an action.
+ */
+export function hasPermission(
+  ctx: RequestContext, 
+  action: "read" | "write" | "delete" | "admin",
+  resource: "investors" | "listings" | "memos" | "tasks" | "users" | "settings"
+): boolean {
+  // Super admin can do everything
+  if (ctx.role === "super_admin") return true
+
+  // Define permissions matrix
+  const permissions: Record<PlatformRole, Record<string, string[]>> = {
+    super_admin: {
+      investors: ["read", "write", "delete", "admin"],
+      listings: ["read", "write", "delete", "admin"],
+      memos: ["read", "write", "delete", "admin"],
+      tasks: ["read", "write", "delete", "admin"],
+      users: ["read", "write", "delete", "admin"],
+      settings: ["read", "write", "admin"],
+    },
+    manager: {
+      investors: ["read", "write", "delete"],
+      listings: ["read", "write", "delete"],
+      memos: ["read", "write", "delete"],
+      tasks: ["read", "write", "delete"],
+      users: ["read", "write"],
+      settings: ["read", "write"],
+    },
+    agent: {
+      investors: ["read", "write"],
+      listings: ["read", "write"],
+      memos: ["read", "write"],
+      tasks: ["read", "write"],
+      users: ["read"],
+      settings: ["read"],
+    },
+    investor: {
+      investors: ["read"],
+      listings: ["read"],
+      memos: ["read"],
+      tasks: ["read"],
+      users: [],
+      settings: [],
+    },
+  }
+
+  const rolePermissions = permissions[ctx.role]?.[resource] ?? []
+  return rolePermissions.includes(action)
+}
+
+/**
+ * Role display names for UI.
+ */
+export const roleDisplayNames: Record<PlatformRole, string> = {
+  super_admin: "Super Administrator",
+  manager: "Manager",
+  agent: "Agent",
+  investor: "Investor",
+}
+
+/**
+ * Get role badge color for UI.
+ */
+export function getRoleBadgeColor(role: PlatformRole): string {
+  const colors: Record<PlatformRole, string> = {
+    super_admin: "bg-purple-100 text-purple-800",
+    manager: "bg-blue-100 text-blue-800",
+    agent: "bg-green-100 text-green-800",
+    investor: "bg-amber-100 text-amber-800",
+  }
+  return colors[role] || "bg-gray-100 text-gray-800"
 }
 

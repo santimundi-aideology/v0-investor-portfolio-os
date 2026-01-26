@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { filterNavByRole } from "@/lib/nav"
 import { useApp } from "@/components/providers/app-provider"
+import { VantageIcon } from "@/components/brand/logo"
 
 interface SidebarProps {
   collapsed: boolean
@@ -30,8 +31,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            ? "bg-green-50 text-green-600"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
           collapsed && "justify-center px-2",
         )}
       >
@@ -58,25 +59,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "flex h-full flex-col border-r border-border bg-sidebar transition-all duration-300",
+          "flex h-full flex-col border-r border-gray-200 bg-white transition-all duration-300",
           collapsed ? "w-16" : "w-64",
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
+        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Building2 className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-semibold text-sidebar-foreground">InvestorOS</span>
+              <VantageIcon size={32} />
+              <span className="font-semibold text-gray-900">Vantage</span>
             </Link>
           )}
           {collapsed && (
             <Link href="/dashboard" className="mx-auto">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Building2 className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <VantageIcon size={32} />
             </Link>
           )}
         </div>
@@ -88,7 +85,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {sections.map((section) => (
                 <div key={section.label} className="space-y-1">
                   {!collapsed ? (
-                    <div className="px-3 py-1 text-xs font-semibold tracking-wider text-sidebar-foreground/60">
+                    <div className="px-3 py-1 text-xs font-semibold tracking-wider text-gray-500">
                       {section.label}
                     </div>
                   ) : null}
@@ -101,12 +98,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </ScrollArea>
 
         {/* Collapse Toggle */}
-        <div className="border-t border-sidebar-border p-2">
+        <div className="border-t border-gray-200 p-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={onToggle}
-            className={cn("w-full text-sidebar-foreground hover:bg-sidebar-accent", collapsed && "justify-center")}
+            className={cn("w-full text-gray-600 hover:bg-gray-50", collapsed && "justify-center")}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />

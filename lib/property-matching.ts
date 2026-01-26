@@ -41,7 +41,7 @@ function withinBudget(price: number | undefined, min?: number, max?: number) {
   return { hit: false, near: threshold <= 0.15 }
 }
 
-function evaluatePair(property: Property | null, investor: Investor | null): PairEvaluation {
+export function evaluatePair(property: Property | null, investor: Investor | null): PairEvaluation {
   if (!property || !investor?.mandate) return { score: 0, reasons: [] }
   const mandate = investor.mandate
   let score = 0

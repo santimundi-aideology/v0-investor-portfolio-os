@@ -114,7 +114,7 @@ export async function computeTruthSnapshots(orgId: string): Promise<{ snapshotsC
       if (pricePsf.length > 0) {
         snapshotRows.push({
           org_id: orgId,
-          source: "DLD",
+          source: "official_dld",
           metric: "median_price_psf",
           geo_type,
           geo_id,
@@ -149,7 +149,7 @@ export async function computeTruthSnapshots(orgId: string): Promise<{ snapshotsC
       if (rents.length > 0) {
         snapshotRows.push({
           org_id: orgId,
-          source: "Ejari",
+          source: "official_ejari",
           metric: "median_rent_annual",
           geo_type,
           geo_id,

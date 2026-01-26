@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the comprehensive design system implemented for the Investor Portfolio OS application. The design system features a modern, premium aesthetic with a forest green and warm gold color palette, optimized for real estate investment professionals.
+This document describes the comprehensive design system implemented for the Vantage application. The design system features a modern, premium aesthetic with a forest green and warm gold color palette, optimized for real estate investment professionals.
 
 ## Color Palette
 

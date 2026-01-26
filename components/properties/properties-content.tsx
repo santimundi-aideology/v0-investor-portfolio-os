@@ -17,20 +17,21 @@ import { getAllProperties } from "@/lib/property-store"
 import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { PropertyCard } from "./property-card"
+import { PropertyStatsBanner } from "./property-stats-banner"
 import { cn } from "@/lib/utils"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 
 const statusColors: Record<Property["status"], string> = {
-  available: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  "under-offer": "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  sold: "bg-muted text-muted-foreground",
-  "off-market": "bg-muted text-muted-foreground",
+  available: "bg-green-50 text-green-600 border-green-200",
+  "under-offer": "bg-amber-50 text-amber-600 border-amber-200",
+  sold: "bg-gray-100 text-gray-500",
+  "off-market": "bg-gray-100 text-gray-500",
 }
 
 const readinessStatusColors: Record<PropertyReadinessStatus, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  NEEDS_VERIFICATION: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  READY_FOR_MEMO: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  DRAFT: "bg-gray-100 text-gray-500",
+  NEEDS_VERIFICATION: "bg-amber-50 text-amber-600 border-amber-200",
+  READY_FOR_MEMO: "bg-green-50 text-green-600 border-green-200",
 }
 
 const typeLabels: Record<Property["type"], string> = {
@@ -95,35 +96,25 @@ export function PropertiesContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Properties"
-        subtitle={`${filteredProperties.length} of ${mockProperties.length} properties`}
-        primaryAction={
-          <Button asChild>
-            <Link href="/properties/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add property
-            </Link>
-          </Button>
-        }
-      />
+      {/* Visual Stats Banner */}
+      <PropertyStatsBanner properties={allProperties} />
 
       {/* Filters */}
-      <Card>
+      <Card className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-4 sm:flex-row">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
                 <Input
                   placeholder="Search properties..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-10 bg-gray-50 border-gray-200 rounded-lg focus:bg-white"
                 />
               </div>
               <Select value={areaFilter} onValueChange={setAreaFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 rounded-lg">
                   <SelectValue placeholder="All Areas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -136,7 +127,7 @@ export function PropertiesContent() {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 rounded-lg">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -148,7 +139,7 @@ export function PropertiesContent() {
                 </SelectContent>
               </Select>
               <Select value={listingFilter} onValueChange={setListingFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px] border-gray-200 rounded-lg">
                   <SelectValue placeholder="All Listing Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -161,7 +152,7 @@ export function PropertiesContent() {
             
             {/* View Mode Toggle */}
             <div className="flex items-center justify-end gap-2">
-              <span className="text-sm text-muted-foreground mr-2">View:</span>
+              <span className="text-sm text-gray-500 mr-2">View:</span>
               <Button
                 variant={viewMode === "grid" ? "default" : "outline"}
                 size="sm"
@@ -194,22 +185,22 @@ export function PropertiesContent() {
       {viewMode === "grid" ? (
         filteredProperties.length > 0 ? (
           <section className="space-y-6">
-            <div className="rounded-[32px] border border-border bg-gradient-to-r from-[#102414] via-[#12361d] to-[#1A4D2E] px-8 py-10 text-white shadow-[0_10px_40px_rgba(16,36,20,0.35)]">
+            <div className="rounded-2xl bg-white border border-gray-100 p-8">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-2">
-                  <p className="text-sm uppercase tracking-[0.2em] text-white/70">Portfolio Spotlight</p>
-                  <h2 className="text-3xl font-semibold tracking-tight">Explore our premier houses</h2>
-                  <p className="text-base text-white/80">
-                    Each listing offers unique features, exceptional quality, and prime locations, ensuring an exclusive living experience.
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Portfolio Spotlight</p>
+                  <h2 className="text-2xl font-semibold text-foreground">Explore top opportunities</h2>
+                  <p className="text-sm text-gray-500">
+                    Curated listings with strong fundamentals and investor-ready documentation.
                   </p>
                 </div>
-                <Button variant="secondary" className="self-start rounded-full px-6">
+                <Button variant="secondary" className="self-start rounded-lg">
                   See All Properties
                 </Button>
               </div>
             </div>
 
-            <div className="property-grid p-0 gap-8">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProperties.map((property, index) => (
                 <PropertyCard
                   key={property.id}
@@ -255,7 +246,7 @@ export function PropertiesContent() {
             {filteredProperties.length > 0 ? (
               <ScrollArea className="w-full">
                 <ScrollAreaViewport>
-                  <Table>
+                  <Table className="[&_th]:text-gray-500 [&_th]:font-medium [&_th]:text-sm [&_td]:text-gray-700">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Property</TableHead>
@@ -277,7 +268,7 @@ export function PropertiesContent() {
                           <TableCell>
                             <div className="max-w-[280px]">
                               <p className="font-medium truncate">{property.title}</p>
-                              <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <p className="text-xs text-gray-500 truncate flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
                                 {property.address}
                               </p>
@@ -286,11 +277,11 @@ export function PropertiesContent() {
                           <TableCell>
                             <Badge variant="outline">{typeLabels[property.type]}</Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{property.area}</TableCell>
+                          <TableCell className="text-gray-500">{property.area}</TableCell>
                           <TableCell className="text-right font-medium">
                             {formatPrice(property.price, property.listingType ?? "sale")}
                           </TableCell>
-                          <TableCell className="text-right text-muted-foreground">{property.size.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-gray-500">{property.size.toLocaleString()}</TableCell>
                           <TableCell className="text-right">
                             {property.roi ? (
                               <span className="flex items-center justify-end gap-1 text-emerald-600">
@@ -298,7 +289,7 @@ export function PropertiesContent() {
                                 {property.roi}%
                               </span>
                             ) : (
-                              <span className="text-muted-foreground">-</span>
+                              <span className="text-gray-500">-</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -319,7 +310,7 @@ export function PropertiesContent() {
                               {(property.listingType ?? "sale") === "rent" ? "Rent" : "Sale"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
+                          <TableCell className="text-gray-500 text-sm">
                             {property.source?.type ? (
                               <span className="capitalize">{property.source.type}</span>
                             ) : (
@@ -363,4 +354,3 @@ export function PropertiesContent() {
 }
 
 export default PropertiesContent
-

@@ -1,14 +1,37 @@
-// Domain types for UAE Investor Portfolio OS
+// Domain types for UAE Vantage
 
-// Minimum roles for Investor Portfolio OS
+// Platform roles - aligned with RBAC system
+export type PlatformRole = "agent" | "manager" | "investor" | "super_admin"
+
+// Legacy role type for backward compatibility
 export type UserRole = "owner" | "admin" | "realtor" | "investor"
+
+// Map platform roles to legacy roles for UI compatibility
+export const platformRoleToLegacy: Record<PlatformRole, UserRole> = {
+  super_admin: "owner",
+  manager: "admin",
+  agent: "realtor",
+  investor: "investor",
+}
+
+// Map legacy roles to platform roles
+export const legacyToPlatformRole: Record<UserRole, PlatformRole> = {
+  owner: "super_admin",
+  admin: "manager",
+  realtor: "agent",
+  investor: "investor",
+}
 
 export interface User {
   id: string
   name: string
   email: string
-  role: UserRole
+  role: UserRole | PlatformRole
   avatar?: string
+  phone?: string
+  whatsapp?: string
+  tenantId?: string
+  isActive?: boolean
 }
 
 export interface Org {
@@ -132,6 +155,37 @@ export interface Property {
   risks?: string[]
   createdAt: string
   updatedAt?: string
+  
+  // Price contrast data (DLD truth vs asking price)
+  priceContrast?: PriceContrast
+}
+
+/**
+ * Price contrast data comparing asking price to DLD market truth
+ */
+export interface PriceContrast {
+  // DLD market data
+  dldMedianPrice?: number           // Median sale price from DLD
+  dldMedianPricePerSqft?: number    // Median price per sqft from DLD
+  dldSampleSize?: number            // Number of DLD transactions used
+  dldQuarter?: string               // e.g., "Q4 2025"
+  dldDataDate?: string              // YYYY-MM-DD of DLD data
+  
+  // Comparison metrics
+  priceVsTruthPct?: number          // +0.15 = 15% above market, -0.10 = 10% below
+  pricePerSqftVsTruthPct?: number   // Same for price per sqft
+  
+  // Assessment
+  assessment?: 'underpriced' | 'fair' | 'overpriced'
+  assessmentLabel?: string          // "15% above market"
+  
+  // Rental yield estimate (if rent data available)
+  estimatedRentAnnual?: number
+  estimatedGrossYield?: number      // rent / price
+  
+  // Confidence
+  confidence?: 'high' | 'medium' | 'low'
+  confidenceReason?: string
 }
 
 export interface ShortlistItem {

@@ -27,7 +27,7 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40 backdrop-blur-sm",
         className,
       )}
       {...props}
@@ -36,10 +36,10 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
 }
 
 const sheetVariants = {
-  right: "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
-  left: "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-  top: "inset-x-0 top-0 w-full border-b",
-  bottom: "inset-x-0 bottom-0 w-full border-t",
+  right: "inset-y-0 right-0 h-full border-l border-gray-200",
+  left: "inset-y-0 left-0 h-full border-r border-gray-200",
+  top: "inset-x-0 top-0 w-full border-b border-gray-200",
+  bottom: "inset-x-0 bottom-0 w-full border-t border-gray-200",
 } as const
 
 function SheetContent({
@@ -103,7 +103,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-gray-500 text-sm", className)}
       {...props}
     />
   )
@@ -121,5 +121,3 @@ export {
   SheetTitle,
   SheetDescription,
 }
-
-

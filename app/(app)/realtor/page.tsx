@@ -36,29 +36,29 @@ const stageMeta: Record<
   preparation: {
     label: "Preparation",
     hint: "Mandates + underwriting",
-    accent: "border-amber-100 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20",
-    badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-100",
+    accent: "border-amber-200 bg-amber-50",
+    badgeClass: "bg-amber-100 text-amber-700",
     emptyTitle: "No deals in preparation",
   },
   "due-diligence": {
     label: "Due diligence",
     hint: "Inspections & docs",
-    accent: "border-sky-100 bg-sky-50/50 dark:border-sky-900/40 dark:bg-sky-950/20",
-    badgeClass: "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-100",
+    accent: "border-sky-200 bg-sky-50",
+    badgeClass: "bg-sky-100 text-sky-700",
     emptyTitle: "No active diligence files",
   },
   negotiation: {
     label: "Negotiation",
     hint: "LOIs + terms",
-    accent: "border-violet-100 bg-violet-50/40 dark:border-violet-900/40 dark:bg-violet-950/20",
-    badgeClass: "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-100",
+    accent: "border-violet-200 bg-violet-50",
+    badgeClass: "bg-violet-100 text-violet-700",
     emptyTitle: "No negotiations in flight",
   },
   closing: {
     label: "Closing",
     hint: "MOU to transfer",
-    accent: "border-emerald-100 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20",
-    badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-100",
+    accent: "border-green-200 bg-green-50",
+    badgeClass: "bg-green-100 text-green-700",
     emptyTitle: "Nothing nearing closing",
   },
 }
@@ -185,19 +185,18 @@ export default function RealtorOpsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-secondary/40 p-6 shadow-sm">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_0%_20%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(900px_circle_at_80%_0%,rgba(16,185,129,0.12),transparent_55%)]" />
+      <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="relative">
           <PageHeader
             title={
               <span className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
                   <ClipboardCheck className="size-5" />
                 </span>
-                <span>Good morning, {user.name}</span>
+                <span className="text-gray-900">Real estate cockpit, {user.name}</span>
               </span>
             }
-            subtitle="Run your mandates, deals, and follow-ups from a single cockpit."
+            subtitle="Match investor mandates, move deals, and keep inventory audit-ready."
             primaryAction={
               <AskAIBankerWidget
                 agentId="real_estate_advisor"
@@ -234,7 +233,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <CheckSquare className="size-4 text-primary" />
+                <CheckSquare className="size-4 text-green-600" />
                 Key priorities
               </CardTitle>
             </CardHeader>
@@ -242,7 +241,7 @@ export default function RealtorOpsPage() {
               {prioritizedTasks.length ? (
                 prioritizedTasks.slice(0, 5).map((task) => <TaskRow key={task.id} task={task} today={today} />)
               ) : (
-                <div className="text-sm text-muted-foreground">No open tasks. Enjoy the breather!</div>
+                <div className="text-sm text-gray-500">No open tasks. Enjoy the breather!</div>
               )}
               <Separator />
               <Button variant="outline" asChild className="w-full">
@@ -254,10 +253,10 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <FolderKanban className="size-4 text-primary" />
+                <FolderKanban className="size-4 text-green-600" />
                 Pipeline board
               </CardTitle>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-500">
                 Track inspection, LOI, and closing progress across mandates.
               </p>
             </CardHeader>
@@ -275,7 +274,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <Phone className="size-4 text-primary" />
+                <Phone className="size-4 text-green-600" />
                 Investor follow-ups
               </CardTitle>
             </CardHeader>
@@ -295,13 +294,13 @@ export default function RealtorOpsPage() {
                       <TableRow key={inv.id}>
                         <TableCell>
                           <div className="font-medium">{inv.name}</div>
-                          <div className="text-xs text-muted-foreground">{inv.company}</div>
+                          <div className="text-xs text-gray-500">{inv.company}</div>
                         </TableCell>
                         <TableCell className="text-xs">
                           <div className="font-medium capitalize">{inv.mandate?.strategy ?? "—"}</div>
-                          <div className="text-muted-foreground">Yield {inv.mandate?.yieldTarget ?? "—"}</div>
+                          <div className="text-gray-500">Yield {inv.mandate?.yieldTarget ?? "—"}</div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-xs text-gray-500">
                           {formatDistanceToNowStrict(parseISO(inv.lastContact))} ago
                         </TableCell>
                         <TableCell className="text-right text-sm font-semibold">
@@ -321,7 +320,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <MapPinned className="size-4 text-primary" />
+                <MapPinned className="size-4 text-green-600" />
                 Inventory readiness
               </CardTitle>
             </CardHeader>
@@ -333,9 +332,9 @@ export default function RealtorOpsPage() {
                       <span className="font-medium">{status.replaceAll("_", " ").toLowerCase()}</span>
                       <Badge variant="secondary">{readinessBuckets[status] ?? 0}</Badge>
                     </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
                       <div
-                        className="h-2 rounded-full bg-primary transition-all"
+                        className="h-2 rounded-full bg-green-500 transition-all"
                         style={{
                           width: `${Math.min(
                             100,
@@ -355,7 +354,7 @@ export default function RealtorOpsPage() {
                     <div key={property.id} className="flex items-center justify-between rounded-lg border p-2">
                       <div>
                         <div className="font-medium">{property.title}</div>
-                        <div className="text-muted-foreground">{property.area}</div>
+                        <div className="text-gray-500">{property.area}</div>
                       </div>
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/properties/${property.id}`}>Open</Link>
@@ -363,7 +362,7 @@ export default function RealtorOpsPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-muted-foreground">All properties verified. 🎉</div>
+                  <div className="text-gray-500">All properties verified. 🎉</div>
                 )}
               </div>
             </CardContent>
@@ -372,19 +371,19 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <ActivitySquare className="size-4 text-primary" />
+                <ActivitySquare className="size-4 text-green-600" />
                 Latest activity
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {activityFeed.map((activity) => (
                 <div key={activity.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
                     <span className="capitalize">{activity.type.replaceAll("_", " ")}</span>
                     <span>{formatDistanceToNowStrict(new Date(activity.timestamp))} ago</span>
                   </div>
                   <div className="mt-1 font-medium">{activity.title}</div>
-                  <div className="text-xs text-muted-foreground">{activity.description}</div>
+                  <div className="text-xs text-gray-500">{activity.description}</div>
                 </div>
               ))}
             </CardContent>
@@ -415,14 +414,14 @@ function KpiCard({
   icon: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card to-muted/50 shadow-sm">
+    <Card className="border-gray-100 bg-white shadow-sm">
       <CardContent className="flex items-center justify-between p-5">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/80">{label}</div>
-          <div className="mt-1 text-2xl font-bold text-foreground/90">{value}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{meta}</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-gray-500">{label}</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
+          <div className="mt-1 text-xs text-gray-500">{meta}</div>
         </div>
-        <div className="rounded-full bg-primary/10 p-3 text-primary">
+        <div className="rounded-full bg-green-50 p-3 text-green-600">
           <Icon className="size-5" />
         </div>
       </CardContent>
@@ -443,12 +442,12 @@ function TaskRow({ task, today }: { task: Task; today: Date }) {
 
   const dueClass =
     dueInDays === null
-      ? "text-muted-foreground"
+      ? "text-gray-500"
       : dueInDays < 0
-        ? "text-destructive"
+        ? "text-red-600"
         : dueInDays <= 1
-          ? "text-amber-600 dark:text-amber-400"
-          : "text-muted-foreground"
+          ? "text-amber-600"
+          : "text-gray-500"
 
   return (
     <div className="rounded-lg border p-3">
@@ -458,7 +457,7 @@ function TaskRow({ task, today }: { task: Task; today: Date }) {
           {task.priority}
         </Badge>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">
+      <div className="mt-1 text-xs text-gray-500">
         {task.investorName ?? "Internal"} {task.propertyTitle ? `• ${task.propertyTitle}` : null}
       </div>
       <div className={`mt-2 text-xs font-semibold ${dueClass}`}>{dueLabel}</div>
@@ -474,18 +473,18 @@ function StageColumn({ stage, deals }: { stage: DealStageKey; deals: DealRoom[] 
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-sm font-semibold">{meta.label}</div>
-          <div className="text-xs text-muted-foreground">{meta.hint}</div>
+          <div className="text-xs text-gray-500">{meta.hint}</div>
         </div>
         <Badge className={`${meta.badgeClass}`}>{deals.length}</Badge>
       </div>
-      <div className="mt-2 text-xs font-semibold text-muted-foreground">{formatAED(totalValue)}</div>
+      <div className="mt-2 text-xs font-semibold text-gray-500">{formatAED(totalValue)}</div>
       <div className="mt-3 space-y-3">
         {deals.length ? (
           deals.map((deal) => (
-            <div key={deal.id} className="rounded-lg border bg-background/60 p-3 text-xs">
+            <div key={deal.id} className="rounded-lg border border-gray-100 bg-white p-3 text-xs">
               <div className="font-semibold">{deal.propertyTitle}</div>
-              <div className="text-muted-foreground">{deal.investorName}</div>
-              {deal.nextStep ? <div className="mt-1 text-[11px] text-primary">Next: {deal.nextStep}</div> : null}
+              <div className="text-gray-500">{deal.investorName}</div>
+              {deal.nextStep ? <div className="mt-1 text-[11px] text-green-600">Next: {deal.nextStep}</div> : null}
               <div className="mt-2 flex items-center justify-between">
                 <span>Prob {deal.probability ?? 0}%</span>
                 <Button variant="outline" size="sm" asChild>
@@ -495,7 +494,7 @@ function StageColumn({ stage, deals }: { stage: DealStageKey; deals: DealRoom[] 
             </div>
           ))
         ) : (
-          <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">{meta.emptyTitle}</div>
+          <div className="rounded-lg border border-dashed p-3 text-xs text-gray-500">{meta.emptyTitle}</div>
         )}
       </div>
     </div>

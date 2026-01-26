@@ -7,9 +7,14 @@ import { EmptyState } from "@/components/layout/empty-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Building2, Calendar, FileText, User } from "lucide-react"
-import { mockMemos } from "@/lib/mock-data"
+import { ArrowRight, Building2, Calendar, FileText, User, TrendingUp } from "lucide-react"
+import { mockMemos, mockProperties } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
+
+function getPropertyForMemo(propertyId?: string) {
+  if (!propertyId) return null
+  return mockProperties.find(p => p.id === propertyId)
+}
 
 function getStatusVariant(status: string) {
   switch (status) {
@@ -51,50 +56,92 @@ export function MemosPageClient() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {visible.map((memo) => (
-          <Card key={memo.id} className="group hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {visible.map((memo) => {
+          const property = getPropertyForMemo(memo.propertyId)
+          return (
+            <Link key={memo.id} href={`/memos/${memo.id}`} className="group block">
+              <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                {/* Property Image Header */}
+                {property?.imageUrl && (
+                  <div className="relative h-36 overflow-hidden">
+                    <img
+                      src={property.imageUrl}
+                      alt={property.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                    
+                    {/* Status Badge */}
+                    <Badge 
+                      variant={getStatusVariant(memo.status)} 
+                      className="absolute top-3 right-3 capitalize shadow-sm"
+                    >
+                      {memo.status}
+                    </Badge>
+                    
+                    {/* Property Info Overlay */}
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <div className="text-sm font-medium text-white truncate">{property.title}</div>
+                      <div className="flex items-center gap-2 text-xs text-white/80">
+                        <span>{property.area}</span>
+                        {property.roi && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-0.5">
+                              <TrendingUp className="h-3 w-3" />
+                              {property.roi}% ROI
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <CardTitle className="text-base line-clamp-1">{memo.title}</CardTitle>
-                    <CardDescription className="line-clamp-1">{memo.propertyTitle}</CardDescription>
+                )}
+                
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-50">
+                        <FileText className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <CardTitle className="text-sm line-clamp-1 group-hover:text-green-600 transition-colors">
+                          {memo.title}
+                        </CardTitle>
+                        {!property && (
+                          <CardDescription className="line-clamp-1 text-xs">{memo.propertyTitle}</CardDescription>
+                        )}
+                      </div>
+                    </div>
+                    {!property?.imageUrl && (
+                      <Badge variant={getStatusVariant(memo.status)} className="shrink-0 capitalize text-xs">
+                        {memo.status}
+                      </Badge>
+                    )}
                   </div>
-                </div>
-                <Badge variant={getStatusVariant(memo.status)} className="shrink-0 capitalize">
-                  {memo.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span className="truncate">{memo.investorName}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  <span className="truncate">{memo.propertyTitle?.split(" ")[0]}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground col-span-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>Updated {formatDate(memo.updatedAt)}</span>
-                </div>
-              </div>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5" />
+                      <span className="truncate max-w-[120px]">{memo.investorName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{formatDate(memo.updatedAt)}</span>
+                    </div>
+                  </div>
 
-              <Button variant="ghost" size="sm" className="w-full justify-between" asChild>
-                <Link href={`/memos/${memo.id}`}>
-                  View Memo
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-500">View memo details</span>
+                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-green-600 transition-colors" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
       </div>
 
       {visible.length === 0 ? (
@@ -112,5 +159,3 @@ export function MemosPageClient() {
     </div>
   )
 }
-
-

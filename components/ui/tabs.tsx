@@ -26,7 +26,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'bg-muted text-muted-foreground inline-flex h-11 w-fit items-center justify-center rounded-xl p-1 gap-1',
+        'bg-gray-100 text-gray-600 inline-flex h-11 w-fit items-center justify-center rounded-xl p-1 gap-1',
         className,
       )}
       {...props}
@@ -43,12 +43,12 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         'inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-transparent px-4 py-2',
-        'text-sm font-medium whitespace-nowrap transition-all duration-200',
-        'text-foreground/70',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        'text-sm font-medium whitespace-nowrap transition-colors',
+        'text-gray-600',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1',
         'disabled:pointer-events-none disabled:opacity-50',
-        'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:font-semibold',
-        'hover:text-foreground',
+        'data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm data-[state=active]:font-semibold',
+        'hover:text-gray-900',
         '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=\'size-\'])]:size-4',
         className,
       )}

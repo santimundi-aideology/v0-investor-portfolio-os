@@ -14,7 +14,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   return (
     <ol
       data-slot="breadcrumb-list"
-      className={cn("flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground", className)}
+      className={cn("flex flex-wrap items-center gap-1.5 text-sm text-gray-500", className)}
       {...props}
     />
   )
@@ -33,24 +33,22 @@ function BreadcrumbLink({
     <Link
       data-slot="breadcrumb-link"
       href={href}
-      className={cn("hover:text-foreground transition-colors", className)}
+      className={cn("hover:text-gray-900 transition-colors", className)}
       {...props}
     />
   )
 }
 
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
-  return <span data-slot="breadcrumb-page" className={cn("text-foreground font-medium", className)} {...props} />
+  return <span data-slot="breadcrumb-page" className={cn("text-gray-900 font-medium", className)} {...props} />
 }
 
 function BreadcrumbSeparator({ className, ...props }: React.ComponentProps<"li">) {
   return (
-    <li data-slot="breadcrumb-separator" className={cn("text-muted-foreground/60", className)} {...props}>
+    <li data-slot="breadcrumb-separator" className={cn("text-gray-400", className)} {...props}>
       <ChevronRight className="size-4" />
     </li>
   )
 }
 
 export { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator }
-
-

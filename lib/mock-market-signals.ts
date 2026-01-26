@@ -12,6 +12,7 @@ export type MarketSignalType =
   | "discounting_spike"
   | "staleness_rise"
   | "risk_flag"
+  | "pricing_opportunity"
 
 export type MarketSignalGeoType = "community" | "submarket" | "city"
 
@@ -22,6 +23,7 @@ export type MarketSignalMetric =
   | "active_listings"
   | "price_cuts_count"
   | "stale_listings_count"
+  | "asking_price"
 
 export type MarketSignalItem = {
   id: string

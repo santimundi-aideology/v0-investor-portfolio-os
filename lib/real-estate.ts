@@ -2,6 +2,10 @@ import { addMonths, differenceInMonths } from "date-fns"
 
 import { mockInvestors, mockProperties } from "@/lib/mock-data"
 import type { Counterfactual, RecommendationBundle, Mandate, Property } from "@/lib/types"
+import { getSupabaseAdminClient } from "@/lib/db/client"
+import { getHoldingsByInvestor, type PropertyHolding as DbPropertyHolding } from "@/lib/db/holdings"
+import { getInvestorById as getInvestorByIdDb } from "@/lib/db/investors"
+import { listListings } from "@/lib/db/listings"
 
 export type PropertyHolding = {
   id: string
@@ -34,8 +38,10 @@ export type PortfolioOpportunity = {
   reasons: string[]
 }
 
+/**
+ * Fallback mock holdings - used when database is unavailable
+ */
 export const mockHoldings: PropertyHolding[] = [
-  // Investor inv-1 (external persona defaults to this)
   {
     id: "hold-1",
     investorId: "inv-1",
@@ -60,6 +66,40 @@ export const mockHoldings: PropertyHolding[] = [
   },
 ]
 
+/**
+ * Fetch market data from DLD area stats - real database
+ */
+export async function getMarketDataFromDb(): Promise<MarketData[]> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    const { data, error } = await supabase
+      .from("dld_area_stats")
+      .select("*")
+      .gt("transaction_count", 10)
+      .order("transaction_count", { ascending: false })
+      .limit(20)
+    
+    if (error || !data) {
+      console.warn("[real-estate] Error fetching market data:", error?.message)
+      return mockMarketData
+    }
+
+    return data.map(row => ({
+      location: row.area_name_en || "Unknown",
+      trend: [], // Would need historical data for trends
+      avgYieldPct: 8.0, // Default - would calculate from holdings
+      avgYoYAppreciationPct: row.yoy_change_pct || 0,
+      occupancyPct: 92, // Default - would need occupancy data
+    }))
+  } catch (err) {
+    console.warn("[real-estate] Error fetching market data:", err)
+    return mockMarketData
+  }
+}
+
+/**
+ * Fallback market data when DB is unavailable
+ */
 export const mockMarketData: MarketData[] = [
   {
     location: "Dubai Marina",
@@ -110,8 +150,79 @@ export function formatAED(value: number) {
   return `AED ${safe.toLocaleString()}`
 }
 
+/**
+ * Get holdings for investor - async version using database
+ */
+export async function getHoldingsForInvestorAsync(investorId: string): Promise<PropertyHolding[]> {
+  try {
+    const dbHoldings = await getHoldingsByInvestor(investorId)
+    
+    if (dbHoldings.length === 0) {
+      // Fallback to mock data if no DB records
+      return mockHoldings.filter((h) => h.investorId === investorId)
+    }
+    
+    // Map DB holdings to PropertyHolding type
+    return dbHoldings.map(h => ({
+      id: h.id,
+      investorId: h.investorId,
+      propertyId: h.listingId, // DB uses listingId
+      purchasePrice: h.purchasePrice,
+      purchaseDate: h.purchaseDate,
+      currentValue: h.currentValue,
+      monthlyRent: h.monthlyRent,
+      occupancyRate: h.occupancyRate,
+      annualExpenses: h.annualExpenses,
+    }))
+  } catch (err) {
+    console.warn("[real-estate] Error fetching holdings, using mock:", err)
+    return mockHoldings.filter((h) => h.investorId === investorId)
+  }
+}
+
+/**
+ * Synchronous version - uses mock data (for backward compatibility)
+ * @deprecated Use getHoldingsForInvestorAsync instead
+ */
 export function getHoldingsForInvestor(investorId: string) {
   return mockHoldings.filter((h) => h.investorId === investorId)
+}
+
+/**
+ * Get property associated with a holding - async version
+ */
+export async function getHoldingPropertyAsync(holding: PropertyHolding): Promise<Property | null> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    const { data, error } = await supabase
+      .from("listings")
+      .select("*")
+      .eq("id", holding.propertyId)
+      .maybeSingle()
+    
+    if (error || !data) {
+      return mockProperties.find((p) => p.id === holding.propertyId) ?? null
+    }
+    
+    // Map DB listing to Property type
+    return {
+      id: data.id,
+      title: data.title || "Unknown Property",
+      area: data.area || "Dubai",
+      type: data.type || "apartment",
+      unitType: data.type || "apartment",
+      price: data.price || 0,
+      size: data.size || 0,
+      bedrooms: data.bedrooms || 0,
+      status: data.status || "available",
+      source: { type: "developer", name: data.developer },
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } as Property
+  } catch (err) {
+    console.warn("[real-estate] Error fetching property:", err)
+    return mockProperties.find((p) => p.id === holding.propertyId) ?? null
+  }
 }
 
 export function getHoldingProperty(holding: PropertyHolding) {
@@ -167,11 +278,21 @@ export function forecastMonthlyNetIncome(
   return points
 }
 
-export function getPortfolioSummary(investorId: string) {
-  const holdings = getHoldingsForInvestor(investorId)
+/**
+ * Get portfolio summary - async version using database
+ */
+export async function getPortfolioSummaryAsync(investorId: string) {
+  const holdings = await getHoldingsForInvestorAsync(investorId)
   const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.currentValue, 0)
   const totalPurchasePrice = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
-  const totalMonthlyRental = holdings.reduce((sum, h) => sum + forecastMonthlyNetIncome(h), 0)
+  
+  // Calculate net monthly income for each holding
+  const monthlyNets = holdings.map(h => {
+    const grossMonthly = h.monthlyRent * h.occupancyRate
+    const monthlyExpenses = h.annualExpenses / 12
+    return grossMonthly - monthlyExpenses
+  })
+  const totalMonthlyRental = monthlyNets.reduce((sum, net) => sum + net, 0)
   const totalAnnualRental = totalMonthlyRental * 12
   const avgYieldPct = holdings.length > 0 ? holdings.reduce((sum, h) => sum + calcYieldPct(h), 0) / holdings.length : 0
   const avgOccupancyPct =
@@ -192,6 +313,173 @@ export function getPortfolioSummary(investorId: string) {
   }
 }
 
+/**
+ * Synchronous version - uses mock data
+ * @deprecated Use getPortfolioSummaryAsync instead
+ */
+export function getPortfolioSummary(investorId: string) {
+  const holdings = getHoldingsForInvestor(investorId)
+  const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.currentValue, 0)
+  const totalPurchasePrice = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
+  // Calculate net monthly income for each holding
+  const totalMonthlyRental = holdings.reduce((sum, h) => {
+    const grossMonthly = h.monthlyRent * h.occupancyRate
+    const monthlyExpenses = h.annualExpenses / 12
+    return sum + (grossMonthly - monthlyExpenses)
+  }, 0)
+  const totalAnnualRental = totalMonthlyRental * 12
+  const avgYieldPct = holdings.length > 0 ? holdings.reduce((sum, h) => sum + calcYieldPct(h), 0) / holdings.length : 0
+  const avgOccupancyPct =
+    holdings.length > 0 ? holdings.reduce((sum, h) => sum + h.occupancyRate * 100, 0) / holdings.length : 0
+  const appreciationPct =
+    totalPurchasePrice > 0 ? ((totalPortfolioValue - totalPurchasePrice) / totalPurchasePrice) * 100 : 0
+
+  return {
+    holdings,
+    totalPortfolioValue,
+    totalPurchaseCost: totalPurchasePrice,
+    totalMonthlyRental,
+    totalAnnualRental,
+    avgYieldPct,
+    occupancyPct: avgOccupancyPct,
+    appreciationPct,
+    propertyCount: holdings.length,
+  }
+}
+
+/**
+ * Get opportunities for investor - async version using real DB data
+ * Queries portal_listings and DLD data for opportunities matching investor mandate
+ */
+export async function getOpportunitiesForInvestorAsync(investorId: string): Promise<PortfolioOpportunity[]> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    
+    // Get investor and their mandate from DB
+    const investor = await getInvestorByIdDb(investorId)
+    const mandate = investor?.mandate as Mandate | undefined
+    
+    // Get investor's current holdings
+    const holdings = await getHoldingsForInvestorAsync(investorId)
+    const ownedIds = new Set(holdings.map((h) => h.propertyId))
+    
+    // Query portal listings with good potential (Bayut data)
+    const { data: portalListings, error: portalError } = await supabase
+      .from("portal_listings")
+      .select("*")
+      .eq("is_active", true)
+      .eq("listing_type", "sale")
+      .order("asking_price", { ascending: true })
+      .limit(50)
+    
+    if (portalError) {
+      console.warn("[real-estate] Error fetching portal listings:", portalError.message)
+    }
+    
+    // Also get DLD market signals for opportunities
+    const { data: signals, error: signalError } = await supabase
+      .from("dld_market_signals")
+      .select("*")
+      .eq("severity", "opportunity")
+      .order("created_at", { ascending: false })
+      .limit(20)
+    
+    if (signalError) {
+      console.warn("[real-estate] Error fetching market signals:", signalError.message)
+    }
+    
+    const opportunities: PortfolioOpportunity[] = []
+    
+    // Score portal listings
+    if (portalListings) {
+      for (const listing of portalListings) {
+        if (ownedIds.has(listing.id)) continue
+        
+        // Check mandate filters
+        if (mandate?.preferredAreas?.length) {
+          const matchesArea = mandate.preferredAreas.some(area => 
+            listing.area_name?.toLowerCase().includes(area.toLowerCase())
+          )
+          if (!matchesArea) continue
+        }
+        
+        // Check price range
+        const price = listing.asking_price || 0
+        if (mandate?.minInvestment && price < mandate.minInvestment) continue
+        if (mandate?.maxInvestment && price > mandate.maxInvestment) continue
+        
+        // Calculate score based on available data
+        let score = 50 // Base score
+        const reasons: string[] = []
+        
+        // Price per sqm analysis (compared to market average)
+        const pricePerSqm = listing.price_per_sqm || 0
+        if (pricePerSqm > 0 && pricePerSqm < 15000) {
+          score += 15
+          reasons.push("Below market price per sqm")
+        }
+        
+        // Size bonus
+        if (listing.size_sqm && listing.size_sqm > 100) {
+          score += 10
+          reasons.push("Good size property")
+        }
+        
+        // Area match bonus
+        if (mandate?.preferredAreas?.some(a => listing.area_name?.includes(a))) {
+          score += 15
+          reasons.push(`Matches preferred area (${listing.area_name})`)
+        }
+        
+        // Type match bonus
+        const propType = listing.property_type?.toLowerCase() || ""
+        if (mandate?.propertyTypes?.some(t => propType.includes(t.toLowerCase()))) {
+          score += 10
+          reasons.push(`Matches mandate type (${listing.property_type})`)
+        }
+        
+        if (reasons.length > 0) {
+          opportunities.push({
+            propertyId: listing.id,
+            score: Math.round(score),
+            reasons: reasons.slice(0, 3),
+          })
+        }
+      }
+    }
+    
+    // Add signal-based opportunities
+    if (signals) {
+      for (const signal of signals) {
+        if (signal.area_name_en && !ownedIds.has(signal.id)) {
+          opportunities.push({
+            propertyId: signal.id,
+            score: 75, // Market signals get high base score
+            reasons: [
+              `Market opportunity: ${signal.title || signal.type}`,
+              signal.area_name_en,
+            ],
+          })
+        }
+      }
+    }
+    
+    // Sort by score and return top 8
+    return opportunities
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+    
+  } catch (err) {
+    console.warn("[real-estate] Error in getOpportunitiesForInvestorAsync:", err)
+    // Fallback to sync version with mock data
+    return getOpportunitiesForInvestor(investorId)
+  }
+}
+
+/**
+ * Synchronous version using mock data - for backward compatibility
+ * @deprecated Use getOpportunitiesForInvestorAsync instead
+ */
 export function getOpportunitiesForInvestor(investorId: string): PortfolioOpportunity[] {
   const investor = mockInvestors.find((i) => i.id === investorId)
   const mandate = investor?.mandate
@@ -306,23 +594,25 @@ export function buildRecommendationBundle({
     let passesAll = true
 
     // Budget check
-    if (p.price > actualBudget.max) {
+    const budgetMax = actualBudget.max ?? Infinity
+    const budgetMin = actualBudget.min ?? 0
+    if (p.price > budgetMax) {
       passesAll = false
-      const overBy = p.price - actualBudget.max
+      const overBy = p.price - budgetMax
       reasonCodes.push("over_budget")
       reasonLabels.push(`Over budget by AED ${(overBy / 1000).toFixed(0)}k`)
       violatedConstraints.push({
         key: "budget_max",
-        expected: actualBudget.max,
+        expected: budgetMax,
         actual: p.price,
       })
-      whatWouldChange.push(`If price < AED ${(actualBudget.max / 1000000).toFixed(1)}M`)
-    } else if (p.price < actualBudget.min) {
+      whatWouldChange.push(`If price < AED ${(budgetMax / 1000000).toFixed(1)}M`)
+    } else if (p.price < budgetMin) {
       reasonCodes.push("under_budget_min")
       reasonLabels.push(`Below minimum investment threshold`)
       violatedConstraints.push({
         key: "budget_min",
-        expected: actualBudget.min,
+        expected: budgetMin,
         actual: p.price,
       })
     }

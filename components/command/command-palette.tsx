@@ -70,7 +70,7 @@ export function CommandPalette() {
               <CommandItem key={it.href} value={it.label} onSelect={() => run(it.href)}>
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate">{it.label}</span>
-                  {it.meta ? <span className="text-muted-foreground truncate text-xs">{it.meta}</span> : null}
+                  {it.meta ? <span className="text-gray-500 truncate text-xs">{it.meta}</span> : null}
                 </div>
               </CommandItem>
             ))}
@@ -81,7 +81,7 @@ export function CommandPalette() {
               <CommandItem key={it.href} value={it.label} onSelect={() => run(it.href)}>
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate">{it.label}</span>
-                  {it.meta ? <span className="text-muted-foreground truncate text-xs">{it.meta}</span> : null}
+                  {it.meta ? <span className="text-gray-500 truncate text-xs">{it.meta}</span> : null}
                 </div>
               </CommandItem>
             ))}
@@ -91,5 +91,3 @@ export function CommandPalette() {
     </CommandDialog>
   )
 }
-
-

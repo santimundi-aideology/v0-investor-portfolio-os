@@ -6,7 +6,7 @@
  */
 
 import * as React from "react"
-import { Building2 } from "lucide-react"
+import { Building2, TrendingUp, FileText, Radar, Search } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -19,6 +19,7 @@ import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scrol
 import { Badge } from "@/components/ui/badge"
 import type { ChatActionBlock } from "@/components/ai/chat-action-types"
 import { ChatActionRenderer } from "@/components/ai/chat-action-renderer"
+import type { MemoContextPayload } from "@/components/ai/ask-ai-banker-widget"
 
 type Theme = {
   icon: React.ComponentType<{ className?: string }>
@@ -45,6 +46,54 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     placeholder: "Ask about properties, market trends, ROI...",
     pulseColor: "#10b981",
     iconGradient: "from-emerald-500 to-teal-600",
+  },
+  portfolio_advisor: {
+    icon: TrendingUp,
+    accent: "#16a34a",
+    accentMuted: "rgba(22, 163, 74, 0.1)",
+    gradientFrom: "rgba(22, 163, 74, 0.05)",
+    gradientTo: "rgba(202, 138, 4, 0.12)",
+    badgeBg: "rgba(202, 138, 4, 0.15)",
+    badgeText: "#ca8a04",
+    placeholder: "Ask about portfolio performance, yields, diversification...",
+    pulseColor: "#16a34a",
+    iconGradient: "from-green-600 to-amber-500",
+  },
+  market_intelligence: {
+    icon: Radar,
+    accent: "#8b5cf6",
+    accentMuted: "rgba(139, 92, 246, 0.1)",
+    gradientFrom: "rgba(139, 92, 246, 0.05)",
+    gradientTo: "rgba(139, 92, 246, 0.15)",
+    badgeBg: "rgba(139, 92, 246, 0.1)",
+    badgeText: "#8b5cf6",
+    placeholder: "Ask about market signals, trends, area analysis...",
+    pulseColor: "#8b5cf6",
+    iconGradient: "from-violet-500 to-purple-600",
+  },
+  memo_assistant: {
+    icon: FileText,
+    accent: "#0ea5e9",
+    accentMuted: "rgba(14, 165, 233, 0.1)",
+    gradientFrom: "rgba(14, 165, 233, 0.05)",
+    gradientTo: "rgba(14, 165, 233, 0.15)",
+    badgeBg: "rgba(14, 165, 233, 0.1)",
+    badgeText: "#0ea5e9",
+    placeholder: "Ask about assumptions, scenarios, risks...",
+    pulseColor: "#0ea5e9",
+    iconGradient: "from-sky-500 to-blue-600",
+  },
+  opportunity_finder: {
+    icon: Search,
+    accent: "#16a34a",
+    accentMuted: "rgba(22, 163, 74, 0.1)",
+    gradientFrom: "rgba(22, 163, 74, 0.05)",
+    gradientTo: "rgba(245, 158, 11, 0.12)",
+    badgeBg: "rgba(245, 158, 11, 0.15)",
+    badgeText: "#f59e0b",
+    placeholder: "Find properties, compare opportunities, get market insights...",
+    pulseColor: "#16a34a",
+    iconGradient: "from-green-600 to-amber-500",
   },
 }
 
@@ -74,6 +123,7 @@ export function AIBankerChatInterface({
   pagePath,
   scopedInvestorId,
   propertyId,
+  memoContext,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -84,6 +134,7 @@ export function AIBankerChatInterface({
   pagePath?: string
   scopedInvestorId?: string
   propertyId?: string
+  memoContext?: MemoContextPayload
 }) {
   const theme = agentThemes[agentId]
   const Icon = theme.icon
@@ -112,6 +163,8 @@ export function AIBankerChatInterface({
             scopedInvestorId,
             propertyId,
             messages: [{ role: "user", content: trimmed }],
+            // Include memo context for memo_assistant agent
+            ...(agentId === "memo_assistant" && memoContext ? { memoContext } : {}),
           }),
         })
         const json = await res.json().catch(() => null)
@@ -127,12 +180,14 @@ export function AIBankerChatInterface({
         setLoading(false)
       }
     },
-    [agentId, pagePath, propertyId, scopedInvestorId],
+    [agentId, pagePath, propertyId, scopedInvestorId, memoContext],
   )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-[760px]">
+      <DialogContent
+        className="p-0 !w-[92vw] !max-w-[92vw] sm:!max-w-[92vw] h-[90vh] max-h-[90vh] overflow-hidden"
+      >
         <DialogHeader
           className="border-b px-5 py-4"
           style={{
@@ -148,28 +203,37 @@ export function AIBankerChatInterface({
               Advisor
             </Badge>
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+          <DialogDescription className="text-gray-500">
             {description ?? "Insights and recommendations tailored to your real estate portfolio."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_260px]">
+        <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_340px]">
           <div className="border-b sm:border-b-0 sm:border-r">
-            <ScrollArea className="h-[520px]">
+            <ScrollArea className="h-[78vh] min-h-[520px] max-h-[820px]">
               <ScrollAreaViewport className="p-4">
                 <div className="space-y-3">
                   {messages.map((m, idx) => (
                     <div
                       key={idx}
                       className={cn(
-                        "max-w-[90%] rounded-lg border p-3 text-sm leading-relaxed",
-                        m.role === "user" ? "ml-auto bg-muted" : "mr-auto bg-background",
+                        "max-w-[92%] rounded-lg border p-3 text-xs leading-relaxed",
+                        m.role === "user" ? "ml-auto bg-gray-100" : "mr-auto bg-white",
                       )}
                     >
                       {(() => {
                         const { text, block } = extractActionBlock(m.content)
-                        return (
-                          <div className="prose prose-sm max-w-none dark:prose-invert">
+  return (
+                          <div
+                      className={cn(
+                              "prose max-w-none dark:prose-invert",
+                              // Keep markdown compact (avoid huge H1/H2 when model uses headings)
+                              "prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0",
+                              "prose-headings:my-2 prose-h1:text-base prose-h2:text-sm prose-h3:text-xs",
+                              "prose-table:text-xs prose-th:py-1 prose-td:py-1",
+                              "prose-strong:font-semibold",
+                            )}
+                          >
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
                             {block ? <ChatActionRenderer block={block} /> : null}
                           </div>
@@ -178,7 +242,7 @@ export function AIBankerChatInterface({
                     </div>
                   ))}
                   {loading ? (
-                    <div className="mr-auto max-w-[90%] rounded-lg border p-3 text-sm text-muted-foreground">
+                    <div className="mr-auto max-w-[90%] rounded-lg border border-gray-100 p-3 text-sm text-gray-500">
                       Thinking…
                     </div>
                   ) : null}

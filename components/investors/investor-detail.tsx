@@ -62,10 +62,10 @@ export function InvestorDetail({
 
   const statusClass =
     investor.status === "active"
-      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+      ? "bg-green-50 text-green-600 border-green-200"
       : investor.status === "pending"
-        ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-        : "bg-muted text-muted-foreground"
+        ? "bg-amber-50 text-amber-600 border-amber-200"
+        : "bg-gray-100 text-gray-500"
 
   return (
     <>

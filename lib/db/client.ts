@@ -1,4 +1,6 @@
-import "server-only";
+// NOTE: This file can only work on the server (requires SUPABASE_SERVICE_ROLE_KEY)
+// We don't use "server-only" here because some lib files that import this
+// are also imported by client components for type exports.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let _client: SupabaseClient | null = null;

@@ -7,6 +7,20 @@ import type { AIAgentId } from "@/lib/ai/agents"
 import { Button } from "@/components/ui/button"
 import { AIBankerChatInterface } from "@/components/ai/ai-banker-chat-interface"
 
+/**
+ * Memo context payload for the memo_assistant agent.
+ * Contains the key data from an investment memo needed for AI analysis.
+ */
+export type MemoContextPayload = {
+  execSummary?: string
+  assumptions?: string[]
+  scenarios?: Record<string, unknown>
+  comps?: unknown[]
+  trustStatus?: "verified" | "unknown" | "flagged"
+  trustReason?: string
+  version?: number
+}
+
 export function AskAIBankerWidget({
   agentId,
   title,
@@ -15,6 +29,7 @@ export function AskAIBankerWidget({
   pagePath,
   scopedInvestorId,
   propertyId,
+  memoContext,
   variant = "inline",
 }: {
   agentId: AIAgentId
@@ -24,6 +39,7 @@ export function AskAIBankerWidget({
   pagePath?: string
   scopedInvestorId?: string
   propertyId?: string
+  memoContext?: MemoContextPayload
   variant?: "inline" | "floating"
 }) {
   const [open, setOpen] = React.useState(false)
@@ -58,6 +74,7 @@ export function AskAIBankerWidget({
         pagePath={pagePath}
         scopedInvestorId={scopedInvestorId}
         propertyId={propertyId}
+        memoContext={memoContext}
       />
     </>
   )

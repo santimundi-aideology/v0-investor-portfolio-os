@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,9 +19,9 @@ import { mockTasks } from "@/lib/mock-data"
 import type { Task } from "@/lib/types"
 
 const priorityColors: Record<Task["priority"], string> = {
-  high: "bg-red-500/10 text-red-600 border-red-500/20",
-  medium: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  low: "bg-muted text-muted-foreground",
+  high: "bg-red-50 text-red-600 border-red-200",
+  medium: "bg-amber-50 text-amber-600 border-amber-200",
+  low: "bg-gray-100 text-gray-600 border-gray-200",
 }
 
 const columns = [
@@ -92,7 +92,7 @@ function TasksPageInner() {
               <CardContent className="space-y-3">
                 {columnTasks.length > 0 ? (
                   columnTasks.map((task) => (
-                    <div key={task.id} className="rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md">
+                    <div key={task.id} className="rounded-lg border border-gray-100 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-start gap-3">
                         <Checkbox
                           checked={task.status === "done"}
@@ -100,13 +100,13 @@ function TasksPageInner() {
                           className="mt-0.5"
                         />
                         <div className="flex-1 space-y-2">
-                          <p className={`font-medium leading-snug ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
+                          <p className={`font-medium leading-snug text-gray-900 ${task.status === "done" ? "line-through text-gray-400" : ""}`}>
                             {task.title}
                           </p>
                           {task.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+                            <p className="text-xs text-gray-500 line-clamp-2">{task.description}</p>
                           )}
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                             <Badge variant="outline" className={priorityColors[task.priority]}>
                               {task.priority}
                             </Badge>
@@ -121,7 +121,7 @@ function TasksPageInner() {
                             {task.investorName && (
                               <Link
                                 href={`/investors/${task.investorId}`}
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900"
                               >
                                 <Users className="h-3 w-3" />
                                 {task.investorName}
@@ -130,7 +130,7 @@ function TasksPageInner() {
                             {task.propertyTitle && (
                               <Link
                                 href={`/properties/${task.propertyId}`}
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900"
                               >
                                 <Building2 className="h-3 w-3" />
                                 {task.propertyTitle}
@@ -138,7 +138,7 @@ function TasksPageInner() {
                             )}
                           </div>
                           {task.assigneeName && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
                               <User className="h-3 w-3" />
                               {task.assigneeName}
                             </div>
@@ -148,7 +148,7 @@ function TasksPageInner() {
                     </div>
                   ))
                 ) : (
-                  <div className="flex h-24 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                  <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">
                     No tasks
                   </div>
                 )}
@@ -162,6 +162,7 @@ function TasksPageInner() {
 }
 
 function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
+  const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [priority, setPriority] = useState<Task["priority"]>("medium")
   const [isHydrated, setIsHydrated] = useState(false)
@@ -171,6 +172,23 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
     const timeout = setTimeout(() => setIsHydrated(true), 0)
     return () => clearTimeout(timeout)
   }, [])
+
+  const handleCreate = () => {
+    const trimmed = title.trim()
+    if (!trimmed) return
+
+    onCreate({
+      id: `task-${Math.floor(Math.random() * 100000)}`,
+      title: trimmed,
+      priority,
+      status: "open",
+      createdAt: new Date().toISOString().slice(0, 10),
+    })
+
+    setTitle("")
+    setPriority("medium")
+    setOpen(false)
+  }
 
   if (!isHydrated) {
     return (
@@ -182,7 +200,7 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -213,27 +231,12 @@ function NewTaskDialog({ onCreate }: { onCreate: (task: Task) => void }) {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" type="button">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={() => {
-              const trimmed = title.trim()
-              if (!trimmed) return
-
-              onCreate({
-                id: `task-${Math.floor(Math.random() * 100000)}`,
-                title: trimmed,
-                priority,
-                status: "open",
-                createdAt: new Date().toISOString().slice(0, 10),
-              })
-
-              setTitle("")
-              setPriority("medium")
-            }}
-          >
+          <DialogClose asChild>
+            <Button variant="outline" type="button">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="button" onClick={handleCreate}>
             Create
           </Button>
         </DialogFooter>

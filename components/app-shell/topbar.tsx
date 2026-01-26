@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Bell, CircleHelp, Menu, Search, User2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Bell, BookOpen, CircleHelp, Keyboard, LifeBuoy, LogOut, Menu, Search, User2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,23 +23,57 @@ import { Badge } from "@/components/ui/badge"
 import { useApp, usePersonas } from "@/components/providers/app-provider"
 import { notifications } from "@/lib/mock-session"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { KeyboardShortcutsModal } from "@/components/layout/keyboard-shortcuts-modal"
 
 interface TopbarProps {
   onMenuClick: () => void
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+  const router = useRouter()
   const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
   const personas = usePersonas()
   const [notificationItems, setNotificationItems] = useState(notifications)
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => {
     // Use setTimeout to defer state update to avoid cascading renders
     const timeout = setTimeout(() => setIsHydrated(true), 0)
     return () => clearTimeout(timeout)
   }, [])
+
+  // Global keyboard shortcut for ? to open shortcuts modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const target = e.target as HTMLElement
+        const isInputField = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
+        if (!isInputField) {
+          e.preventDefault()
+          setShortcutsOpen(true)
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  const handleLogout = () => {
+    toast.success("Logged out successfully", {
+      description: "You have been signed out. Redirecting to login...",
+    })
+    // In a real app, this would clear auth tokens and redirect
+    setTimeout(() => router.push("/login"), 1000)
+  }
+
+  const handleContactSupport = () => {
+    toast.info("Contact Support", {
+      description: "Email us at support@vantage.ae or call +971 4 XXX XXXX",
+      duration: 5000,
+    })
+  }
 
   const notificationsButton = (
     <Button id="notifications-trigger" variant="ghost" size="icon" className="relative" suppressHydrationWarning>
@@ -48,7 +84,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   )
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
@@ -90,15 +126,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       </div>
 
       <div className="hidden flex-1 px-4 md:block">
-        <Button variant="outline" onClick={() => setCommandOpen(true)} className="text-muted-foreground w-full justify-start gap-2">
+        <Button variant="outline" onClick={() => setCommandOpen(true)} className="text-gray-500 w-full justify-start gap-2">
           <Search className="size-4" />
           <span className="flex-1 text-left">Search…</span>
           <span className="hidden text-xs tracking-widest md:inline">
-            <kbd className="bg-muted rounded px-1.5 py-0.5">⌘</kbd>
-            <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
-            <span className="mx-1 text-muted-foreground/70">/</span>
-            <kbd className="bg-muted rounded px-1.5 py-0.5">Ctrl</kbd>
-            <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
+            <kbd className="bg-gray-100 rounded px-1.5 py-0.5">⌘</kbd>
+            <kbd className="bg-gray-100 ml-1 rounded px-1.5 py-0.5">K</kbd>
+            <span className="mx-1 text-gray-400">/</span>
+            <kbd className="bg-gray-100 rounded px-1.5 py-0.5">Ctrl</kbd>
+            <kbd className="bg-gray-100 ml-1 rounded px-1.5 py-0.5">K</kbd>
           </span>
         </Button>
       </div>
@@ -131,16 +167,24 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <DropdownMenuLabel>Help</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="#">Docs</Link>
+              <a href="https://docs.vantage.ae" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Documentation
+              </a>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="#">Contact support</Link>
+            <DropdownMenuItem onSelect={handleContactSupport} className="flex items-center gap-2">
+              <LifeBuoy className="h-4 w-4" />
+              Contact support
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="#">Keyboard shortcuts</Link>
+            <DropdownMenuItem onSelect={() => setShortcutsOpen(true)} className="flex items-center gap-2">
+              <Keyboard className="h-4 w-4" />
+              Keyboard shortcuts
+              <DropdownMenuShortcut>?</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <KeyboardShortcutsModal open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -159,31 +203,37 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>
               <div className="flex items-center gap-3">
-                <div className="bg-muted flex size-9 items-center justify-center rounded-md">
-                  <User2 className="size-4 text-muted-foreground" />
+                <div className="bg-gray-100 flex size-9 items-center justify-center rounded-lg">
+                  <User2 className="size-4 text-gray-500" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  <p className="truncate text-sm font-medium text-gray-900">{user.name}</p>
+                  <p className="truncate text-xs text-gray-500">{user.email}</p>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="flex items-center gap-2">
+                <User2 className="h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/settings">Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Persona</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-gray-500">Persona</DropdownMenuLabel>
             {personas.map((p) => (
               <DropdownMenuItem key={p.id} onSelect={() => setPersonaId(p.id)} className="gap-2">
                 <span className="capitalize">{p.role}</span>
-                <span className="text-muted-foreground truncate text-xs">{p.label}</span>
-                {p.id === personaId ? <span className="ml-auto text-xs">✓</span> : null}
+                <span className="text-gray-500 truncate text-xs">{p.label}</span>
+                {p.id === personaId ? <span className="ml-auto text-xs text-green-600">✓</span> : null}
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:text-red-600">
+              <LogOut className="h-4 w-4 mr-2" />
               Log out
               <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
             </DropdownMenuItem>

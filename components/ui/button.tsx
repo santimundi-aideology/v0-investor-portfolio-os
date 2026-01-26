@@ -5,34 +5,34 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-base font-semibold transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5 shrink-0 [&_svg]:shrink-0 outline-none touch-target",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5 shrink-0 [&_svg]:shrink-0 outline-none touch-target",
   {
     variants: {
       variant: {
-        default: 
-          'bg-gradient-to-br from-primary to-primary-hover text-primary-foreground shadow-sm hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        default:
+          'bg-green-500 hover:bg-green-600 text-white shadow-sm focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2',
         destructive:
-          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-destructive/50',
+          'bg-red-500 text-white shadow-sm hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500/50',
         outline:
-          'border-2 border-primary bg-transparent text-primary shadow-sm hover:bg-primary hover:text-primary-foreground hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring',
+          'border border-gray-200 bg-white text-gray-900 shadow-sm hover:bg-gray-50 hover:border-gray-300',
         secondary:
-          'bg-secondary text-secondary-foreground border-2 border-border shadow-sm hover:bg-muted hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring',
+          'bg-gray-900 text-white shadow-sm hover:bg-gray-800',
         ghost:
-          'hover:bg-accent/10 hover:text-accent-foreground transition-colors duration-200',
-        link: 
-          'text-primary underline-offset-4 hover:underline hover:text-primary-hover',
+          'hover:bg-gray-100 text-gray-700 hover:text-gray-900',
+        link:
+          'text-green-600 underline-offset-4 hover:underline hover:text-green-700',
         accent:
-          'bg-gradient-to-br from-accent to-accent-hover text-accent-foreground shadow-sm hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-accent',
+          'bg-gray-100 hover:bg-gray-200 text-gray-900',
         success:
-          'bg-success text-success-foreground shadow-sm hover:bg-success/90 hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-success/50',
+          'bg-green-500 text-white shadow-sm hover:bg-green-600',
       },
       size: {
-        default: 'h-11 px-8 py-3.5',
-        sm: 'h-9 rounded-lg px-4 py-2 text-sm',
-        lg: 'h-12 rounded-xl px-10 py-4 text-lg',
-        icon: 'size-11',
+        default: 'h-10 px-4 py-2',
+        sm: 'h-9 px-3',
+        lg: 'h-11 px-6 text-base',
+        icon: 'size-10',
         'icon-sm': 'size-9',
-        'icon-lg': 'size-12',
+        'icon-lg': 'size-11',
       },
     },
     defaultVariants: {

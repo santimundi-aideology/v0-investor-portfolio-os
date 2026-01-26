@@ -1,0 +1,370 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import {
+  ArrowLeft,
+  Bell,
+  BellOff,
+  Check,
+  CheckCheck,
+  ChevronRight,
+  Clock,
+  FileText,
+  Filter,
+  FolderKanban,
+  LayoutDashboard,
+  MessageSquare,
+  Radar,
+  Settings,
+  Trash2,
+  TrendingUp,
+} from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { EmptyState } from "@/components/layout/empty-state"
+import { cn } from "@/lib/utils"
+import { notifications as mockNotifications } from "@/lib/mock-session"
+
+// Extended notification type for investor portal
+interface InvestorNotification {
+  id: string
+  title: string
+  body: string
+  createdAt: string
+  unread?: boolean
+  href?: string
+  type: "memo" | "deal" | "signal" | "portfolio" | "system"
+  priority?: "high" | "normal" | "low"
+}
+
+// Mock investor notifications with more variety
+const investorNotifications: InvestorNotification[] = [
+  {
+    id: "in-1",
+    title: "New Investment Memo",
+    body: "A new memo for Marina Tower Office Suite requires your review",
+    createdAt: "Today • 10:30 AM",
+    unread: true,
+    href: "/investor/memos/memo-1",
+    type: "memo",
+    priority: "high",
+  },
+  {
+    id: "in-2",
+    title: "Market Signal: Price Drop",
+    body: "Dubai Marina 2BR prices dropped 5% this quarter - potential opportunity",
+    createdAt: "Today • 09:15 AM",
+    unread: true,
+    href: "/investor/market-signals",
+    type: "signal",
+    priority: "normal",
+  },
+  {
+    id: "in-3",
+    title: "Deal Room Update",
+    body: "JVC Villa acquisition moved to negotiation phase",
+    createdAt: "Yesterday • 4:30 PM",
+    unread: false,
+    href: "/investor/deal-rooms",
+    type: "deal",
+    priority: "normal",
+  },
+  {
+    id: "in-4",
+    title: "Portfolio Performance",
+    body: "Your portfolio appreciated 2.3% this month",
+    createdAt: "Yesterday • 9:00 AM",
+    unread: false,
+    href: "/investor/portfolio",
+    type: "portfolio",
+    priority: "low",
+  },
+  {
+    id: "in-5",
+    title: "Memo Approved",
+    body: "Your approval for Downtown Dubai Office has been recorded",
+    createdAt: "2 days ago • 11:20 AM",
+    unread: false,
+    href: "/investor/memos",
+    type: "memo",
+    priority: "normal",
+  },
+  {
+    id: "in-6",
+    title: "New Opportunities",
+    body: "3 new properties match your investment mandate",
+    createdAt: "3 days ago • 2:00 PM",
+    unread: false,
+    href: "/investor/dashboard",
+    type: "signal",
+    priority: "normal",
+  },
+  {
+    id: "in-7",
+    title: "Quarterly Report Ready",
+    body: "Your Q4 2025 portfolio report is now available",
+    createdAt: "1 week ago",
+    unread: false,
+    href: "/investor/portfolio",
+    type: "portfolio",
+    priority: "low",
+  },
+  {
+    id: "in-8",
+    title: "System Maintenance",
+    body: "Scheduled maintenance on Sunday 2 AM - 4 AM GST",
+    createdAt: "1 week ago",
+    unread: false,
+    type: "system",
+    priority: "low",
+  },
+]
+
+const typeIcons = {
+  memo: FileText,
+  deal: FolderKanban,
+  signal: Radar,
+  portfolio: TrendingUp,
+  system: Settings,
+}
+
+const typeColors = {
+  memo: "bg-blue-500/10 text-blue-600",
+  deal: "bg-purple-500/10 text-purple-600",
+  signal: "bg-amber-500/10 text-amber-600",
+  portfolio: "bg-green-500/10 text-green-600",
+  system: "bg-gray-500/10 text-gray-600",
+}
+
+export default function InvestorNotificationsPage() {
+  const [notifications, setNotifications] = React.useState(investorNotifications)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [filter, setFilter] = React.useState<"all" | "unread">("all")
+
+  const unreadCount = notifications.filter((n) => n.unread).length
+  const filteredNotifications =
+    filter === "all"
+      ? notifications
+      : notifications.filter((n) => n.unread)
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const selectAll = () => {
+    if (selectedIds.size === filteredNotifications.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredNotifications.map((n) => n.id)))
+    }
+  }
+
+  const markAsRead = (ids: string[]) => {
+    setNotifications((prev) =>
+      prev.map((n) => (ids.includes(n.id) ? { ...n, unread: false } : n))
+    )
+    setSelectedIds(new Set())
+  }
+
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
+  }
+
+  const deleteNotifications = (ids: string[]) => {
+    setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)))
+    setSelectedIds(new Set())
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100/30">
+      {/* Header */}
+      <div className="border-b border-gray-100 bg-white">
+        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/investor/dashboard">
+                <ArrowLeft className="size-5" />
+              </Link>
+            </Button>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
+                {unreadCount > 0 && (
+                  <Badge className="bg-primary">{unreadCount} new</Badge>
+                )}
+              </div>
+              <p className="text-sm text-gray-500">
+                Stay updated on your investments and opportunities
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={markAllAsRead}>
+              <CheckCheck className="size-4 mr-2" />
+              Mark All Read
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Filters */}
+        <div className="mb-4 flex items-center justify-between">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+            <TabsList>
+              <TabsTrigger value="all">
+                All ({notifications.length})
+              </TabsTrigger>
+              <TabsTrigger value="unread">
+                Unread ({unreadCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">
+                {selectedIds.size} selected
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => markAsRead(Array.from(selectedIds))}
+              >
+                <Check className="size-4 mr-1" />
+                Mark Read
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => deleteNotifications(Array.from(selectedIds))}
+              >
+                <Trash2 className="size-4 mr-1" />
+                Delete
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Notifications List */}
+        {filteredNotifications.length === 0 ? (
+          <EmptyState
+            title={filter === "unread" ? "No unread notifications" : "No notifications"}
+            description={
+              filter === "unread"
+                ? "You've read all your notifications"
+                : "You don't have any notifications yet"
+            }
+            icon={<BellOff className="size-5" />}
+          />
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              {/* Select All Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b bg-gray-50/50">
+                <Checkbox
+                  checked={
+                    selectedIds.size === filteredNotifications.length &&
+                    filteredNotifications.length > 0
+                  }
+                  onCheckedChange={selectAll}
+                />
+                <span className="text-sm text-gray-500">Select all</span>
+              </div>
+
+              {/* Notification Items */}
+              <div className="divide-y">
+                {filteredNotifications.map((notification) => {
+                  const Icon = typeIcons[notification.type]
+                  return (
+                    <div
+                      key={notification.id}
+                      className={cn(
+                        "flex items-start gap-3 px-4 py-4 transition-colors",
+                        notification.unread && "bg-blue-50/30",
+                        selectedIds.has(notification.id) && "bg-gray-100"
+                      )}
+                    >
+                      <Checkbox
+                        checked={selectedIds.has(notification.id)}
+                        onCheckedChange={() => toggleSelect(notification.id)}
+                        className="mt-1"
+                      />
+                      <div
+                        className={cn(
+                          "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                          typeColors[notification.type]
+                        )}
+                      >
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p
+                                className={cn(
+                                  "font-medium",
+                                  notification.unread && "text-primary"
+                                )}
+                              >
+                                {notification.title}
+                              </p>
+                              {notification.unread && (
+                                <div className="size-2 rounded-full bg-primary" />
+                              )}
+                              {notification.priority === "high" && (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  Urgent
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mt-0.5">
+                              {notification.body}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                              <Clock className="size-3" />
+                              {notification.createdAt}
+                            </div>
+                          </div>
+                          {notification.href && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={notification.href}>
+                                View
+                                <ChevronRight className="size-4 ml-1" />
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Settings Link */}
+        <div className="mt-6 text-center">
+          <Button variant="link" asChild>
+            <Link href="/investor/settings">
+              <Settings className="size-4 mr-2" />
+              Manage notification preferences
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

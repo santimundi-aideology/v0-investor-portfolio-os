@@ -25,6 +25,7 @@ import {
 import { mockActivities, mockDealRooms, mockInvestors, mockProperties, mockTasks } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
 import { InvestorDashboard } from "@/components/investor/investor-dashboard"
+import { PropertyGalleryStrip } from "@/components/properties/featured-properties-carousel"
 import { getInvestorById } from "@/lib/mock-data"
 import type { DealRoom, Task } from "@/lib/types"
 import { formatAED } from "@/lib/real-estate"
@@ -163,38 +164,35 @@ function InternalDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-secondary/40 p-6 shadow-sm">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_0%_20%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(900px_circle_at_80%_0%,rgba(16,185,129,0.12),transparent_55%)]" />
-        <div className="relative">
-          <PageHeader
-            title={
-              <span className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <ClipboardCheck className="size-5" />
-                </span>
-                <span>Good morning, {user.name}</span>
+      <div className="rounded-2xl bg-white border border-gray-100 p-8">
+        <PageHeader
+          title={
+            <span className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                <ClipboardCheck className="size-5" />
               </span>
-            }
-            subtitle="Your daily command center for investors, deals, and inventory."
-            primaryAction={
-              <Button asChild>
-                <Link href="/realtor">
-                  Open Realtor Ops <ArrowUpRight className="ml-2 size-4" />
-                </Link>
+              <span>Good morning, {user.name}</span>
+            </span>
+          }
+          subtitle="Your daily command center for investors, deals, and inventory."
+          primaryAction={
+            <Button asChild>
+              <Link href="/realtor">
+                Open Realtor Ops <ArrowUpRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+          }
+          secondaryActions={
+            <>
+              <Button variant="outline" asChild>
+                <Link href="/investors">Investors</Link>
               </Button>
-            }
-            secondaryActions={
-              <>
-                <Button variant="outline" asChild>
-                  <Link href="/investors">Investors</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/properties">Inventory</Link>
-                </Button>
-              </>
-            }
-          />
-        </div>
+              <Button variant="outline" asChild>
+                <Link href="/properties">Inventory</Link>
+              </Button>
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -202,6 +200,25 @@ function InternalDashboard() {
           <KpiCard key={card.label} {...card} />
         ))}
       </div>
+
+      {/* Featured Properties Gallery */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span>Featured Properties</span>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/properties">
+                View all <ArrowUpRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <PropertyGalleryStrip
+            properties={mockProperties.filter(p => p.status === "available").slice(0, 8)}
+          />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
@@ -255,7 +272,7 @@ function InternalDashboard() {
               {prioritizedTasks.length ? (
                 prioritizedTasks.slice(0, 6).map((t) => <TaskRow key={t.id} task={t} today={today} />)
               ) : (
-                <div className="text-sm text-muted-foreground">No open tasks. Enjoy the breather!</div>
+                <div className="text-sm text-gray-500">No open tasks. Enjoy the breather!</div>
               )}
               <Separator />
               <Button variant="outline" asChild className="w-full">
@@ -293,16 +310,16 @@ function InternalDashboard() {
                           <TableCell>
                             <div>
                               <p className="font-medium">{investor.name}</p>
-                              <p className="text-xs text-muted-foreground">{investor.company}</p>
+                              <p className="text-xs text-gray-500">{investor.company}</p>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="text-xs">
                               <div className="font-medium capitalize">{investor.mandate?.strategy ?? "—"}</div>
-                              <div className="text-muted-foreground">Yield {investor.mandate?.yieldTarget ?? "—"}</div>
+                              <div className="text-gray-500">Yield {investor.mandate?.yieldTarget ?? "—"}</div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
+                          <TableCell className="text-xs text-gray-500">
                             {formatDistanceToNowStrict(parseISO(investor.lastContact))} ago
                           </TableCell>
                           <TableCell className="text-right">
@@ -316,7 +333,7 @@ function InternalDashboard() {
                   </Table>
                 </div>
               ) : (
-                <div className="text-muted-foreground py-8 text-center text-sm">All investors are up to date</div>
+                <div className="text-gray-500 py-8 text-center text-sm">All investors are up to date</div>
               )}
             </CardContent>
           </Card>
@@ -334,7 +351,7 @@ function InternalDashboard() {
                     <span className="font-semibold">{status.replaceAll("_", " ").toLowerCase()}</span>
                     <Badge variant="secondary">{readinessBuckets[status] ?? 0}</Badge>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
                     <div
                       className="h-2 rounded-full bg-primary"
                       style={{
@@ -352,7 +369,7 @@ function InternalDashboard() {
                 <>
                   <Separator />
                   <div className="space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground/70">Verify next</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-600">Verify next</div>
                     {verificationQueue.map((p) => (
                       <Button key={p.id} variant="outline" size="sm" asChild className="w-full justify-between">
                         <Link href={`/properties/${p.id}`}>
@@ -376,14 +393,14 @@ function InternalDashboard() {
                 const Icon = getActivityIcon(activity.type)
                 return (
                   <div key={activity.id} className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100">
+                      <Icon className="h-4 w-4 text-gray-500" />
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.description}</p>
+                      <p className="text-xs text-gray-500">{activity.description}</p>
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-[11px] text-gray-500">
                       {formatDistanceToNowStrict(new Date(activity.timestamp))}
                     </span>
                   </div>
@@ -409,14 +426,14 @@ function KpiCard({
   icon: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <Card className="border-border/60 bg-gradient-to-br from-card to-muted/60 shadow-sm">
+    <Card className="bg-white border border-gray-100 rounded-xl shadow-sm">
       <CardContent className="flex items-center justify-between p-5">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/80">{label}</div>
-          <div className="mt-1 text-2xl font-bold text-foreground/90">{value}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{meta}</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-gray-500">{label}</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
+          <div className="mt-1 text-xs text-gray-500">{meta}</div>
         </div>
-        <div className="rounded-full bg-primary/10 p-3 text-primary">
+        <div className="rounded-full bg-green-50 p-3 text-green-600">
           <Icon className="size-5" />
         </div>
       </CardContent>
@@ -437,22 +454,22 @@ function TaskRow({ task, today }: { task: Task; today: Date }) {
 
   const dueClass =
     dueInDays === null
-      ? "text-muted-foreground"
+      ? "text-gray-500"
       : dueInDays < 0
         ? "text-destructive"
         : dueInDays <= 1
           ? "text-amber-600 dark:text-amber-300"
-          : "text-muted-foreground"
+          : "text-gray-500"
 
   return (
-    <div className="rounded-lg border p-3">
+    <div className="rounded-lg border border-gray-100 bg-white p-3">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold">{task.title}</span>
+        <span className="font-semibold text-gray-900">{task.title}</span>
         <Badge variant="outline" className="capitalize">
           {task.priority}
         </Badge>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">
+      <div className="mt-1 text-xs text-gray-500">
         {task.investorName ?? "Internal"} {task.propertyTitle ? `• ${task.propertyTitle}` : null}
       </div>
       <div className={`mt-2 text-xs font-semibold ${dueClass}`}>{dueLabel}</div>

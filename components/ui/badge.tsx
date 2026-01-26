@@ -5,24 +5,24 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-semibold w-fit whitespace-nowrap shrink-0 [&>svg]:size-3.5 gap-1.5 [&>svg]:pointer-events-none transition-all duration-200 overflow-hidden shadow-sm',
+  'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-sm font-semibold w-fit whitespace-nowrap shrink-0 [&>svg]:size-3.5 gap-1.5 [&>svg]:pointer-events-none transition-colors overflow-hidden',
   {
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90 [a&]:hover:scale-105',
+          'bg-green-500 text-white',
         secondary:
-          'border-transparent bg-secondary text-secondary-foreground border border-border [a&]:hover:bg-muted [a&]:hover:scale-105',
+          'bg-gray-100 text-gray-700 border border-gray-200',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground [a&]:hover:bg-destructive/90 [a&]:hover:scale-105',
+          'bg-red-500 text-white',
         outline:
-          'text-foreground border border-border bg-white [a&]:hover:bg-accent/10 [a&]:hover:scale-105',
+          'text-gray-700 border border-gray-200 bg-white hover:bg-gray-50',
         accent:
-          'border-transparent bg-accent text-accent-foreground [a&]:hover:bg-accent-hover [a&]:hover:scale-105',
+          'bg-gray-100 text-gray-900',
         success:
-          'border-transparent bg-success text-success-foreground [a&]:hover:bg-success/90 [a&]:hover:scale-105',
+          'bg-green-100 text-green-700',
         info:
-          'border-transparent bg-info text-info-foreground [a&]:hover:bg-info/90 [a&]:hover:scale-105',
+          'bg-blue-100 text-blue-700',
       },
     },
     defaultVariants: {

@@ -71,7 +71,14 @@ export function updateInvestor(id: string, updates: Partial<Investor>) {
   return investors[idx]
 }
 
-export function replaceAllInvestors(next: Investor[]) {
+export function replaceAllInvestors(next: Investor[], clearStorage = false) {
+  if (clearStorage && typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }
   investors = next
   persist()
   emit()

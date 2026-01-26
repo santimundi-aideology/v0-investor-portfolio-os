@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
 import { GlobalAskAIWidget } from "@/components/ai/global-ask-ai-widget"
+import { Providers } from "@/components/providers/providers"
 import "./globals.css"
 
 const inter = Inter({ 
@@ -14,7 +15,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "InvestorOS - UAE Investor Portfolio Management",
+  title: "Vantage - UAE Investor Portfolio Management",
   description:
     "Manage investor mandates, property shortlists, IC memos, and deal rooms for UAE real estate investments.",
   generator: "v0.app",
@@ -43,11 +44,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
-        <GlobalAskAIWidget />
-        <Toaster position="top-right" />
+        <Providers>
+          {children}
+          <GlobalAskAIWidget />
+          <Toaster position="top-right" />
+        </Providers>
         <Analytics />
       </body>
     </html>

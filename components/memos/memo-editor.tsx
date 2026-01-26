@@ -96,7 +96,7 @@ export function MemoEditor({ initialMemo, investorName, propertyTitle }: MemoEdi
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Edit memo with AI</span>
-          {contextHint ? <span className="text-xs font-normal text-muted-foreground">{contextHint}</span> : null}
+          {contextHint ? <span className="text-xs font-normal text-gray-500">{contextHint}</span> : null}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -153,7 +153,7 @@ export function MemoEditor({ initialMemo, investorName, propertyTitle }: MemoEdi
               Attach image
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-500">
             Images are embedded via markdown. They will appear inline in the memo and in the PDF.
           </p>
         </div>

@@ -72,5 +72,3 @@ export function getCommandItems(role: UserRole) {
 
   return { actions, navItems, recentInvestors, recentProperties }
 }
-
-

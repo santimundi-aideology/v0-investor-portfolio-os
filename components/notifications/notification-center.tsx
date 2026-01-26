@@ -85,22 +85,22 @@ export function NotificationCenter({
         <div className={cn("space-y-3", variant === "compact" && "space-y-2")}>
           {filtered.map((n) => {
             const row = (
-              <div
-                className={cn(
-                  "flex gap-3 rounded-md border p-3 transition-colors",
-                  n.unread ? "bg-primary/5 border-primary/20" : "hover:bg-muted/40",
-                )}
-              >
-                <div className="bg-muted flex size-9 items-center justify-center rounded-md">
-                  <Sparkles className="size-4 text-muted-foreground" />
-                </div>
+                <div
+                  className={cn(
+                    "flex gap-3 rounded-lg border p-3 transition-colors",
+                    n.unread ? "bg-green-50 border-green-200" : "bg-white hover:bg-gray-50 border-gray-100",
+                  )}
+                >
+                  <div className="bg-gray-100 flex size-9 items-center justify-center rounded-lg">
+                    <Sparkles className="size-4 text-gray-500" />
+                  </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <div className="truncate text-sm font-medium">{n.title}</div>
                     {n.unread ? <Badge variant="outline">New</Badge> : null}
                   </div>
-                  <div className="text-muted-foreground mt-0.5 text-sm">{n.body}</div>
-                  <div className="text-muted-foreground mt-1 text-xs">{n.createdAt}</div>
+                  <div className="text-gray-500 mt-0.5 text-sm">{n.body}</div>
+                  <div className="text-gray-500 mt-1 text-xs">{n.createdAt}</div>
                 </div>
               </div>
             )
@@ -126,7 +126,7 @@ export function NotificationCenter({
           })}
         </div>
       ) : (
-        <div className="rounded-md border p-4 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-500">
           {filter === "unread" ? "No unread notifications." : "No notifications yet."}
         </div>
       )}

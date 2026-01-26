@@ -1,4 +1,4 @@
--- Supabase schema for Investor Portfolio OS (v1.1)
+-- Supabase schema for Vantage (v1.1)
 -- Tenancy + RBAC foundations + domain shells
 
 -- Enable useful extensions (safe/no-op if already enabled)

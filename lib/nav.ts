@@ -8,8 +8,10 @@ import {
   FolderKanban,
   LayoutDashboard,
   LineChart,
+  Map,
   Radar,
   ScrollText,
+  Search,
   Settings,
   Users,
   UsersRound,
@@ -48,8 +50,11 @@ export const navSections: NavSection[] = [
   {
     label: "Intelligence",
     items: [
+      { label: "Property Intake", href: "/property-intake", icon: Search, rolesAllowed: INTERNAL_ROLES },
       { label: "IC Memos", href: "/memos", icon: FileText, rolesAllowed: ALL_ROLES },
       { label: "Market Signals", href: "/market-signals", icon: Radar, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
+      { label: "Market Map", href: "/market-map", icon: Map, rolesAllowed: ALL_ROLES },
+      { label: "Price Compare", href: "/market-compare", icon: LineChart, rolesAllowed: ALL_ROLES },
     ],
   },
   {

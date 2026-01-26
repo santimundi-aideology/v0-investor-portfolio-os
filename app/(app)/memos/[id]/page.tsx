@@ -15,10 +15,10 @@ interface MemoPageProps {
 }
 
 const statusColors: Record<Memo["status"], string> = {
-  draft: "bg-muted text-muted-foreground",
-  review: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  approved: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  sent: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  draft: "bg-gray-100 text-gray-600 border-gray-200",
+  review: "bg-amber-50 text-amber-600 border-amber-200",
+  approved: "bg-green-50 text-green-600 border-green-200",
+  sent: "bg-blue-50 text-blue-600 border-blue-200",
 }
 
 function formatDate(dateString: string): string {
@@ -64,10 +64,10 @@ function renderMemoContent(content: string) {
     if (imageMatch) {
       const [, alt, src] = imageMatch
       return (
-        <div key={index} className="my-4 overflow-hidden rounded-lg border bg-muted/30">
+        <div key={index} className="my-4 overflow-hidden rounded-lg border bg-gray-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} alt={alt || "Memo image"} className="w-full object-cover" />
-          {alt ? <p className="px-3 py-2 text-xs text-muted-foreground">{alt}</p> : null}
+          {alt ? <p className="px-3 py-2 text-xs text-gray-500">{alt}</p> : null}
         </div>
       )
     }
@@ -123,7 +123,7 @@ function renderMemoContent(content: string) {
     }
     // Regular paragraphs
     return (
-      <p key={index} className="mb-2 text-muted-foreground">
+      <p key={index} className="mb-2 text-gray-500">
         {line}
       </p>
     )
@@ -160,16 +160,16 @@ export default async function MemoPage({ params }: MemoPageProps) {
               {memo.status}
             </Badge>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
             <div className="flex items-center gap-1">
               <User className="h-4 w-4" />
-              <Link href={`/investors/${memo.investorId}`} className="hover:text-foreground">
+              <Link href={`/investors/${memo.investorId}`} className="hover:text-gray-900">
                 {memo.investorName}
               </Link>
             </div>
             <div className="flex items-center gap-1">
               <Building2 className="h-4 w-4" />
-              <Link href={`/properties/${memo.propertyId}`} className="hover:text-foreground">
+              <Link href={`/properties/${memo.propertyId}`} className="hover:text-gray-900">
                 {memo.propertyTitle}
               </Link>
             </div>
@@ -203,10 +203,10 @@ export default async function MemoPage({ params }: MemoPageProps) {
                       const description = typeof obj.description === "string" ? obj.description : undefined
                       const category = typeof obj.category === "string" ? obj.category : undefined
                       return (
-                        <div key={`${url}-${idx}`} className="overflow-hidden rounded-lg border bg-muted/30">
+                        <div key={`${url}-${idx}`} className="overflow-hidden rounded-lg border bg-gray-50">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={url} alt={description || property.title} className="h-40 w-full object-cover" />
-                          <div className="px-3 py-2 text-xs text-muted-foreground line-clamp-2">
+                          <div className="px-3 py-2 text-xs text-gray-500 line-clamp-2">
                             {description || category || property.title}
                           </div>
                         </div>
@@ -220,12 +220,12 @@ export default async function MemoPage({ params }: MemoPageProps) {
           {analysis ? (
             <>
               <AnalysisSection title="Executive Summary" description="How this property meets the mandate">
-                <p className="text-muted-foreground">{analysis.summary}</p>
+                <p className="text-gray-500">{analysis.summary}</p>
                 {analysis.keyPoints?.length ? (
-                  <ul className="space-y-2 text-sm leading-6 text-foreground">
+                  <ul className="space-y-2 text-sm leading-6 text-gray-900">
                     {analysis.keyPoints.map((point, idx) => (
                       <li key={`key-point-${idx}`} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" />
                         <span>{point}</span>
                       </li>
                     ))}
@@ -235,12 +235,12 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
               {analysis.neighborhood ? (
                 <AnalysisSection title="Neighborhood Analysis" description={analysis.neighborhood.name}>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
                     <Badge variant="secondary" className="uppercase">
                       Grade {analysis.neighborhood.grade}
                     </Badge>
                   </div>
-                  <p className="text-muted-foreground">{analysis.neighborhood.profile}</p>
+                  <p className="text-gray-500">{analysis.neighborhood.profile}</p>
                   {analysis.neighborhood.metrics?.length ? (
                     <div className="grid gap-3 md:grid-cols-2">
                       {analysis.neighborhood.metrics.map((metric) => (
@@ -249,7 +249,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
                     </div>
                   ) : null}
                   {analysis.neighborhood.highlights?.length ? (
-                    <ul className="space-y-2 text-sm text-foreground">
+                    <ul className="space-y-2 text-sm text-gray-900">
                       {analysis.neighborhood.highlights.map((highlight, idx) => (
                         <li key={`neighborhood-highlight-${idx}`} className="flex gap-2">
                           <span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
@@ -263,12 +263,12 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
               {analysis.property ? (
                 <AnalysisSection title="Property Description" description={analysis.property.condition}>
-                  <p className="text-muted-foreground">{analysis.property.description}</p>
+                  <p className="text-gray-500">{analysis.property.description}</p>
                   {analysis.property.specs?.length ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {analysis.property.specs.map((spec) => (
-                        <div key={spec.label} className="rounded-lg border bg-muted/40 p-3">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{spec.label}</p>
+                        <div key={spec.label} className="rounded-lg border bg-gray-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-500">{spec.label}</p>
                           <p className="text-base font-semibold">{spec.value}</p>
                         </div>
                       ))}
@@ -276,11 +276,11 @@ export default async function MemoPage({ params }: MemoPageProps) {
                   ) : null}
                   {analysis.property.highlights?.length ? (
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Highlights</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Highlights</p>
                       <ul className="mt-2 space-y-2 text-sm">
                         {analysis.property.highlights.map((highlight, idx) => (
                           <li key={`property-highlight-${idx}`} className="flex gap-2">
-                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" />
                             <span>{highlight}</span>
                           </li>
                         ))}
@@ -292,10 +292,10 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
               {analysis.market ? (
                 <AnalysisSection title="Market Analysis" description="Demand & supply signals">
-                  <p className="text-muted-foreground">{analysis.market.overview}</p>
+                  <p className="text-gray-500">{analysis.market.overview}</p>
                   {analysis.market.drivers?.length ? (
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Key drivers</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Key drivers</p>
                       <ul className="mt-2 space-y-2 text-sm">
                         {analysis.market.drivers.map((driver, idx) => (
                           <li key={`market-driver-${idx}`} className="flex gap-2">
@@ -333,15 +333,15 @@ export default async function MemoPage({ params }: MemoPageProps) {
                     <StatTile label="Value-add budget" value={formatCurrency(analysis.pricing.valueAddBudget)} />
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border bg-muted/40 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">In-place rent</p>
+                    <div className="rounded-lg border bg-gray-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">In-place rent</p>
                       <p className="text-xl font-semibold">{formatCurrency(analysis.pricing.rentCurrent)}</p>
-                      <p className="text-sm text-muted-foreground">Stabilized: {formatCurrency(analysis.pricing.rentPotential)}</p>
+                      <p className="text-sm text-gray-500">Stabilized: {formatCurrency(analysis.pricing.rentPotential)}</p>
                     </div>
-                    <div className="rounded-lg border bg-muted/40 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Projected returns</p>
+                    <div className="rounded-lg border bg-gray-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Projected returns</p>
                       <p className="text-xl font-semibold">{formatPercent(analysis.pricing.irr)}</p>
-                      <p className="text-sm text-muted-foreground">Equity multiple: {analysis.pricing.equityMultiple?.toFixed(2) ?? "—"}x</p>
+                      <p className="text-sm text-gray-500">Equity multiple: {analysis.pricing.equityMultiple?.toFixed(2) ?? "—"}x</p>
                     </div>
                   </div>
                 </AnalysisSection>
@@ -351,27 +351,27 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 <AnalysisSection title="Comparable Sales" description="Recent reference trades">
                   <div className="space-y-3">
                     {analysis.comparables.map((comp) => (
-                      <div key={`${comp.name}-${comp.closingDate}`} className="rounded-lg border bg-card/50 p-4">
+                      <div key={`${comp.name}-${comp.closingDate}`} className="rounded-lg border bg-white p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
                           <span>{comp.name}</span>
-                          <span className="text-muted-foreground">{comp.distance}</span>
+                          <span className="text-gray-500">{comp.distance}</span>
                         </div>
-                        <p className="text-xs uppercase text-muted-foreground">{comp.closingDate}</p>
+                        <p className="text-xs uppercase text-gray-500">{comp.closingDate}</p>
                         <div className="mt-3 grid gap-3 sm:grid-cols-3">
                           <div>
-                            <p className="text-xs uppercase text-muted-foreground">Price</p>
+                            <p className="text-xs uppercase text-gray-500">Price</p>
                             <p className="text-base font-semibold">{formatCurrency(comp.price)}</p>
                           </div>
                           <div>
-                            <p className="text-xs uppercase text-muted-foreground">Size</p>
+                            <p className="text-xs uppercase text-gray-500">Size</p>
                             <p className="text-base font-semibold">{comp.size}</p>
                           </div>
                           <div>
-                            <p className="text-xs uppercase text-muted-foreground">Price / sq ft</p>
+                            <p className="text-xs uppercase text-gray-500">Price / sq ft</p>
                             <p className="text-base font-semibold">{formatPerSqft(comp.pricePerSqft)}</p>
                           </div>
                         </div>
-                        {comp.note ? <p className="mt-2 text-sm text-muted-foreground">{comp.note}</p> : null}
+                        {comp.note ? <p className="mt-2 text-sm text-gray-500">{comp.note}</p> : null}
                       </div>
                     ))}
                   </div>
@@ -380,11 +380,11 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
               {analysis.strategy ? (
                 <AnalysisSection title="Strategy & Execution" description={`${analysis.strategy.holdPeriod} • ${analysis.strategy.exit}`}>
-                  <p className="text-muted-foreground">{analysis.strategy.plan}</p>
+                  <p className="text-gray-500">{analysis.strategy.plan}</p>
                   <ul className="mt-3 space-y-2 text-sm">
                     {analysis.strategy.focusPoints.map((point, idx) => (
                       <li key={`strategy-point-${idx}`} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" />
                         <span>{point}</span>
                       </li>
                     ))}
@@ -397,7 +397,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
                   <CardTitle className="text-base">Full Memo Narrative</CardTitle>
                   <CardDescription>Original markdown memo</CardDescription>
                 </CardHeader>
-                <CardContent className="prose prose-sm max-w-none dark:prose-invert">{renderMemoContent(memo.content)}</CardContent>
+                <CardContent className="prose prose-sm max-w-none prose-gray">{renderMemoContent(memo.content)}</CardContent>
               </Card>
             </>
           ) : (
@@ -406,7 +406,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 <CardTitle className="text-base">Memo Content</CardTitle>
                 <CardDescription>Full memo text</CardDescription>
               </CardHeader>
-              <CardContent className="prose prose-sm max-w-none dark:prose-invert">{renderMemoContent(memo.content)}</CardContent>
+              <CardContent className="prose prose-sm max-w-none prose-gray">{renderMemoContent(memo.content)}</CardContent>
         </Card>
           )}
         </div>
@@ -418,7 +418,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Current Status</span>
+                <span className="text-gray-500">Current Status</span>
                 <Badge variant="outline" className={statusColors[memo.status]}>
                   {memo.status}
                 </Badge>
@@ -426,11 +426,11 @@ export default async function MemoPage({ params }: MemoPageProps) {
               <Separator />
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Created</span>
+                  <span className="text-gray-500">Created</span>
                   <span>{formatDate(memo.createdAt)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Updated</span>
+                  <span className="text-gray-500">Updated</span>
                   <span>{formatDate(memo.updatedAt)}</span>
                 </div>
               </div>
@@ -463,7 +463,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 </Button>
               )}
               {memo.status === "sent" && (
-                <p className="py-2 text-center text-sm text-muted-foreground">Memo has been sent to investor</p>
+                <p className="py-2 text-center text-sm text-gray-500">Memo has been sent to investor</p>
               )}
             </CardContent>
           </Card>
@@ -501,7 +501,7 @@ interface AnalysisSectionProps {
 
 function AnalysisSection({ title, description, children }: AnalysisSectionProps) {
   return (
-    <Card className="border-muted/60">
+    <Card className="border-gray-100">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -519,10 +519,10 @@ interface StatTileProps {
 
 function StatTile({ label, value, hint }: StatTileProps) {
   return (
-    <div className="rounded-lg border bg-muted/50 p-3">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div className="rounded-lg border bg-gray-50 p-3">
+      <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
       <p className="text-base font-semibold">{value ?? "—"}</p>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
     </div>
   )
 }

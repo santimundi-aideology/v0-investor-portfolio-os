@@ -3,13 +3,13 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { filterNavByRole } from "@/lib/nav"
 import { useApp } from "@/components/providers/app-provider"
+import { VantageIcon } from "@/components/brand/logo"
 
 interface MobileSidebarProps {
   open: boolean
@@ -28,13 +28,11 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
 
   return (
     <Sheet open={open} onOpenChange={(v) => (!v ? onClose() : undefined)}>
-      <SheetContent side="left" className="bg-sidebar p-0">
-        <SheetHeader className="border-b border-sidebar-border px-4 py-4">
-          <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </span>
-            <span>InvestorOS</span>
+      <SheetContent side="left" className="bg-white p-0">
+        <SheetHeader className="border-b border-gray-200 px-4 py-4">
+          <SheetTitle className="flex items-center gap-2 text-gray-900">
+            <VantageIcon size={32} />
+            <span>Vantage</span>
           </SheetTitle>
         </SheetHeader>
 
@@ -43,7 +41,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             <nav className="space-y-4">
               {sections.map((section) => (
                 <div key={section.label} className="space-y-1">
-                  <div className="px-3 py-1 text-xs font-semibold tracking-wider text-sidebar-foreground/60">
+                  <div className="px-3 py-1 text-xs font-semibold tracking-wider text-gray-500">
                     {section.label}
                   </div>
                   {section.items.map((item) => {
@@ -58,8 +56,8 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                         className={cn(
                           "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                           isActive
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            ? "bg-green-50 text-green-600"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                         )}
                       >
                         <Icon className="h-5 w-5" />
@@ -74,8 +72,8 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           <ScrollBar />
         </ScrollArea>
 
-        <div className="border-t border-sidebar-border p-4">
-          <Button asChild variant="ghost" className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent">
+        <div className="border-t border-gray-200 p-4">
+          <Button asChild variant="ghost" className="w-full justify-start text-gray-600 hover:bg-gray-50 hover:text-gray-900">
             <Link href="/settings" onClick={onClose}>
               Settings
             </Link>

@@ -55,5 +55,3 @@ function ScrollAreaCorner({ ...props }: React.ComponentProps<typeof ScrollAreaPr
 }
 
 export { ScrollArea, ScrollAreaViewport, ScrollBar, ScrollAreaCorner }
-
-

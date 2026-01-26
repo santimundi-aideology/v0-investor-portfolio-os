@@ -31,11 +31,11 @@ import {
 } from "@/lib/real-estate"
 
 const dealStatusClasses: Record<DealRoom["status"], string> = {
-  preparation: "bg-muted text-muted-foreground",
-  "due-diligence": "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  negotiation: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-  closing: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-  completed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  preparation: "bg-gray-100 text-gray-600",
+  "due-diligence": "bg-amber-50 text-amber-600 border-amber-200",
+  negotiation: "bg-blue-50 text-blue-600 border-blue-200",
+  closing: "bg-purple-50 text-purple-600 border-purple-200",
+  completed: "bg-green-50 text-green-600 border-green-200",
 }
 
 function dealStatusLabel(status: DealRoom["status"]) {
@@ -121,14 +121,14 @@ export function InvestorDashboard({
   return (
     <div className="space-y-6">
       {/* Hero header */}
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-secondary/40 p-6 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_circle_at_20%_0%,rgba(16,185,129,0.12),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(6,182,212,0.12),transparent_55%)]" />
 
         <div className="relative">
           <PageHeader
             title={
               <span className="flex items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
                   <Building2 className="size-5" />
                 </span>
                 <span>Welcome back, {investorName}</span>
@@ -219,10 +219,21 @@ export function InvestorDashboard({
                     {topHoldings.map(({ h, p, y, a }) => (
                       <TableRow key={h.id}>
                         <TableCell>
-                          <div className="min-w-[240px]">
-                            <div className="font-medium">{p?.title ?? h.propertyId}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {p?.area ?? "—"} • <span className="capitalize">{p?.type ?? "—"}</span>
+                          <div className="flex items-center gap-3 min-w-[240px]">
+                            {p?.imageUrl && (
+                              <div className="relative h-12 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.title}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{p?.title ?? h.propertyId}</div>
+                              <div className="text-xs text-gray-500">
+                                {p?.area ?? "—"} • <span className="capitalize">{p?.type ?? "—"}</span>
+                              </div>
                             </div>
                           </div>
                         </TableCell>
@@ -292,7 +303,7 @@ export function InvestorDashboard({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Bell className="size-4 text-primary" />
+                <Bell className="size-4 text-green-600" />
                 Alerts
               </CardTitle>
             </CardHeader>
@@ -306,7 +317,7 @@ export function InvestorDashboard({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Bell className="size-4 text-primary" />
+                  <Bell className="size-4 text-green-600" />
                   Latest notifications
                 </CardTitle>
                 <Button variant="outline" size="sm" asChild>
@@ -329,7 +340,7 @@ export function InvestorDashboard({
                   </Button>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">No notifications yet.</div>
+                <div className="text-sm text-gray-500">No notifications yet.</div>
               )}
             </CardContent>
           </Card>
@@ -338,7 +349,7 @@ export function InvestorDashboard({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Radar className="size-4 text-primary" />
+                  <Radar className="size-4 text-green-600" />
                   Latest market signals
                 </CardTitle>
                 <Button variant="outline" size="sm" asChild>
@@ -371,7 +382,7 @@ export function InvestorDashboard({
                   </Button>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">No signals yet.</div>
+                <div className="text-sm text-gray-500">No signals yet.</div>
               )}
             </CardContent>
           </Card>
@@ -379,18 +390,18 @@ export function InvestorDashboard({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <CalendarClock className="size-4 text-primary" />
+                <CalendarClock className="size-4 text-green-600" />
                 Next steps
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="rounded-lg border p-3">
                 <div className="font-medium">Review new opportunities</div>
-                <div className="mt-1 text-xs text-muted-foreground">2 assets match your mandate in preferred areas.</div>
+                <div className="mt-1 text-xs text-gray-500">2 assets match your mandate in preferred areas.</div>
               </div>
               <div className="rounded-lg border p-3">
                 <div className="font-medium">Approve memo (if ready)</div>
-                <div className="mt-1 text-xs text-muted-foreground">Quickly review memo highlights & approve/reject.</div>
+                <div className="mt-1 text-xs text-gray-500">Quickly review memo highlights & approve/reject.</div>
               </div>
             </CardContent>
           </Card>
@@ -399,7 +410,7 @@ export function InvestorDashboard({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                  <FolderKanban className="size-4 text-primary" />
+                  <FolderKanban className="size-4 text-green-600" />
                   Deal rooms
               </CardTitle>
                 <Button variant="outline" size="sm" asChild>
@@ -420,7 +431,7 @@ export function InvestorDashboard({
                   </Button>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">No ongoing deal rooms.</div>
+                <div className="text-sm text-gray-500">No ongoing deal rooms.</div>
               )}
             </CardContent>
           </Card>
@@ -428,7 +439,7 @@ export function InvestorDashboard({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="size-4 text-primary" />
+                <FileText className="size-4 text-green-600" />
                 Recent IC memos
               </CardTitle>
             </CardHeader>
@@ -445,7 +456,7 @@ export function InvestorDashboard({
                   </Button>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">No memos yet.</div>
+                <div className="text-sm text-gray-500">No memos yet.</div>
               )}
               <Separator />
               <Button asChild className="w-full">
@@ -475,16 +486,16 @@ function MetricCard({
   compactRight?: boolean
 }) {
   return (
-    <Card className="border-border/50 bg-gradient-to-br from-card to-secondary/30 shadow-sm">
+    <Card className="border-gray-100 bg-white shadow-sm">
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">{label}</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-gray-600">{label}</div>
               {badge}
             </div>
             <div className="mt-1 text-2xl font-bold tracking-tight text-foreground/90">{value}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{meta}</div>
+            <div className="mt-1 text-xs text-gray-500">{meta}</div>
           </div>
           <div className={cn("w-[140px] shrink-0", compactRight ? "w-[160px]" : "")}>{right}</div>
         </div>
@@ -497,7 +508,7 @@ function AlertRow({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border p-3">
       <div className="font-medium">{title}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{body}</div>
+      <div className="mt-1 text-xs text-gray-500">{body}</div>
     </div>
   )
 }
@@ -515,28 +526,42 @@ function OpportunityRow({
   if (!p) return null
 
   return (
-    <Card className="border-border/50 hover:shadow-sm transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+    <Link href={`/properties/${p.id}`} className="group block">
+      <Card className="border-gray-100 hover:shadow-md transition-all overflow-hidden">
+        {/* Property Image */}
+        {p.imageUrl && (
+          <div className="relative h-32 w-full overflow-hidden">
+            <img
+              src={p.imageUrl}
+              alt={p.title}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            <Badge 
+              variant="secondary" 
+              className="absolute right-2 top-2 bg-white/90 text-gray-900"
+            >
+              Score {score}
+            </Badge>
+            <div className="absolute bottom-2 left-2">
+              <Badge className="bg-green-500 text-white text-xs">
+                {p.roi ? `${p.roi}% ROI` : p.area}
+              </Badge>
+            </div>
+          </div>
+        )}
+        <CardContent className="p-4">
           <div className="min-w-0">
-            <div className="font-medium truncate">{p.title}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
+            <div className="font-medium truncate group-hover:text-green-600 transition-colors">{p.title}</div>
+            <div className="mt-0.5 text-xs text-gray-500">
               {p.area} • <span className="capitalize">{p.type}</span>
             </div>
-            <div className="mt-2 text-sm font-semibold">{formatAED(p.price)}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{reasons.join(" • ")}</div>
+            <div className="mt-2 text-sm font-semibold text-gray-900">{formatAED(p.price)}</div>
+            <div className="mt-1 text-xs text-gray-500 line-clamp-1">{reasons.join(" • ")}</div>
           </div>
-          <Badge variant="secondary">Score {score}</Badge>
-        </div>
-        <div className="mt-3">
-          <Button asChild variant="outline" size="sm" className="w-full">
-            <Link href={`/properties/${p.id}`}>
-              View opportunity <ArrowUpRight className="ml-2 size-4" />
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
 

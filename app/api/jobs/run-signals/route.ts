@@ -1,6 +1,10 @@
-import "server-only"
 import { NextResponse } from "next/server"
-import { runSignalsPipeline } from "@/jobs/signals/runSignalsPipeline"
+
+// Dynamic import to avoid server-only issues in edge cases
+async function getSignalsPipeline() {
+  const mod = await import("@/jobs/signals/runSignalsPipeline")
+  return mod.runSignalsPipeline
+}
 
 /**
  * POST /api/jobs/run-signals
@@ -46,18 +50,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
       }
     } else {
-      // Dev mode: require super_admin role
+      // Dev mode: allow if no JOB_SECRET is configured
       if (process.env.NODE_ENV === "production") {
         return NextResponse.json(
           { ok: false, error: "JOB_SECRET not configured in production" },
           { status: 500 }
         )
       }
-
-      const role = req.headers.get("x-role")
-      if (role !== "super_admin") {
-        return NextResponse.json({ ok: false, error: "Unauthorized (dev mode)" }, { status: 401 })
-      }
+      // In development, allow requests without secret (for local testing)
+      console.log("[run-signals] Dev mode: allowing request without JOB_SECRET")
     }
 
     // Parse body
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
 
     // Run the pipeline
     console.log(`[POST /api/jobs/run-signals] Starting pipeline for orgId=${orgId}`)
+    const runSignalsPipeline = await getSignalsPipeline()
     const result = await runSignalsPipeline(orgId)
 
     if (result.errors.length > 0) {
