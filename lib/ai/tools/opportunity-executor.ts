@@ -667,11 +667,8 @@ async function executeAnalyzeHolding(
     })
     
     marketComparison = {
-      dldMedianPsf: externalData.dld.medianPricePsf,
-      currentPsf: property.size ? Math.round(holding.currentValue / property.size) : null,
-      priceVsMarket: externalData.derived.priceVsMarket,
       assessment: externalData.derived.assessment,
-      areaYield: externalData.derived.areaYieldEstimate,
+      priceVsMarket: externalData.derived.priceVsMarket,
     }
   }
   
