@@ -477,7 +477,7 @@ Keep responses concise and actionable.`
         const finalResponse = await openai.chat.completions.create({
           model: process.env.OPENAI_MODEL || "gpt-4o-mini",
           messages: [
-            { role: "system", content: opportunitySystemPrompt },
+            { role: "system", content: agentSystemPrompt },
             ...messages.map((m) => ({ role: m.role, content: m.content })),
             assistantMessage,
             ...toolResults,

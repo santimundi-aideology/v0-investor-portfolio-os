@@ -295,7 +295,7 @@ export default function PropertyIntakePage() {
         primaryAction={
           step !== "input" && step !== "saved" ? (
             <div className="flex items-center gap-2">
-              {(step === "evaluated" || step === "saving" || step === "saved") && property && (
+              {(step === "evaluated" || step === "saving") && property && (
                 <MemoPdfExport title={property.title} />
               )}
               <Button variant="outline" onClick={handleReset}>Start Over</Button>

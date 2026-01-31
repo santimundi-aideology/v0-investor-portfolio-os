@@ -57,16 +57,16 @@ export function DemoBanner() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const router = useRouter()
-  const { activePersona, setActivePersona } = useApp()
+  const { personaId, setPersonaId } = useApp()
 
-  const currentPersona = DEMO_PERSONAS.find((p) => p.id === activePersona) ?? DEMO_PERSONAS[0]
+  const currentPersona = DEMO_PERSONAS.find((p) => p.id === personaId) ?? DEMO_PERSONAS[0]
 
   const handlePersonaChange = useCallback(
     (persona: DemoPersona) => {
-      setActivePersona(persona.id)
+      setPersonaId(persona.id)
       router.push(persona.route)
     },
-    [setActivePersona, router]
+    [setPersonaId, router]
   )
 
   const handleReset = useCallback(async () => {
@@ -160,7 +160,7 @@ export function DemoBanner() {
                 <div className="flex items-center gap-2">
                   {persona.icon}
                   <span className="font-medium">{persona.label}</span>
-                  {persona.id === activePersona && (
+                  {persona.id === personaId && (
                     <Badge variant="accent" className="text-[10px] px-1.5 py-0.5">
                       Active
                     </Badge>

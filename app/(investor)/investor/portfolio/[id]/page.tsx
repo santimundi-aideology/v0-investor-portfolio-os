@@ -501,7 +501,7 @@ export default function HoldingDetailPage() {
                         {signal.severity}
                       </Badge>
                     </div>
-                    {signal.deltaPct !== null && (
+                    {signal.deltaPct != null && (
                       <div className="mt-2 text-sm">
                         <span className={cn(
                           "font-medium",
