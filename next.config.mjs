@@ -13,10 +13,6 @@ const nextConfig = {
     // TODO: Fix TypeScript errors in lib/db/* files
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Ignore linting errors during build
-    ignoreDuringBuilds: true,
-  },
 }
 
 export default nextConfig

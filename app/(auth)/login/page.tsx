@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 
@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { signIn } from "@/lib/auth/actions"
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -143,5 +143,13 @@ export default function LoginPage() {
         <Link href="/privacy" className="underline hover:text-gray-500">Privacy Policy</Link>
       </p>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
