@@ -94,7 +94,7 @@ export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
       // Find the main content area
       const contentElement = document.querySelector("main") || document.body
 
-      const opt = {
+      const opt: any = {
         margin: [10, 10, 10, 10],
         filename: `${title.replace(/[^a-zA-Z0-9]/g, "_")}_IC_Memo.pdf`,
         image: { type: "jpeg", quality: 0.98 },

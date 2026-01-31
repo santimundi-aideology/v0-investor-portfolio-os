@@ -392,12 +392,18 @@ export async function getAreaSignalSummary(
 }> {
   const signals = await getSignalsForAreas(tenantId, [area], { limit: 50 })
   
-  const summary = {
+  const summary: {
+    totalSignals: number
+    urgentSignals: number
+    priceDirection: "up" | "down" | "stable" | "unknown"
+    yieldTrend: "improving" | "declining" | "stable" | "unknown"
+    supplyPressure: "high" | "normal" | "low" | "unknown"
+  } = {
     totalSignals: signals.length,
     urgentSignals: signals.filter((s) => s.severity === "urgent").length,
-    priceDirection: "unknown" as const,
-    yieldTrend: "unknown" as const,
-    supplyPressure: "unknown" as const,
+    priceDirection: "unknown",
+    yieldTrend: "unknown",
+    supplyPressure: "unknown",
   }
   
   // Analyze price signals
