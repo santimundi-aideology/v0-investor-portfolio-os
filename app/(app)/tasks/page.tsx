@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Building2, Calendar, Plus, User, Users } from "lucide-react"
+import { Building2, Calendar, Plus, User, Users, Loader2 } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { RoleRedirect } from "@/components/security/role-redirect"
@@ -34,7 +34,9 @@ function TasksPage() {
   return (
     <>
       <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/real-estate" />
-      <TasksPageInner />
+      <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+        <TasksPageInner />
+      </Suspense>
     </>
   )
 }

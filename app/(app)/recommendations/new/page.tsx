@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Sparkles } from "lucide-react"
+import { Sparkles, Loader2 } from "lucide-react"
 
 import { RoleRedirect } from "@/components/security/role-redirect"
 import { PageHeader } from "@/components/layout/page-header"
@@ -14,7 +15,7 @@ import { buildRecommendationBundle } from "@/lib/real-estate"
 import { createRecommendation, supersede } from "@/lib/recommendation-store"
 import { useApp } from "@/components/providers/app-provider"
 
-export default function NewRecommendationPage() {
+function NewRecommendationContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { role } = useApp()
@@ -75,4 +76,10 @@ export default function NewRecommendationPage() {
   )
 }
 
-
+export default function NewRecommendationPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+      <NewRecommendationContent />
+    </Suspense>
+  )
+}
