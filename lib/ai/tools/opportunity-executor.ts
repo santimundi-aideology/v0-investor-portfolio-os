@@ -150,7 +150,7 @@ async function executeSearchOpportunities(
       bedrooms: h.bedrooms,
       size: h.size,
       score: h.score,
-      tier: "hot-deal" as const,
+      tier: "ai" as const, // Hot deals are treated as AI-scored opportunities
       headline: h.headline,
       reasoning: h.story,
       keyStrengths: h.keyStrengths,
