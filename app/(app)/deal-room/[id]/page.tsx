@@ -10,6 +10,7 @@ import Link from "next/link"
 import { getDealRoomById } from "@/lib/mock-data"
 import type { DealRoom, TimelineEvent } from "@/lib/types"
 import { PartiesInvolvedCard } from "@/components/deal-room/parties-involved-card"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 
 interface DealRoomPageProps {
   params: Promise<{ id: string }>
@@ -198,6 +199,20 @@ export default async function DealRoomPage({ params }: DealRoomPageProps) {
         {/* Parties Involved */}
         <div className="space-y-6">
           <PartiesInvolvedCard dealRoomId={dealRoom.id} parties={dealRoom.parties} />
+
+          {/* AI Due Diligence Assistant */}
+          <ContextualAICard
+            agentId="due_diligence"
+            title="Due Diligence"
+            description="Track DD progress and get checklists"
+            suggestions={[
+              "Generate DD checklist",
+              "What documents are missing?",
+              "Questions to ask the seller"
+            ]}
+            propertyId={dealRoom.propertyId}
+            investorId={dealRoom.investorId}
+          />
 
           {/* Deal Actions */}
           <Card>

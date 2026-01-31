@@ -26,6 +26,11 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { formatAED } from "@/lib/real-estate"
 import { PropertyAIChat } from "@/components/ai/property-ai-chat"
+import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
+import { PriceComparisonChart } from "@/components/charts/price-comparison-chart"
+import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
+import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
+import { mockInvestors } from "@/lib/mock-data"
 
 interface ExtractedProperty {
   source: string
@@ -289,7 +294,12 @@ export default function PropertyIntakePage() {
         subtitle="Evaluate external listings from Bayut, PropertyFinder, and other portals"
         primaryAction={
           step !== "input" && step !== "saved" ? (
-            <Button variant="outline" onClick={handleReset}>Start Over</Button>
+            <div className="flex items-center gap-2">
+              {(step === "evaluated" || step === "saving" || step === "saved") && property && (
+                <MemoPdfExport title={property.title} />
+              )}
+              <Button variant="outline" onClick={handleReset}>Start Over</Button>
+            </div>
           ) : undefined
         }
       />
@@ -580,6 +590,16 @@ export default function PropertyIntakePage() {
 
               {/* Pricing & Upside */}
               <AnalysisSection title="Pricing & Upside" description="Actual vs potential value">
+                {/* Price Comparison Chart */}
+                <div className="rounded-lg border bg-gray-50 p-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Price Comparison</h4>
+                  <PriceComparisonChart
+                    askingPrice={analysis.pricing.askingPrice}
+                    marketAverage={analysis.pricing.marketAvgPricePerSqft * (property.size || 1000)}
+                    recommendedOffer={analysis.pricing.recommendedOffer}
+                    stabilizedValue={analysis.pricing.stabilizedValue}
+                  />
+                </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <StatTile label="Asking Price" value={formatCurrency(analysis.pricing.askingPrice)} />
                   <StatTile label="Recommended Offer" value={formatCurrency(analysis.pricing.recommendedOffer)} />
@@ -702,29 +722,44 @@ export default function PropertyIntakePage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Score Breakdown</CardTitle>
+                  <CardTitle className="text-base">Score Analysis</CardTitle>
+                  <CardDescription>Investment criteria breakdown</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { key: "mandateFit", label: "Mandate Fit" },
-                    { key: "marketTiming", label: "Market Timing" },
-                    { key: "portfolioFit", label: "Portfolio Fit" },
-                    { key: "riskAlignment", label: "Risk Alignment" },
-                  ].map(({ key, label }) => (
-                    <div key={key}>
-                      <div className="flex justify-between text-sm">
+                <CardContent className="space-y-4">
+                  <ScoreRadarChart
+                    data={[
+                      { factor: "Mandate Fit", score: evaluation.factors.mandateFit, maxScore: 25 },
+                      { factor: "Market Timing", score: evaluation.factors.marketTiming, maxScore: 25 },
+                      { factor: "Portfolio Fit", score: evaluation.factors.portfolioFit, maxScore: 25 },
+                      { factor: "Risk Alignment", score: evaluation.factors.riskAlignment, maxScore: 25 },
+                    ]}
+                  />
+                  <Separator />
+                  <div className="space-y-2">
+                    {[
+                      { key: "mandateFit", label: "Mandate Fit" },
+                      { key: "marketTiming", label: "Market Timing" },
+                      { key: "portfolioFit", label: "Portfolio Fit" },
+                      { key: "riskAlignment", label: "Risk Alignment" },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex justify-between text-sm">
                         <span className="text-gray-500">{label}</span>
                         <span className="font-semibold">{evaluation.factors[key as keyof typeof evaluation.factors]}/25</span>
                       </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
-                        <div className="h-2 rounded-full bg-green-500" style={{ width: `${(evaluation.factors[key as keyof typeof evaluation.factors] / 25) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                   <Separator />
-                  <div className="flex justify-between text-sm">
-                    <span className="font-semibold">Overall</span>
-                    <span className="font-bold text-green-600">{evaluation.overallScore}/100</span>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Overall Score</span>
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-24 overflow-hidden rounded-full bg-gray-100">
+                        <div 
+                          className="h-3 rounded-full bg-green-500" 
+                          style={{ width: `${evaluation.overallScore}%` }} 
+                        />
+                      </div>
+                      <span className="font-bold text-green-600">{evaluation.overallScore}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -764,6 +799,24 @@ export default function PropertyIntakePage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Investor Matching */}
+              <InvestorMatchingPanel
+                property={{
+                  title: property.title,
+                  price: property.price,
+                  area: property.area,
+                  propertyType: property.propertyType,
+                  bedrooms: property.bedrooms,
+                  yieldPotential: marketContext?.areaAverageYield,
+                }}
+                investors={mockInvestors}
+                onShare={(investorIds) => {
+                  console.log("Sharing with investors:", investorIds)
+                  // TODO: Implement actual sharing
+                  alert(`IC Memo shared with ${investorIds.length} investor(s)`)
+                }}
+              />
 
               <Card>
                 <CardHeader><CardTitle className="text-base">Source</CardTitle></CardHeader>

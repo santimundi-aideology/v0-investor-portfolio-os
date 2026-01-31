@@ -7,6 +7,7 @@ import { ArrowUpRight, Bell, Building2, CalendarClock, FileText, FolderKanban, R
 import { PageHeader } from "@/components/layout/page-header"
 import { ContextPanel } from "@/components/layout/context-panel"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MiniAreaSparkline } from "@/components/charts/mini-area-sparkline"
 import { MiniLineSparkline } from "@/components/charts/mini-line-sparkline"
 import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
+import { PortfolioPerformanceChart } from "@/components/charts/portfolio-performance-chart"
+import { YieldTrendsChart } from "@/components/charts/yield-trends-chart"
 import { cn } from "@/lib/utils"
 import { mockDealRooms, mockMemos, mockProperties } from "@/lib/mock-data"
 import { notifications } from "@/lib/mock-session"
@@ -94,6 +97,43 @@ export function InvestorDashboard({
     }
     return Array.from(byType.entries()).map(([name, value]) => ({ name, value: Math.round(value) }))
   }, [summary.holdings])
+
+  // Portfolio performance over time (for the detailed chart)
+  const portfolioPerformanceSeries = React.useMemo(() => {
+    const base = summary.totalPurchaseCost || summary.totalPortfolioValue
+    const now = summary.totalPortfolioValue
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const currentMonth = new Date().getMonth()
+    
+    return months.slice(0, currentMonth + 1).map((month, i) => {
+      // Simulate growth curve
+      const progress = i / currentMonth
+      const growthFactor = 1 + (summary.appreciationPct / 100) * progress
+      return {
+        month,
+        value: Math.round(base * growthFactor),
+        purchaseCost: Math.round(base),
+      }
+    })
+  }, [summary.totalPurchaseCost, summary.totalPortfolioValue, summary.appreciationPct])
+
+  // Yield trends data
+  const yieldTrendsSeries = React.useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const currentMonth = new Date().getMonth()
+    const baseYield = summary.avgYieldPct || 5.5
+    const marketYield = 5.0 // Dubai market average
+    
+    return months.slice(0, currentMonth + 1).map((month, i) => {
+      // Add some variance to make it look realistic
+      const variance = (Math.sin(i * 0.5) * 0.3) + (Math.random() - 0.5) * 0.2
+      return {
+        month,
+        portfolioYield: Math.round((baseYield + variance) * 100) / 100,
+        marketYield: Math.round((marketYield + Math.sin(i * 0.3) * 0.2) * 100) / 100,
+      }
+    })
+  }, [summary.avgYieldPct])
 
   const topHoldings = React.useMemo(() => {
     return [...summary.holdings]
@@ -191,6 +231,33 @@ export function InvestorDashboard({
         </div>
       </div>
 
+      {/* Portfolio Analytics Section */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Portfolio Value Over Time</CardTitle>
+            <p className="text-sm text-gray-500">
+              Current value vs purchase cost • {summary.appreciationPct >= 0 ? "+" : ""}{summary.appreciationPct.toFixed(1)}% total appreciation
+            </p>
+          </CardHeader>
+          <CardContent>
+            <PortfolioPerformanceChart data={portfolioPerformanceSeries} />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Yield Trends</CardTitle>
+            <p className="text-sm text-gray-500">
+              Your portfolio yield vs Dubai market average
+            </p>
+          </CardHeader>
+          <CardContent>
+            <YieldTrendsChart data={yieldTrendsSeries} />
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Holdings */}
         <div className="space-y-6">
@@ -277,6 +344,19 @@ export function InvestorDashboard({
               </div>
             </CardContent>
           </Card>
+
+          {/* AI Rental Optimizer */}
+          <ContextualAICard
+            agentId="rental_optimizer"
+            title="Rental Optimizer"
+            description="Maximize rental income and reduce vacancy"
+            suggestions={[
+              "How can I increase rental income?",
+              "Should I furnish any units?",
+              "What's the tenant churn risk?"
+            ]}
+            investorId={investorId}
+          />
 
           {/* Opportunities */}
           <Card>

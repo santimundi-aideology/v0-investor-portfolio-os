@@ -12,7 +12,14 @@ import {
   Sparkles,
   ChevronRight,
   Zap,
-  Bell
+  Bell,
+  Calculator,
+  Users,
+  Shield,
+  ClipboardCheck,
+  BarChart3,
+  Home,
+  LineChart
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -29,6 +36,7 @@ const AI_AGENTS = [
     icon: Search,
     iconColor: "text-emerald-600",
     iconBg: "bg-emerald-50",
+    category: "core",
   },
   {
     id: "portfolio_advisor" as AIAgentId,
@@ -37,6 +45,7 @@ const AI_AGENTS = [
     icon: TrendingUp,
     iconColor: "text-blue-600",
     iconBg: "bg-blue-50",
+    category: "core",
   },
   {
     id: "market_intelligence" as AIAgentId,
@@ -45,6 +54,70 @@ const AI_AGENTS = [
     icon: Radar,
     iconColor: "text-violet-600",
     iconBg: "bg-violet-50",
+    category: "core",
+  },
+  {
+    id: "valuation_sense_check" as AIAgentId,
+    name: "Valuation Check",
+    description: "Quick pricing sanity checks",
+    icon: Calculator,
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-50",
+    category: "deal",
+  },
+  {
+    id: "investor_matching" as AIAgentId,
+    name: "Investor Matching",
+    description: "Match properties to investors",
+    icon: Users,
+    iconColor: "text-indigo-600",
+    iconBg: "bg-indigo-50",
+    category: "deal",
+  },
+  {
+    id: "risk_assessment" as AIAgentId,
+    name: "Risk Assessment",
+    description: "Comprehensive risk analysis",
+    icon: Shield,
+    iconColor: "text-red-600",
+    iconBg: "bg-red-50",
+    category: "deal",
+  },
+  {
+    id: "cma_analyst" as AIAgentId,
+    name: "CMA Analyst",
+    description: "Comparative market analysis",
+    icon: BarChart3,
+    iconColor: "text-cyan-600",
+    iconBg: "bg-cyan-50",
+    category: "analysis",
+  },
+  {
+    id: "due_diligence" as AIAgentId,
+    name: "Due Diligence",
+    description: "DD checklists & verification",
+    icon: ClipboardCheck,
+    iconColor: "text-amber-600",
+    iconBg: "bg-amber-50",
+    category: "deal",
+  },
+  {
+    id: "rental_optimizer" as AIAgentId,
+    name: "Rental Optimizer",
+    description: "Maximize rental income",
+    icon: Home,
+    iconColor: "text-green-600",
+    iconBg: "bg-green-50",
+    category: "portfolio",
+  },
+  {
+    id: "market_forecaster" as AIAgentId,
+    name: "Market Forecaster",
+    description: "Price predictions & trends",
+    icon: LineChart,
+    iconColor: "text-purple-600",
+    iconBg: "bg-purple-50",
+    category: "analysis",
   },
   {
     id: "memo_assistant" as AIAgentId,
@@ -53,6 +126,7 @@ const AI_AGENTS = [
     icon: FileText,
     iconColor: "text-sky-600",
     iconBg: "bg-sky-50",
+    category: "core",
   },
   {
     id: "real_estate_advisor" as AIAgentId,
@@ -61,6 +135,7 @@ const AI_AGENTS = [
     icon: Building2,
     iconColor: "text-teal-600",
     iconBg: "bg-teal-50",
+    category: "core",
   },
 ]
 

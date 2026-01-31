@@ -6,7 +6,7 @@
  */
 
 import * as React from "react"
-import { Building2, TrendingUp, FileText, Radar, Search } from "lucide-react"
+import { Building2, TrendingUp, FileText, Radar, Search, Calculator, Users, Shield, ClipboardCheck, BarChart3, Home, LineChart } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -94,6 +94,91 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     placeholder: "Find properties, compare opportunities, get market insights...",
     pulseColor: "#16a34a",
     iconGradient: "from-green-600 to-amber-500",
+  },
+  // New agents
+  valuation_sense_check: {
+    icon: Calculator,
+    accent: "#ea580c",
+    accentMuted: "rgba(234, 88, 12, 0.1)",
+    gradientFrom: "rgba(234, 88, 12, 0.05)",
+    gradientTo: "rgba(234, 88, 12, 0.15)",
+    badgeBg: "rgba(234, 88, 12, 0.1)",
+    badgeText: "#ea580c",
+    placeholder: "Check valuations, pricing, offers...",
+    pulseColor: "#ea580c",
+    iconGradient: "from-orange-500 to-orange-600",
+  },
+  investor_matching: {
+    icon: Users,
+    accent: "#4f46e5",
+    accentMuted: "rgba(79, 70, 229, 0.1)",
+    gradientFrom: "rgba(79, 70, 229, 0.05)",
+    gradientTo: "rgba(79, 70, 229, 0.15)",
+    badgeBg: "rgba(79, 70, 229, 0.1)",
+    badgeText: "#4f46e5",
+    placeholder: "Match properties to investors, route deals...",
+    pulseColor: "#4f46e5",
+    iconGradient: "from-indigo-500 to-indigo-600",
+  },
+  risk_assessment: {
+    icon: Shield,
+    accent: "#dc2626",
+    accentMuted: "rgba(220, 38, 38, 0.1)",
+    gradientFrom: "rgba(220, 38, 38, 0.05)",
+    gradientTo: "rgba(220, 38, 38, 0.15)",
+    badgeBg: "rgba(220, 38, 38, 0.1)",
+    badgeText: "#dc2626",
+    placeholder: "Assess risks, stress test deals, check concentration...",
+    pulseColor: "#dc2626",
+    iconGradient: "from-red-500 to-red-600",
+  },
+  due_diligence: {
+    icon: ClipboardCheck,
+    accent: "#d97706",
+    accentMuted: "rgba(217, 119, 6, 0.1)",
+    gradientFrom: "rgba(217, 119, 6, 0.05)",
+    gradientTo: "rgba(217, 119, 6, 0.15)",
+    badgeBg: "rgba(217, 119, 6, 0.1)",
+    badgeText: "#d97706",
+    placeholder: "Generate DD checklists, verify data, track progress...",
+    pulseColor: "#d97706",
+    iconGradient: "from-amber-500 to-amber-600",
+  },
+  cma_analyst: {
+    icon: BarChart3,
+    accent: "#0891b2",
+    accentMuted: "rgba(8, 145, 178, 0.1)",
+    gradientFrom: "rgba(8, 145, 178, 0.05)",
+    gradientTo: "rgba(8, 145, 178, 0.15)",
+    badgeBg: "rgba(8, 145, 178, 0.1)",
+    badgeText: "#0891b2",
+    placeholder: "Generate CMAs, find comps, calculate valuations...",
+    pulseColor: "#0891b2",
+    iconGradient: "from-cyan-500 to-cyan-600",
+  },
+  rental_optimizer: {
+    icon: Home,
+    accent: "#16a34a",
+    accentMuted: "rgba(22, 163, 74, 0.1)",
+    gradientFrom: "rgba(22, 163, 74, 0.05)",
+    gradientTo: "rgba(22, 163, 74, 0.15)",
+    badgeBg: "rgba(22, 163, 74, 0.1)",
+    badgeText: "#16a34a",
+    placeholder: "Optimize rents, reduce vacancy, analyze furnishing ROI...",
+    pulseColor: "#16a34a",
+    iconGradient: "from-green-500 to-green-600",
+  },
+  market_forecaster: {
+    icon: LineChart,
+    accent: "#9333ea",
+    accentMuted: "rgba(147, 51, 234, 0.1)",
+    gradientFrom: "rgba(147, 51, 234, 0.05)",
+    gradientTo: "rgba(147, 51, 234, 0.15)",
+    badgeBg: "rgba(147, 51, 234, 0.1)",
+    badgeText: "#9333ea",
+    placeholder: "Forecast prices, find hotspots, analyze scenarios...",
+    pulseColor: "#9333ea",
+    iconGradient: "from-purple-500 to-purple-600",
   },
 }
 

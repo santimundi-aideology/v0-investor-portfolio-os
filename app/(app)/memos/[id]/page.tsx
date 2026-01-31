@@ -8,6 +8,7 @@ import { ArrowLeft, Calendar, User, Building2, Send } from "lucide-react"
 import Link from "next/link"
 import { MemoActions } from "@/components/memos/memo-actions"
 import { getMemoById, getPropertyById } from "@/lib/mock-data"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 import type { Memo } from "@/lib/types"
 
 interface MemoPageProps {
@@ -412,6 +413,20 @@ export default async function MemoPage({ params }: MemoPageProps) {
         </div>
 
         <div className="space-y-6">
+          {/* AI Risk Assessment Assistant */}
+          <ContextualAICard
+            agentId="risk_assessment"
+            title="Risk Assessment"
+            description="Analyze risks and get recommendations"
+            suggestions={[
+              "What are the risks in this deal?",
+              "Does this fit the investor's mandate?",
+              "Stress test this investment"
+            ]}
+            propertyId={memo.propertyId}
+            investorId={memo.investorId}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Status</CardTitle>

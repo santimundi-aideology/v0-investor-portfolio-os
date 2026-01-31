@@ -20,6 +20,7 @@ import { PropertyCard } from "./property-card"
 import { PropertyStatsBanner } from "./property-stats-banner"
 import { cn } from "@/lib/utils"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 
 const statusColors: Record<Property["status"], string> = {
   available: "bg-green-50 text-green-600 border-green-200",
@@ -98,6 +99,18 @@ export function PropertiesContent() {
     <div className="space-y-6">
       {/* Visual Stats Banner */}
       <PropertyStatsBanner properties={allProperties} />
+
+      {/* AI Valuation Assistant */}
+      <ContextualAICard
+        agentId="valuation_sense_check"
+        title="Valuation Check"
+        description="Get instant pricing analysis against DLD market data"
+        suggestions={[
+          "Check if a property is fairly priced",
+          "Compare asking prices to DLD medians",
+          "What should I offer on a property?"
+        ]}
+      />
 
       {/* Filters */}
       <Card className="bg-white rounded-xl border border-gray-100 shadow-sm">

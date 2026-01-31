@@ -18,6 +18,8 @@ import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scrol
 import { cn } from "@/lib/utils"
 import type { MarketSignalItem, MarketSignalSeverity, MarketSignalSourceType, MarketSignalStatus, MarketSignalType } from "@/lib/mock-market-signals"
 import { mockMarketSignals } from "@/lib/mock-market-signals"
+import { DataFreshnessIndicator } from "./data-freshness-indicator"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 
 interface PortalListing {
   id: string
@@ -229,12 +231,28 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
 
   return (
     <div className="space-y-4">
+      {/* Data Freshness Status */}
+      <DataFreshnessIndicator />
+
+      {/* AI Market Forecaster */}
+      <ContextualAICard
+        agentId="market_forecaster"
+        title="Market Forecaster"
+        description="Get price predictions and emerging market trends"
+        suggestions={[
+          "Where are prices heading?",
+          "Find emerging hotspots",
+          "What signals should I watch?"
+        ]}
+      />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{summary.total} signals</Badge>
           {summary.newCount ? <Badge variant="outline">{summary.newCount} new</Badge> : null}
           <Badge variant="outline">Official {summary.official}</Badge>
           <Badge variant="outline">Portal {summary.portal}</Badge>
+          <DataFreshnessIndicator compact />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -250,15 +268,6 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setDataState((s) => (s === "error" ? "ready" : "error"))}
-            className="gap-2"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            {dataState === "error" ? "Clear error" : "Simulate error"}
-          </Button>
         </div>
       </div>
 
@@ -694,27 +703,29 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
               </div>
 
               {/* Actions Footer */}
-              <div className="flex-shrink-0 border-t bg-white px-6 py-4">
+              <div className="flex-shrink-0 border-t bg-white px-6 py-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-500">
                     Confidence: <span className="font-semibold text-gray-900">{(selectedSignal.confidenceScore * 100).toFixed(0)}%</span>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
                       onClick={() => {
                         markAcknowledged(selectedSignal.id)
                         closeSignalSheet()
                       }}
                       disabled={selectedSignal.status !== "new"}
                     >
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check className="mr-1 h-3 w-3" />
                       Acknowledge
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
+                      size="sm"
                       onClick={() => {
                         dismissSignal(selectedSignal.id)
                         closeSignalSheet()
@@ -722,6 +733,64 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
                       disabled={selectedSignal.status === "dismissed"}
                     >
                       Dismiss
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Outcome Tracking */}
+                <div className="border-t pt-3">
+                  <div className="text-xs font-medium text-gray-500 mb-2">Record Outcome (for accuracy tracking)</div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-green-600 border-green-200 hover:bg-green-50"
+                      onClick={async () => {
+                        await fetch(`/api/dld/signals/${selectedSignal.id}/outcome`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ outcome: "invested" })
+                        })
+                        closeSignalSheet()
+                      }}
+                    >
+                      <TrendingUp className="mr-1 h-3 w-3" />
+                      Invested
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      onClick={async () => {
+                        await fetch(`/api/dld/signals/${selectedSignal.id}/outcome`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ outcome: "converted" })
+                        })
+                        closeSignalSheet()
+                      }}
+                    >
+                      <Building2 className="mr-1 h-3 w-3" />
+                      Started Deal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-gray-600 border-gray-200 hover:bg-gray-50"
+                      onClick={async () => {
+                        await fetch(`/api/dld/signals/${selectedSignal.id}/outcome`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ outcome: "passed" })
+                        })
+                        closeSignalSheet()
+                      }}
+                    >
+                      <TrendingDown className="mr-1 h-3 w-3" />
+                      Passed
                     </Button>
                   </div>
                 </div>

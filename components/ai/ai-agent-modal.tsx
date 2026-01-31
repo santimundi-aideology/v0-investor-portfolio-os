@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { X, Send, Loader2, Sparkles, Search, TrendingUp, Radar, FileText, Building2, Bot } from "lucide-react"
+import { X, Send, Loader2, Sparkles, Search, TrendingUp, Radar, FileText, Building2, Bot, Calculator, Users, Shield, ClipboardCheck, BarChart3, Home, LineChart } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "framer-motion"
@@ -87,6 +87,98 @@ const AGENT_CONFIG: Record<AIAgentId, {
       "Analyze this property for me",
       "What's a fair price?",
       "Should I invest here?",
+    ],
+  },
+  // New agents
+  valuation_sense_check: {
+    name: "Valuation Check",
+    icon: Calculator,
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-50",
+    accentColor: "bg-orange-600 hover:bg-orange-700",
+    placeholder: "Check pricing and valuations...",
+    suggestions: [
+      "Is this property fairly priced?",
+      "What should I offer?",
+      "Compare to DLD market data",
+    ],
+  },
+  investor_matching: {
+    name: "Investor Matching",
+    icon: Users,
+    iconColor: "text-indigo-600",
+    iconBg: "bg-indigo-50",
+    accentColor: "bg-indigo-600 hover:bg-indigo-700",
+    placeholder: "Match opportunities to investors...",
+    suggestions: [
+      "Who should I send this property to?",
+      "Find investors for this deal",
+      "Score mandate fit for this listing",
+    ],
+  },
+  risk_assessment: {
+    name: "Risk Assessment",
+    icon: Shield,
+    iconColor: "text-red-600",
+    iconBg: "bg-red-50",
+    accentColor: "bg-red-600 hover:bg-red-700",
+    placeholder: "Assess investment risks...",
+    suggestions: [
+      "What are the risks in this deal?",
+      "Check my portfolio concentration",
+      "Stress test this investment",
+    ],
+  },
+  due_diligence: {
+    name: "Due Diligence",
+    icon: ClipboardCheck,
+    iconColor: "text-amber-600",
+    iconBg: "bg-amber-50",
+    accentColor: "bg-amber-600 hover:bg-amber-700",
+    placeholder: "Manage due diligence...",
+    suggestions: [
+      "Generate DD checklist",
+      "What documents do I need?",
+      "Questions to ask the seller",
+    ],
+  },
+  cma_analyst: {
+    name: "CMA Analyst",
+    icon: BarChart3,
+    iconColor: "text-cyan-600",
+    iconBg: "bg-cyan-50",
+    accentColor: "bg-cyan-600 hover:bg-cyan-700",
+    placeholder: "Generate market analysis...",
+    suggestions: [
+      "Run a CMA for this property",
+      "Find comparable sales",
+      "What's the adjusted value?",
+    ],
+  },
+  rental_optimizer: {
+    name: "Rental Optimizer",
+    icon: Home,
+    iconColor: "text-green-600",
+    iconBg: "bg-green-50",
+    accentColor: "bg-green-600 hover:bg-green-700",
+    placeholder: "Optimize rental income...",
+    suggestions: [
+      "What rent should I charge?",
+      "Should I furnish this unit?",
+      "What's my tenant churn risk?",
+    ],
+  },
+  market_forecaster: {
+    name: "Market Forecaster",
+    icon: LineChart,
+    iconColor: "text-purple-600",
+    iconBg: "bg-purple-50",
+    accentColor: "bg-purple-600 hover:bg-purple-700",
+    placeholder: "Forecast market trends...",
+    suggestions: [
+      "Where are prices heading?",
+      "Find emerging hotspots",
+      "Run scenario analysis",
     ],
   },
 }

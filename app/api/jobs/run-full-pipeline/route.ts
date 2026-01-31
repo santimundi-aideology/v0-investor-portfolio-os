@@ -195,6 +195,19 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * GET /api/jobs/run-full-pipeline
+ *
+ * Triggers the full pipeline (for Vercel Cron compatibility).
+ * Runs ingestion + signals + summaries.
+ *
+ * Query params:
+ *   - orgId: tenant UUID (optional, defaults to DEMO_TENANT_ID or first tenant)
+ *   - skipIngestion: 'true' to skip ingestion stage
+ *   - skipSignals: 'true' to skip signals stage
+ *   - skipSummaries: 'true' to skip summaries stage
+ *   - info: 'true' to just return endpoint info without running
+ */
 export async function GET(req: Request) {
   if (!isAuthorized(req)) {
     return NextResponse.json(
@@ -203,35 +216,133 @@ export async function GET(req: Request) {
     )
   }
   
-  return NextResponse.json({
-    ok: true,
-    message: "Full pipeline endpoint. Use POST to trigger the pipeline.",
-    usage: {
-      method: "POST",
-      headers: {
-        "x-job-secret": "YOUR_JOB_SECRET",
-        "Content-Type": "application/json",
+  const { searchParams } = new URL(req.url)
+  
+  // If info=true, return documentation
+  if (searchParams.get("info") === "true") {
+    return NextResponse.json({
+      ok: true,
+      message: "Full pipeline endpoint. Use POST for custom options or GET to run with defaults.",
+      stages: [
+        "1. Ingestion: DLD transactions, Ejari contracts, Portal listings",
+        "2. Snapshots: Compute market_metric_snapshot, portal_listing_snapshot",
+        "3. Signals: Detect price changes, supply spikes, yield opportunities, pricing opportunities",
+        "4. Mapping: Match signals to investor mandates",
+        "5. Notifications: Alert realtors of relevant signals",
+        "6. Summaries: Compute AI-safe market and investor summaries",
+      ],
+    })
+  }
+  
+  const started = Date.now()
+  
+  try {
+    const orgId = await resolveTenantId(searchParams.get("orgId") ?? undefined)
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "Could not resolve orgId. Set DEMO_TENANT_ID or pass ?orgId=..." },
+        { status: 400 }
+      )
+    }
+    
+    const skipIngestion = searchParams.get("skipIngestion") === "true"
+    const skipSignals = searchParams.get("skipSignals") === "true"
+    const skipSummaries = searchParams.get("skipSummaries") === "true"
+    
+    const logs: string[] = []
+    const logProgress = (stage: string, message: string) => {
+      const entry = `[${stage}] ${message}`
+      logs.push(entry)
+      console.log(`[run-full-pipeline GET] ${entry}`)
+    }
+    
+    const result: {
+      ok: boolean
+      orgId: string
+      ingestion?: Awaited<ReturnType<typeof runIngestionPipeline>>
+      signals?: Awaited<ReturnType<typeof runSignalsPipeline>>
+      summaries?: Awaited<ReturnType<typeof runSummariesPipeline>>
+      totalDurationMs: number
+      logs: string[]
+    } = {
+      ok: true,
+      orgId,
+      totalDurationMs: 0,
+      logs,
+    }
+    
+    // Step 1: Ingestion
+    if (!skipIngestion) {
+      logProgress('ingestion', 'Starting ingestion pipeline...')
+      
+      const ingestionResult = await runIngestionPipeline({
+        orgId,
+        onProgress: logProgress,
+      })
+      
+      result.ingestion = ingestionResult
+      
+      if (!ingestionResult.success) {
+        result.ok = false
+      }
+      
+      logProgress('ingestion', `Complete: DLD=${ingestionResult.dld.ingested}, Ejari=${ingestionResult.ejari.ingested}, Portals=${ingestionResult.portals.ingested}`)
+    } else {
+      logProgress('ingestion', 'Skipped')
+    }
+    
+    // Step 2: Signals
+    if (!skipSignals) {
+      logProgress('signals', 'Starting signal pipeline...')
+      
+      try {
+        const signalsResult = await runSignalsPipeline(orgId)
+        result.signals = signalsResult
+        
+        const signalCount = (signalsResult.signals?.truthCreated ?? 0) + (signalsResult.signals?.portalCreated ?? 0) + (signalsResult.signals?.pricingCreated ?? 0)
+        logProgress('signals', `Complete: Signals created=${signalCount} (pricing=${signalsResult.signals?.pricingCreated ?? 0}), Mappings=${signalsResult.mappings?.targetsCreated ?? 0}`)
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        logProgress('signals', `Error: ${msg}`)
+        result.ok = false
+      }
+    } else {
+      logProgress('signals', 'Skipped')
+    }
+    
+    // Step 3: AI Summaries
+    if (!skipSummaries) {
+      logProgress('summaries', 'Starting summaries pipeline...')
+      
+      const summariesResult = await runSummariesPipeline({
+        orgId,
+        onProgress: logProgress,
+      })
+      
+      result.summaries = summariesResult
+      
+      if (!summariesResult.success) {
+        result.ok = false
+      }
+      
+      logProgress('summaries', `Complete: Market=${summariesResult.market.summariesCreated}, Investor=${summariesResult.investor.summariesCreated}`)
+    } else {
+      logProgress('summaries', 'Skipped')
+    }
+    
+    result.totalDurationMs = Date.now() - started
+    logProgress('complete', `Full pipeline completed in ${result.totalDurationMs}ms`)
+    
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error("[run-full-pipeline GET] Error:", error)
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        totalDurationMs: Date.now() - started,
       },
-      body: {
-        orgId: "tenant-uuid (optional, falls back to DEMO_TENANT_ID or first tenant)",
-        skipIngestion: "boolean (optional)",
-        skipSignals: "boolean (optional)",
-        skipSummaries: "boolean (optional)",
-        useMockData: "boolean (optional, for testing)",
-        dldFromDate: "YYYY-MM-DD (optional)",
-        dldToDate: "YYYY-MM-DD (optional)",
-        ejariFromDate: "YYYY-MM-DD (optional)",
-        ejariToDate: "YYYY-MM-DD (optional)",
-        portals: "['Bayut', 'PropertyFinder'] (optional)",
-      },
-    },
-    stages: [
-      "1. Ingestion: DLD transactions, Ejari contracts, Portal listings",
-      "2. Snapshots: Compute market_metric_snapshot, portal_listing_snapshot",
-      "3. Signals: Detect price changes, supply spikes, yield opportunities",
-      "4. Mapping: Match signals to investor mandates",
-      "5. Notifications: Alert realtors of relevant signals",
-      "6. Summaries: Compute AI-safe market and investor summaries",
-    ],
-  })
+      { status: 500 }
+    )
+  }
 }

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -26,6 +27,7 @@ interface InvestorSidebarProps {
 const investorNavItems = [
   { label: "Dashboard", href: "/investor", icon: LayoutDashboard },
   { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
+  { label: "Analytics", href: "/investor/analytics", icon: BarChart3 },
   { label: "Memos", href: "/investor/memos", icon: FileText },
   { label: "Deal Rooms", href: "/investor/deal-rooms", icon: FolderKanban },
   { label: "Market Signals", href: "/investor/market-signals", icon: Radar },

@@ -32,10 +32,15 @@ function SelectTrigger({
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: 'sm' | 'default'
 }) {
+  // Note: suppressHydrationWarning is added to prevent React hydration mismatch warnings
+  // caused by Radix UI generating random IDs for aria-controls that differ between
+  // server and client renders. This is harmless - the IDs are properly set on the client.
+  // If warnings persist, they're cosmetic and don't affect functionality.
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
+      suppressHydrationWarning
       className={cn(
         "border-gray-200 data-[placeholder]:text-gray-400 [&_svg:not([class*='text-'])]:text-gray-400",
         "flex w-fit items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3 text-base text-gray-900 whitespace-nowrap shadow-sm",

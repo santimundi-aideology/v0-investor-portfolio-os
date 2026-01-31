@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "sonner"
-import { GlobalAskAIWidget } from "@/components/ai/global-ask-ai-widget"
 import { Providers } from "@/components/providers/providers"
 import "./globals.css"
 
@@ -48,7 +47,6 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>
           {children}
-          <GlobalAskAIWidget />
           <Toaster position="top-right" />
         </Providers>
         <Analytics />

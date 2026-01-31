@@ -3,6 +3,7 @@ import { computeTruthSnapshots } from "./computeTruthSnapshots"
 import { computePortalSnapshots } from "./computePortalSnapshots"
 import { detectSignalsTruth } from "./detectSignalsTruth"
 import { detectSignalsPortal } from "./detectSignalsPortal"
+import { detectPricingOpportunities } from "./detectPricingOpportunities"
 import { mapSignalsToInvestors } from "./mapSignalsToInvestors"
 import { publishNotifications } from "./publishNotifications"
 
@@ -15,6 +16,7 @@ export interface SignalsPipelineResult {
   signals: {
     truthCreated: number
     portalCreated: number
+    pricingCreated: number
   }
   mappings: {
     signalsProcessed: number
@@ -56,8 +58,9 @@ export interface SignalsPipelineResult {
  * 2) computePortalSnapshots(orgId)
  * 3) detectSignalsTruth(orgId)
  * 4) detectSignalsPortal(orgId)
- * 5) mapSignalsToInvestors(orgId)
- * 6) publishNotifications(orgId)
+ * 5) detectPricingOpportunities(orgId) - compares Bayut vs DLD prices
+ * 6) mapSignalsToInvestors(orgId)
+ * 7) publishNotifications(orgId)
  *
  * Returns structured result with counts for each stage.
  * Idempotent: safe to re-run; will not create duplicates.
@@ -72,7 +75,7 @@ export async function runSignalsPipeline(orgId: string): Promise<SignalsPipeline
   const result: SignalsPipelineResult = {
     orgId,
     snapshots: { truthCount: 0, portalCount: 0 },
-    signals: { truthCreated: 0, portalCreated: 0 },
+    signals: { truthCreated: 0, portalCreated: 0, pricingCreated: 0 },
     mappings: { signalsProcessed: 0, targetsCreated: 0, targetsSkipped: 0 },
     notifications: { sent: 0, skipped: 0 },
     durationMs: 0,
@@ -125,7 +128,18 @@ export async function runSignalsPipeline(orgId: string): Promise<SignalsPipeline
   }
 
   try {
-    // Step 5: Map signals to investors (batch all unmapped signals)
+    // Step 5: Detect pricing opportunities (Bayut vs DLD comparison)
+    console.log(`[runSignalsPipeline] Step 5: detectPricingOpportunities`)
+    const pricingResult = await detectPricingOpportunities(orgId)
+    result.signals.pricingCreated = pricingResult.created
+  } catch (e) {
+    const error = e as Error; const msg = `detectPricingOpportunities failed: ${error?.message ?? String(e)}`
+    console.error(`[runSignalsPipeline] ${msg}`)
+    errors.push(msg)
+  }
+
+  try {
+    // Step 6: Map signals to investors (batch all unmapped signals)
     console.log(`[runSignalsPipeline] Step 5: mapSignalsToInvestors`)
     let totalSignalsProcessed = 0
     let totalTargetsCreated = 0
@@ -153,8 +167,8 @@ export async function runSignalsPipeline(orgId: string): Promise<SignalsPipeline
   }
 
   try {
-    // Step 6: Publish notifications
-    console.log(`[runSignalsPipeline] Step 6: publishNotifications`)
+    // Step 7: Publish notifications
+    console.log(`[runSignalsPipeline] Step 7: publishNotifications`)
     const notificationsResult = await publishNotifications(orgId)
     result.notifications = notificationsResult
   } catch (e) {
@@ -169,7 +183,7 @@ export async function runSignalsPipeline(orgId: string): Promise<SignalsPipeline
   console.log(
     `[runSignalsPipeline] Completed for orgId=${orgId} in ${result.durationMs}ms. ` +
       `Snapshots: ${result.snapshots.truthCount + result.snapshots.portalCount}, ` +
-      `Signals: ${result.signals.truthCreated + result.signals.portalCreated}, ` +
+      `Signals: ${result.signals.truthCreated + result.signals.portalCreated + result.signals.pricingCreated} (${result.signals.pricingCreated} pricing), ` +
       `Targets: ${result.mappings.targetsCreated}, ` +
       `Notifications: ${result.notifications.sent}. ` +
       `Errors: ${errors.length}`

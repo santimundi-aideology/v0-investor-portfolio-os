@@ -10,6 +10,7 @@ import { ScopedInvestorGuard } from "@/components/security/scoped-investor-guard
 import { RoleRedirect } from "@/components/security/role-redirect"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { BarChart3 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EditableAvatar } from "@/components/ui/editable-avatar"
@@ -25,6 +26,7 @@ import { DealRoomsTab } from "@/components/investors/tabs/deal-rooms-tab"
 import { EditInvestorProfileDialog } from "@/components/investors/edit-investor-profile-dialog"
 import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
+import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 
 export function InvestorDetail({
   investor,
@@ -120,6 +122,12 @@ export function InvestorDetail({
         secondaryActions={
           <>
             <Button variant="outline" asChild>
+              <a href={`/investors/${investor.id}/analytics`}>
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Portfolio Analytics
+              </a>
+            </Button>
+            <Button variant="outline" asChild>
               <a href={`/properties/new?investorId=${investor.id}&returnTo=investor`}>Add candidate property</a>
             </Button>
             <Button variant="outline" asChild>
@@ -171,6 +179,19 @@ export function InvestorDetail({
               <DocumentsTab />
             </TabsContent>
           </Tabs>
+
+          {/* AI Investor Matching Assistant */}
+          <ContextualAICard
+            agentId="investor_matching"
+            title="Investor Matching"
+            description="Find properties that match this investor's mandate"
+            suggestions={[
+              "Find properties for this investor",
+              "Score mandate fit for new listings",
+              "What's missing in their portfolio?"
+            ]}
+            investorId={investor.id}
+          />
 
           <InvestorRecommendedProperties investor={investor} onShare={(property) => openShareDialog(property, investor.id)} />
         </div>

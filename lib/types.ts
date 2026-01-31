@@ -50,6 +50,23 @@ export interface Mandate {
   minInvestment: number
   maxInvestment: number
   notes?: string
+  
+  // Enhanced mandate fields
+  preferredBedrooms?: number[] // e.g., [1, 2] for 1BR and 2BR
+  preferredViews?: string[] // e.g., ["sea", "city", "golf"]
+  furnishedPreference?: "furnished" | "unfurnished" | "any"
+  completionStatus?: "ready" | "off_plan" | "any"
+  developerPreferences?: string[] // Preferred developers
+  maxServiceCharge?: number // AED per sqft
+  minSize?: number // sqft
+  maxSize?: number // sqft
+  tenantRequirements?: "vacant" | "tenanted" | "any"
+  paymentPlanRequired?: boolean
+  leverageAppetite?: "none" | "low" | "moderate" | "high" // Mortgage preference
+  coInvestmentOpen?: boolean // Open to co-investment
+  exclusiveDeals?: boolean // Only wants exclusive/off-market deals
+  decisionTimeline?: "immediate" | "1-2_weeks" | "1_month" | "flexible"
+  dueDiligenceLevel?: "light" | "standard" | "extensive"
 }
 
 export interface Investor {
