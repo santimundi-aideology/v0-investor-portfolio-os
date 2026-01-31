@@ -687,7 +687,7 @@ export function DubaiMarketMap() {
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 <MapPinned className="h-5 w-5 text-green-500" />
-                {signalDetail?.signal?.area_name_en || "Signal Details"}
+                {(signalDetail?.signal as { area_name_en?: string })?.area_name_en || signalDetail?.signal?.area_name || "Signal Details"}
               </SheetTitle>
             </SheetHeader>
           </div>
@@ -706,8 +706,8 @@ export function DubaiMarketMap() {
                   {signalDetail.signal.description && (
                     <p className="text-sm text-muted-foreground">{signalDetail.signal.description}</p>
                   )}
-                  {signalDetail.signal.area_name_en && (
-                    <p className="text-sm font-medium">{signalDetail.signal.area_name_en}</p>
+                  {(signalDetail.signal.area_name || (signalDetail.signal as { area_name_en?: string }).area_name_en) && (
+                    <p className="text-sm font-medium">{signalDetail.signal.area_name || (signalDetail.signal as { area_name_en?: string }).area_name_en}</p>
                   )}
                   <Badge className={cn(
                     "mt-2",
