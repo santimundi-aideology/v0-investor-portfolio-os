@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { extractText } from "unpdf"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
-
-// Lazy load pdf-parse to avoid the test file issue
-async function loadPdfParse() {
-  // pdf-parse has a bug where it tries to load a test file on require
-  // We work around this by using dynamic import
-  const mod = await import("pdf-parse")
-  return mod.default
-}
 
 /**
  * POST /api/property-intake/parse-pdf
@@ -74,31 +67,25 @@ export async function POST(req: NextRequest) {
         )
       }
     }
-
-    // Load pdf-parse dynamically
-    const pdfParse = await loadPdfParse()
     
-    // Extract text from each PDF
+    // Extract text from each PDF using unpdf
     const extractedTexts: { fileName: string; text: string; pageCount: number }[] = []
     
     for (const file of files) {
       try {
         const arrayBuffer = await file.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
+        const uint8Array = new Uint8Array(arrayBuffer)
         
-        // pdf-parse v1.x simple API
-        const pdfData = await pdfParse(buffer, {
-          // Limit pages for performance
-          max: 50,
-        })
+        // Use unpdf to extract text
+        const { text, totalPages } = await extractText(uint8Array, { mergePages: true })
         
         // Clean up the extracted text
-        const cleanedText = cleanPdfText(pdfData.text)
+        const cleanedText = cleanPdfText(text)
         
         extractedTexts.push({
           fileName: file.name,
           text: cleanedText,
-          pageCount: pdfData.numpages,
+          pageCount: totalPages,
         })
       } catch (pdfError) {
         console.error(`Error parsing PDF ${file.name}:`, pdfError)
