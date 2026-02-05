@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PDFParse } from "pdf-parse"
+import pdfParse from "pdf-parse"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -72,36 +72,23 @@ export async function POST(req: NextRequest) {
     const extractedTexts: { fileName: string; text: string; pageCount: number }[] = []
     
     for (const file of files) {
-      let parser: PDFParse | null = null
       try {
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
         
-        // Create PDFParse instance with the buffer data
-        parser = new PDFParse({ data: buffer })
-        
-        // Get document info for page count
-        const info = await parser.getInfo()
-        const pageCount = info.total
-        
-        // Get text content (limit to 50 pages for performance)
-        const textResult = await parser.getText({ 
-          startPage: 1, 
-          endPage: Math.min(50, pageCount) 
+        // pdf-parse v1.x simple API
+        const pdfData = await pdfParse(buffer, {
+          // Limit pages for performance
+          max: 50,
         })
         
-        // Combine all page texts
-        const fullText = textResult.pages
-          .map(page => page.text)
-          .join("\n\n")
-        
         // Clean up the extracted text
-        const cleanedText = cleanPdfText(fullText)
+        const cleanedText = cleanPdfText(pdfData.text)
         
         extractedTexts.push({
           fileName: file.name,
           text: cleanedText,
-          pageCount: pageCount,
+          pageCount: pdfData.numpages,
         })
       } catch (pdfError) {
         console.error(`Error parsing PDF ${file.name}:`, pdfError)
@@ -109,11 +96,6 @@ export async function POST(req: NextRequest) {
           { error: `Failed to parse PDF: ${file.name}. The file may be corrupted or password-protected.` },
           { status: 400 }
         )
-      } finally {
-        // Clean up parser resources
-        if (parser) {
-          await parser.destroy()
-        }
       }
     }
     
