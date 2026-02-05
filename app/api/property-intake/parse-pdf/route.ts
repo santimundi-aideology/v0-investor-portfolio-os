@@ -157,8 +157,8 @@ export async function POST(req: NextRequest) {
       })
     }
     
-    // Use Claude Opus 4.5 to analyze the PDFs directly
-    const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-20250514"
+    // Use Claude Sonnet 4 to analyze the PDFs directly
+    const model = "claude-sonnet-4-20250514"
     
     console.log(`Analyzing ${files.length} PDF(s) with ${model} (streaming)...`)
     
