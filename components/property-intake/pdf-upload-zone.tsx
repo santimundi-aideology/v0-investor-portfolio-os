@@ -13,8 +13,18 @@ interface UploadedFile {
   error?: string
 }
 
+interface ExtractionResult {
+  project: unknown
+  units: unknown[]
+  paymentPlan: unknown
+  stats: unknown
+  confidence: string
+  fileCount: number
+  model: string
+}
+
 interface PdfUploadZoneProps {
-  onFilesExtracted: (combinedText: string, fileCount: number) => void
+  onFilesExtracted: (result: ExtractionResult) => void
   onError: (error: string) => void
   isProcessing?: boolean
   maxFiles?: number
@@ -148,8 +158,8 @@ export function PdfUploadZone({
         prev.map((f) => ({ ...f, status: "success" as const, progress: 100 }))
       )
 
-      // Return extracted text
-      onFilesExtracted(data.combined, data.fileCount)
+      // Return full extraction result from Claude Opus
+      onFilesExtracted(data as ExtractionResult)
     } catch (error) {
       setFiles((prev) =>
         prev.map((f) => ({

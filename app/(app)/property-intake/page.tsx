@@ -163,7 +163,7 @@ interface MarketContext {
 type Step = "input" | "extracting" | "extracted" | "evaluating" | "evaluated" | "saving" | "saved"
 
 // Off-Plan flow steps
-type OffPlanStep = "upload" | "parsing" | "extracting" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
+type OffPlanStep = "upload" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
 
 const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
@@ -217,28 +217,24 @@ export default function PropertyIntakePage() {
   const [offplanSavedMemoId, setOffplanSavedMemoId] = React.useState<string | null>(null)
 
   // Off-Plan handlers
-  const handlePdfExtracted = async (combinedText: string, fileCount: number) => {
+  const handlePdfExtracted = (result: {
+    project: OffPlanProject
+    units: OffPlanUnit[]
+    paymentPlan: OffPlanPaymentPlan
+    stats: OffPlanExtractionResult["stats"]
+    confidence: string
+    model: string
+  }) => {
     setOffplanError(null)
-    setOffplanStep("extracting")
-
-    try {
-      const res = await fetch("/api/property-intake/extract-offplan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfText: combinedText }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to extract off-plan data")
-
-      setOffplanProject(data.project)
-      setOffplanUnits(data.units)
-      setOffplanPaymentPlan(data.paymentPlan)
-      setOffplanStats(data.stats)
-      setOffplanStep("extracted")
-    } catch (err) {
-      setOffplanError(err instanceof Error ? err.message : "Failed to extract off-plan data")
-      setOffplanStep("upload")
-    }
+    
+    // Data already extracted by Claude Opus directly from the PDF
+    setOffplanProject(result.project)
+    setOffplanUnits(result.units)
+    setOffplanPaymentPlan(result.paymentPlan)
+    setOffplanStats(result.stats)
+    setOffplanStep("extracted")
+    
+    console.log(`Data extracted using ${result.model} with ${result.confidence} confidence`)
   }
 
   const handleOffplanEvaluate = async () => {
@@ -997,7 +993,7 @@ export default function PropertyIntakePage() {
         <TabsContent value="offplan" className="space-y-6">
           {/* Off-Plan Step indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className={offplanStep === "upload" || offplanStep === "parsing" || offplanStep === "extracting" ? "font-semibold text-green-600" : ""}>1. Upload Brochure</span>
+            <span className={offplanStep === "upload" ? "font-semibold text-green-600" : ""}>1. Upload Brochure</span>
             <ArrowRight className="h-4 w-4" />
             <span className={offplanStep === "extracted" || offplanStep === "selecting" ? "font-semibold text-green-600" : ""}>2. Review & Select Unit</span>
             <ArrowRight className="h-4 w-4" />
@@ -1017,7 +1013,7 @@ export default function PropertyIntakePage() {
           )}
 
           {/* Off-Plan Step 1: Upload */}
-          {(offplanStep === "upload" || offplanStep === "parsing" || offplanStep === "extracting") && (
+          {offplanStep === "upload" && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1025,22 +1021,16 @@ export default function PropertyIntakePage() {
                   Upload Developer Brochure
                 </CardTitle>
                 <CardDescription>
-                  Upload PDF brochures from developers including availability sheets and sales offers
+                  Upload PDF brochures from developers including availability sheets and sales offers.
+                  Claude Opus 4.5 will analyze them directly.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <PdfUploadZone
                   onFilesExtracted={handlePdfExtracted}
                   onError={setOffplanError}
-                  isProcessing={offplanStep === "extracting"}
+                  maxSizeMB={20}
                 />
-                
-                {offplanStep === "extracting" && (
-                  <div className="mt-4 flex items-center justify-center gap-2 text-green-600">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Extracting project data with AI...</span>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}
