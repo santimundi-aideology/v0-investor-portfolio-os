@@ -14,6 +14,7 @@ import {
   Sparkles,
   TrendingDown,
   TrendingUp,
+  Upload,
 } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatAED } from "@/lib/real-estate"
 import { PropertyAIChat } from "@/components/ai/property-ai-chat"
 import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
@@ -31,6 +33,19 @@ import { PriceComparisonChart } from "@/components/charts/price-comparison-chart
 import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
 import { mockInvestors } from "@/lib/mock-data"
+
+// Off-Plan components
+import { PdfUploadZone } from "@/components/property-intake/pdf-upload-zone"
+import { OffPlanProjectOverview } from "@/components/property-intake/offplan-project-overview"
+import { UnitSelectionTable } from "@/components/property-intake/unit-selection-table"
+import { OffPlanMemoDisplay } from "@/components/property-intake/offplan-memo-display"
+import type {
+  OffPlanProject,
+  OffPlanUnit,
+  OffPlanPaymentPlan,
+  OffPlanEvaluationResult,
+  OffPlanExtractionResult,
+} from "@/lib/types"
 
 interface ExtractedProperty {
   source: string
@@ -147,6 +162,9 @@ interface MarketContext {
 
 type Step = "input" | "extracting" | "extracted" | "evaluating" | "evaluated" | "saving" | "saved"
 
+// Off-Plan flow steps
+type OffPlanStep = "upload" | "parsing" | "extracting" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
+
 const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
   currency: "AED",
@@ -174,6 +192,10 @@ function formatPercent(value?: number) {
 }
 
 export default function PropertyIntakePage() {
+  // Tab state
+  const [activeTab, setActiveTab] = React.useState<"portal" | "offplan">("portal")
+
+  // Portal URL flow state
   const [step, setStep] = React.useState<Step>("input")
   const [url, setUrl] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
@@ -182,6 +204,116 @@ export default function PropertyIntakePage() {
   const [marketContext, setMarketContext] = React.useState<MarketContext | null>(null)
   const [notes, setNotes] = React.useState("")
   const [savedMemoId, setSavedMemoId] = React.useState<string | null>(null)
+
+  // Off-Plan flow state
+  const [offplanStep, setOffplanStep] = React.useState<OffPlanStep>("upload")
+  const [offplanError, setOffplanError] = React.useState<string | null>(null)
+  const [offplanProject, setOffplanProject] = React.useState<OffPlanProject | null>(null)
+  const [offplanUnits, setOffplanUnits] = React.useState<OffPlanUnit[]>([])
+  const [offplanPaymentPlan, setOffplanPaymentPlan] = React.useState<OffPlanPaymentPlan | null>(null)
+  const [offplanStats, setOffplanStats] = React.useState<OffPlanExtractionResult["stats"] | null>(null)
+  const [selectedOffplanUnits, setSelectedOffplanUnits] = React.useState<OffPlanUnit[]>([])
+  const [offplanEvaluation, setOffplanEvaluation] = React.useState<OffPlanEvaluationResult | null>(null)
+  const [offplanSavedMemoId, setOffplanSavedMemoId] = React.useState<string | null>(null)
+
+  // Off-Plan handlers
+  const handlePdfExtracted = async (combinedText: string, fileCount: number) => {
+    setOffplanError(null)
+    setOffplanStep("extracting")
+
+    try {
+      const res = await fetch("/api/property-intake/extract-offplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfText: combinedText }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to extract off-plan data")
+
+      setOffplanProject(data.project)
+      setOffplanUnits(data.units)
+      setOffplanPaymentPlan(data.paymentPlan)
+      setOffplanStats(data.stats)
+      setOffplanStep("extracted")
+    } catch (err) {
+      setOffplanError(err instanceof Error ? err.message : "Failed to extract off-plan data")
+      setOffplanStep("upload")
+    }
+  }
+
+  const handleOffplanEvaluate = async () => {
+    if (!offplanProject || !offplanPaymentPlan || selectedOffplanUnits.length === 0) {
+      setOffplanError("Please select a unit to evaluate")
+      return
+    }
+
+    setOffplanError(null)
+    setOffplanStep("evaluating")
+
+    try {
+      const res = await fetch("/api/property-intake/evaluate-offplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project: offplanProject,
+          selectedUnit: selectedOffplanUnits[0],
+          paymentPlan: offplanPaymentPlan,
+          allUnits: offplanUnits,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to evaluate off-plan property")
+
+      setOffplanEvaluation(data)
+      setOffplanStep("evaluated")
+    } catch (err) {
+      setOffplanError(err instanceof Error ? err.message : "Failed to evaluate off-plan property")
+      setOffplanStep("selecting")
+    }
+  }
+
+  const handleOffplanSave = async (notes: string) => {
+    if (!offplanProject || !offplanPaymentPlan || !offplanEvaluation || selectedOffplanUnits.length === 0) {
+      return
+    }
+
+    setOffplanStep("saving")
+    setOffplanError(null)
+
+    try {
+      const res = await fetch("/api/property-intake/save-offplan-memo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project: offplanProject,
+          selectedUnit: selectedOffplanUnits[0],
+          paymentPlan: offplanPaymentPlan,
+          evaluation: offplanEvaluation,
+          notes,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save off-plan memo")
+
+      setOffplanSavedMemoId(data.memo.id)
+      setOffplanStep("saved")
+    } catch (err) {
+      setOffplanError(err instanceof Error ? err.message : "Failed to save off-plan memo")
+      setOffplanStep("evaluated")
+    }
+  }
+
+  const handleOffplanReset = () => {
+    setOffplanStep("upload")
+    setOffplanError(null)
+    setOffplanProject(null)
+    setOffplanUnits([])
+    setOffplanPaymentPlan(null)
+    setOffplanStats(null)
+    setSelectedOffplanUnits([])
+    setOffplanEvaluation(null)
+    setOffplanSavedMemoId(null)
+  }
 
   const handleExtract = async (pageContent?: string) => {
     if (!url.trim()) {
@@ -287,35 +419,61 @@ export default function PropertyIntakePage() {
 
   const analysis = evaluation?.analysis
 
+  // Determine if we should show reset button
+  const showPortalReset = step !== "input" && step !== "saved"
+  const showOffplanReset = offplanStep !== "upload" && offplanStep !== "saved"
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Property Intake"
-        subtitle="Evaluate external listings from Bayut, PropertyFinder, and other portals"
+        subtitle="Evaluate properties from portals or off-plan developer brochures"
         primaryAction={
-          step !== "input" && step !== "saved" ? (
+          (activeTab === "portal" && showPortalReset) ? (
             <div className="flex items-center gap-2">
               {(step === "evaluated" || step === "saving") && property && (
                 <MemoPdfExport title={property.title} />
               )}
               <Button variant="outline" onClick={handleReset}>Start Over</Button>
             </div>
+          ) : (activeTab === "offplan" && showOffplanReset) ? (
+            <div className="flex items-center gap-2">
+              {(offplanStep === "evaluated" || offplanStep === "saving") && offplanProject && selectedOffplanUnits[0] && (
+                <MemoPdfExport title={`${offplanProject.projectName} - ${selectedOffplanUnits[0].unitNumber}`} />
+              )}
+              <Button variant="outline" onClick={handleOffplanReset}>Start Over</Button>
+            </div>
           ) : undefined
         }
       />
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <span className={step === "input" || step === "extracting" ? "font-semibold text-green-600" : ""}>1. Paste URL</span>
-        <ArrowRight className="h-4 w-4" />
-        <span className={step === "extracted" || step === "evaluating" ? "font-semibold text-green-600" : ""}>2. Extract Data</span>
-        <ArrowRight className="h-4 w-4" />
-        <span className={step === "evaluated" || step === "saving" ? "font-semibold text-green-600" : ""}>3. AI Evaluation</span>
-        <ArrowRight className="h-4 w-4" />
-        <span className={step === "saved" ? "font-semibold text-green-600" : ""}>4. Save Memo</span>
-      </div>
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "portal" | "offplan")} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+          <TabsTrigger value="portal" className="flex items-center gap-2">
+            <ExternalLink className="h-4 w-4" />
+            Portal URL
+          </TabsTrigger>
+          <TabsTrigger value="offplan" className="flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Off-Plan Brochure
+          </TabsTrigger>
+        </TabsList>
 
-      {error && (
+        {/* Portal URL Tab */}
+        <TabsContent value="portal" className="space-y-6">
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className={step === "input" || step === "extracting" ? "font-semibold text-green-600" : ""}>1. Paste URL</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={step === "extracted" || step === "evaluating" ? "font-semibold text-green-600" : ""}>2. Extract Data</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={step === "evaluated" || step === "saving" ? "font-semibold text-green-600" : ""}>3. AI Evaluation</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={step === "saved" ? "font-semibold text-green-600" : ""}>4. Save Memo</span>
+          </div>
+
+          {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="flex items-center gap-3 py-4">
             <AlertCircle className="h-5 w-5 text-red-600" />
@@ -833,6 +991,118 @@ export default function PropertyIntakePage() {
           </div>
         </div>
       )}
+        </TabsContent>
+
+        {/* Off-Plan Brochure Tab */}
+        <TabsContent value="offplan" className="space-y-6">
+          {/* Off-Plan Step indicator */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className={offplanStep === "upload" || offplanStep === "parsing" || offplanStep === "extracting" ? "font-semibold text-green-600" : ""}>1. Upload Brochure</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={offplanStep === "extracted" || offplanStep === "selecting" ? "font-semibold text-green-600" : ""}>2. Review & Select Unit</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={offplanStep === "evaluating" || offplanStep === "evaluated" || offplanStep === "saving" ? "font-semibold text-green-600" : ""}>3. AI Evaluation</span>
+            <ArrowRight className="h-4 w-4" />
+            <span className={offplanStep === "saved" ? "font-semibold text-green-600" : ""}>4. Save Memo</span>
+          </div>
+
+          {/* Off-Plan Error */}
+          {offplanError && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="flex items-center gap-3 py-4">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <span className="text-red-700">{offplanError}</span>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Off-Plan Step 1: Upload */}
+          {(offplanStep === "upload" || offplanStep === "parsing" || offplanStep === "extracting") && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-green-600" />
+                  Upload Developer Brochure
+                </CardTitle>
+                <CardDescription>
+                  Upload PDF brochures from developers including availability sheets and sales offers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PdfUploadZone
+                  onFilesExtracted={handlePdfExtracted}
+                  onError={setOffplanError}
+                  isProcessing={offplanStep === "extracting"}
+                />
+                
+                {offplanStep === "extracting" && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-green-600">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Extracting project data with AI...</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Off-Plan Step 2: Project Overview & Unit Selection */}
+          {(offplanStep === "extracted" || offplanStep === "selecting" || offplanStep === "evaluating") && offplanProject && offplanPaymentPlan && (
+            <div className="space-y-6">
+              <OffPlanProjectOverview
+                project={offplanProject}
+                paymentPlan={offplanPaymentPlan}
+                stats={offplanStats || undefined}
+              />
+
+              <UnitSelectionTable
+                units={offplanUnits}
+                selectedUnits={selectedOffplanUnits}
+                onSelectionChange={setSelectedOffplanUnits}
+                maxSelection={1}
+              />
+
+              {/* Evaluate Button */}
+              <div className="flex justify-end gap-4">
+                <Button variant="outline" onClick={handleOffplanReset} disabled={offplanStep === "evaluating"}>
+                  Start Over
+                </Button>
+                <Button
+                  onClick={handleOffplanEvaluate}
+                  disabled={selectedOffplanUnits.length === 0 || offplanStep === "evaluating"}
+                  size="lg"
+                >
+                  {offplanStep === "evaluating" ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating IC Memo...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Off-Plan IC Memo
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Off-Plan Step 3: Evaluation Display */}
+          {(offplanStep === "evaluated" || offplanStep === "saving" || offplanStep === "saved") && 
+            offplanProject && offplanPaymentPlan && offplanEvaluation && selectedOffplanUnits[0] && (
+            <OffPlanMemoDisplay
+              project={offplanProject}
+              selectedUnit={selectedOffplanUnits[0]}
+              paymentPlan={offplanPaymentPlan}
+              evaluation={offplanEvaluation}
+              onSave={handleOffplanSave}
+              onReset={handleOffplanReset}
+              isSaving={offplanStep === "saving"}
+              savedMemoId={offplanSavedMemoId}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

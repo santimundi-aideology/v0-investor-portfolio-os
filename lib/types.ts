@@ -453,5 +453,257 @@ export interface Activity {
   propertyId?: string
 }
 
+// ============================================================================
+// Off-Plan Property Analysis Types
+// ============================================================================
 
+/**
+ * Off-Plan Project extracted from developer brochure
+ */
+export interface OffPlanProject {
+  projectName: string
+  developer: string
+  location: {
+    area: string
+    subArea?: string
+    landmark?: string
+    coordinates?: { lat: number; lng: number }
+  }
+  completionDate: string // e.g., "Q4 2026"
+  totalLevels: number
+  totalUnits: number
+  propertyType: "residential" | "commercial" | "mixed"
+  amenities: string[]
+  description: string
+  contactInfo?: {
+    phone?: string
+    email?: string
+    salesCenter?: string
+    website?: string
+  }
+  developerTrackRecord?: {
+    completedProjects: { name: string; location?: string; value?: string }[]
+    currentProjects?: { name: string; location?: string; value?: string }[]
+    totalDevelopmentValue?: string
+    yearsInBusiness?: number
+  }
+  architectDesigner?: string
+  interiorDesigner?: string
+}
+
+/**
+ * Individual unit from availability sheet
+ */
+export interface OffPlanUnit {
+  unitNumber: string
+  level: number
+  type: string // "Full Floor", "Half Floor", "Studio", "1BR", "2BR", etc.
+  sizeSqft: number
+  pricePerSqft: number
+  totalPrice: number
+  views?: string
+  parking?: number
+  status: "available" | "sold" | "reserved"
+  commonAreaSqft?: number
+  totalAreaSqft?: number
+}
+
+/**
+ * Payment plan milestone
+ */
+export interface PaymentMilestone {
+  milestone: number
+  description: string
+  percentage: number
+  timing?: string // e.g., "On Booking", "3 months from SPA"
+  amountAed?: number
+}
+
+/**
+ * Complete payment plan structure
+ */
+export interface OffPlanPaymentPlan {
+  milestones: PaymentMilestone[]
+  dldFeePercent: number
+  totalPercent: number
+  postHandoverPercent: number
+  constructionPercent: number
+}
+
+/**
+ * Off-Plan extraction result from AI
+ */
+export interface OffPlanExtractionResult {
+  project: OffPlanProject
+  units: OffPlanUnit[]
+  paymentPlan: OffPlanPaymentPlan
+  rawText?: string
+  extractedAt: string
+  confidence: "high" | "medium" | "low"
+  stats?: {
+    totalUnits: number
+    availableUnits: number
+    soldUnits: number
+    reservedUnits: number
+    priceRange?: { min: number; max: number } | null
+    sizeRange?: { min: number; max: number } | null
+    avgPricePerSqft?: number | null
+  }
+}
+
+/**
+ * Developer assessment in the memo
+ */
+export interface DeveloperAssessment {
+  score: number // 0-100
+  grade: "A" | "B" | "C" | "D"
+  strengths: string[]
+  concerns: string[]
+  trackRecordSummary: string
+  financialStability?: "strong" | "moderate" | "weak" | "unknown"
+}
+
+/**
+ * Cash flow item in payment schedule
+ */
+export interface PaymentCashFlow {
+  month: number
+  milestone: string
+  payment: number
+  cumulative: number
+  percentPaid: number
+}
+
+/**
+ * Financial projections for off-plan
+ */
+export interface OffPlanFinancialProjections {
+  purchasePrice: number
+  estimatedCompletionValue: number
+  expectedAppreciation: number // percentage
+  expectedAppreciationAed: number
+  projectedRentalYieldGross: number
+  projectedRentalYieldNet: number
+  estimatedAnnualRent: number
+  paymentPlanIRR?: number
+  totalInvestmentReturn?: number
+  breakEvenMonths?: number
+}
+
+/**
+ * Market comparable for off-plan
+ */
+export interface OffPlanComparable {
+  project: string
+  developer: string
+  area: string
+  pricePerSqft: number
+  completionStatus: "completed" | "under_construction" | "launching"
+  completionDate?: string
+  currentPricePsf?: number
+  launchPricePsf?: number
+  appreciation?: number
+  note?: string
+}
+
+/**
+ * Risk item with severity
+ */
+export interface OffPlanRisk {
+  category: string
+  level: "low" | "medium" | "high"
+  description: string
+  mitigation: string
+  probability?: number
+  impact?: number
+}
+
+/**
+ * Off-Plan IC Memo content structure
+ */
+export interface OffPlanMemoContent {
+  // Project summary
+  projectSummary: string
+  projectHighlights: string[]
+  
+  // Developer assessment
+  developerAssessment: DeveloperAssessment
+  
+  // Location analysis
+  locationAnalysis: {
+    grade: string
+    areaProfile: string
+    highlights: string[]
+    proximity: Record<string, string> // e.g., "Dubai Metro": "Direct Access"
+    futureInfrastructure?: string[]
+  }
+  
+  // Unit analysis (selected unit)
+  unitAnalysis: {
+    unitNumber: string
+    type: string
+    level: number
+    sizeSqft: number
+    totalPrice: number
+    pricePerSqft: number
+    views?: string
+    parking?: number
+    valueAssessment: string
+    priceVsProjectAvg?: number // percentage
+  }
+  
+  // Payment plan analysis
+  paymentPlanAnalysis: {
+    summary: string
+    cashFlowSchedule: PaymentCashFlow[]
+    totalDuringConstruction: number
+    totalOnCompletion: number
+    postHandoverMonths?: number
+    insights: string[]
+    attractivenessScore: number // 0-100
+  }
+  
+  // Financial projections
+  financialProjections: OffPlanFinancialProjections
+  
+  // Market comparables
+  marketComparables: OffPlanComparable[]
+  
+  // Risk assessment
+  riskAssessment: OffPlanRisk[]
+  overallRiskLevel: "low" | "medium" | "high"
+  
+  // Investment thesis
+  investmentThesis: string
+  keyStrengths: string[]
+  keyConsiderations: string[]
+  
+  // Final recommendation
+  recommendation: {
+    decision: "PROCEED" | "CONDITIONAL" | "PASS"
+    reasoning: string
+    conditions?: string[]
+    suggestedNegotiationPoints?: string[]
+  }
+  
+  // Metadata
+  generatedBy: string
+  generatedAt: string
+}
+
+/**
+ * Off-Plan evaluation result
+ */
+export interface OffPlanEvaluationResult {
+  overallScore: number
+  factors: {
+    developerCredibility: number // 0-25
+    locationPremium: number // 0-25
+    paymentPlanAttractiveness: number // 0-25
+    appreciationPotential: number // 0-25
+  }
+  headline: string
+  recommendation: "strong_buy" | "buy" | "hold" | "pass"
+  memoContent: OffPlanMemoContent
+}
 
