@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { PDFParse } from "pdf-parse"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
-
-// Dynamic import to handle ESM/CJS compatibility
-async function parsePdf(buffer: Buffer, options?: { max?: number }) {
-  // pdf-parse v2.x has different export structure
-  const pdfParse = await import("pdf-parse").then(m => m.default || m)
-  return pdfParse(buffer, options)
-}
 
 /**
  * POST /api/property-intake/parse-pdf
@@ -78,22 +72,36 @@ export async function POST(req: NextRequest) {
     const extractedTexts: { fileName: string; text: string; pageCount: number }[] = []
     
     for (const file of files) {
+      let parser: PDFParse | null = null
       try {
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
         
-        const pdfData = await parsePdf(buffer, {
-          // Limit pages for performance
-          max: 50,
+        // Create PDFParse instance with the buffer data
+        parser = new PDFParse({ data: buffer })
+        
+        // Get document info for page count
+        const info = await parser.getInfo()
+        const pageCount = info.total
+        
+        // Get text content (limit to 50 pages for performance)
+        const textResult = await parser.getText({ 
+          startPage: 1, 
+          endPage: Math.min(50, pageCount) 
         })
         
+        // Combine all page texts
+        const fullText = textResult.pages
+          .map(page => page.text)
+          .join("\n\n")
+        
         // Clean up the extracted text
-        const cleanedText = cleanPdfText(pdfData.text)
+        const cleanedText = cleanPdfText(fullText)
         
         extractedTexts.push({
           fileName: file.name,
           text: cleanedText,
-          pageCount: pdfData.numpages,
+          pageCount: pageCount,
         })
       } catch (pdfError) {
         console.error(`Error parsing PDF ${file.name}:`, pdfError)
@@ -101,6 +109,11 @@ export async function POST(req: NextRequest) {
           { error: `Failed to parse PDF: ${file.name}. The file may be corrupted or password-protected.` },
           { status: 400 }
         )
+      } finally {
+        // Clean up parser resources
+        if (parser) {
+          await parser.destroy()
+        }
       }
     }
     
