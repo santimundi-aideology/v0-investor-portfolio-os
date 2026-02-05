@@ -160,9 +160,10 @@ export async function POST(req: NextRequest) {
     // Use Claude Opus 4.5 to analyze the PDFs directly
     const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-20250514"
     
-    console.log(`Analyzing ${files.length} PDF(s) with ${model}...`)
+    console.log(`Analyzing ${files.length} PDF(s) with ${model} (streaming)...`)
     
-    const response = await anthropic.messages.create({
+    // Use streaming for long-running PDF analysis
+    const stream = await anthropic.messages.stream({
       model,
       max_tokens: 16000,
       system: EXTRACTION_SYSTEM_PROMPT,
@@ -183,6 +184,9 @@ Extract all data and return as JSON.`,
         },
       ],
     })
+    
+    // Collect the full response from stream
+    const response = await stream.finalMessage()
     
     // Extract text content from response
     const textContent = response.content.find((c) => c.type === "text")
