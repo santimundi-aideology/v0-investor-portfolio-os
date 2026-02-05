@@ -108,8 +108,11 @@ export async function POST(req: NextRequest) {
       ? pdfText.slice(0, maxLength) + "\n\n[... text truncated for processing ...]"
       : pdfText
 
+    // Use Opus 4.5 for best extraction quality
+    const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-20250514"
+    
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: 8000,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [

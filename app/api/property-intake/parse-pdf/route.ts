@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import pdfParse from "pdf-parse"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
+
+// Lazy load pdf-parse to avoid the test file issue
+async function loadPdfParse() {
+  // pdf-parse has a bug where it tries to load a test file on require
+  // We work around this by using dynamic import
+  const mod = await import("pdf-parse")
+  return mod.default
+}
 
 /**
  * POST /api/property-intake/parse-pdf
@@ -67,6 +74,9 @@ export async function POST(req: NextRequest) {
         )
       }
     }
+
+    // Load pdf-parse dynamically
+    const pdfParse = await loadPdfParse()
     
     // Extract text from each PDF
     const extractedTexts: { fileName: string; text: string; pageCount: number }[] = []
