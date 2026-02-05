@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
+import { extractText } from "unpdf"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "",
 })
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a real estate data extraction specialist. Your task is to extract structured data from off-plan property brochures and availability sheets from Dubai developers.
@@ -72,8 +73,8 @@ Set confidence to:
 /**
  * POST /api/property-intake/parse-pdf
  * 
- * Accepts multipart/form-data with PDF files and uses Claude Opus 4.5 to
- * directly analyze and extract structured data from the PDFs.
+ * Accepts multipart/form-data with PDF files, extracts text using unpdf,
+ * and analyzes with GPT-4o to extract structured data.
  * 
  * Request: FormData with files under key "files" or "file"
  * Response: OffPlanExtractionResult with project, units, paymentPlan, stats
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Validate files
-    const maxFileSize = 20 * 1024 * 1024 // 20MB per file for Claude
+    const maxFileSize = 20 * 1024 * 1024 // 20MB per file
     const maxFiles = 5
     
     if (files.length > maxFiles) {
@@ -133,72 +134,74 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Convert PDFs to base64 for Claude
-    const pdfContents: Array<{
-      type: "document"
-      source: {
-        type: "base64"
-        media_type: "application/pdf"
-        data: string
-      }
-    }> = []
+    // Extract text from PDFs using unpdf
+    const extractedTexts: string[] = []
     
     for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString("base64")
-      
-      pdfContents.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: base64,
-        },
-      })
+      try {
+        const arrayBuffer = await file.arrayBuffer()
+        const uint8Array = new Uint8Array(arrayBuffer)
+        
+        const { text, totalPages } = await extractText(uint8Array, { mergePages: true })
+        extractedTexts.push(`=== ${file.name} (${totalPages} pages) ===\n\n${text}`)
+        
+        console.log(`Extracted ${totalPages} pages from ${file.name}`)
+      } catch (pdfError) {
+        console.error(`Error extracting text from ${file.name}:`, pdfError)
+        return NextResponse.json(
+          { error: `Failed to read PDF: ${file.name}. The file may be corrupted or password-protected.` },
+          { status: 400 }
+        )
+      }
     }
     
-    // Use Claude Sonnet 4 to analyze the PDFs directly
-    const model = "claude-sonnet-4-20250514"
+    const combinedText = extractedTexts.join("\n\n" + "=".repeat(80) + "\n\n")
     
-    console.log(`Analyzing ${files.length} PDF(s) with ${model} (streaming)...`)
+    // Truncate if too long (GPT-4o has context limits)
+    const maxLength = 100000
+    const truncatedText = combinedText.length > maxLength 
+      ? combinedText.slice(0, maxLength) + "\n\n[... text truncated for processing ...]"
+      : combinedText
     
-    // Use streaming for long-running PDF analysis
-    const stream = await anthropic.messages.stream({
-      model,
+    console.log(`Analyzing ${files.length} PDF(s) with GPT-4o...`)
+    
+    // Use GPT-4o to analyze the extracted text
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 16000,
-      system: EXTRACTION_SYSTEM_PROMPT,
       messages: [
         {
+          role: "system",
+          content: EXTRACTION_SYSTEM_PROMPT,
+        },
+        {
           role: "user",
-          content: [
-            ...pdfContents,
-            {
-              type: "text",
-              text: `Please analyze the attached PDF document(s) and extract all project details, unit information, and payment plan data. The documents are off-plan property brochures and/or availability sheets from Dubai developers.
+          content: `Please analyze the following text extracted from off-plan property brochure(s) and availability sheet(s) from Dubai developers. Extract all project details, unit information, and payment plan data.
 
 Files provided: ${files.map(f => f.name).join(", ")}
 
+--- EXTRACTED TEXT ---
+
+${truncatedText}
+
+--- END OF TEXT ---
+
 Extract all data and return as JSON.`,
-            },
-          ],
         },
       ],
     })
     
-    // Collect the full response from stream
-    const response = await stream.finalMessage()
-    
     // Extract text content from response
-    const textContent = response.content.find((c) => c.type === "text")
-    if (!textContent || textContent.type !== "text") {
-      throw new Error("No text response from Claude")
+    const textContent = response.choices[0]?.message?.content
+    if (!textContent) {
+      throw new Error("No response from GPT-4o")
     }
     
     // Parse JSON from response
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/)
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      console.error("Claude response:", textContent.text)
-      throw new Error("Could not extract JSON from Claude response")
+      console.error("GPT-4o response:", textContent)
+      throw new Error("Could not extract JSON from GPT-4o response")
     }
     
     const extracted = JSON.parse(jsonMatch[0])
@@ -241,7 +244,7 @@ Extract all data and return as JSON.`,
       extractedAt: new Date().toISOString(),
       confidence: extracted.confidence || "medium",
       fileCount: files.length,
-      model,
+      model: "gpt-4o",
     })
   } catch (error) {
     console.error("PDF analysis error:", error)
