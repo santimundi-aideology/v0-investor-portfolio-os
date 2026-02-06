@@ -34,11 +34,14 @@ import { InvestorMatchingPanel } from "@/components/memos/investor-matching-pane
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
 import { mockInvestors } from "@/lib/mock-data"
 
-// Off-Plan components
+// CMA and Off-Plan components
+import { CMAPanel } from "@/components/property-intake/cma-panel"
 import { PdfUploadZone } from "@/components/property-intake/pdf-upload-zone"
 import { OffPlanProjectOverview } from "@/components/property-intake/offplan-project-overview"
 import { UnitSelectionTable } from "@/components/property-intake/unit-selection-table"
+import { OffPlanUnitComparison } from "@/components/property-intake/offplan-unit-comparison"
 import { OffPlanMemoDisplay } from "@/components/property-intake/offplan-memo-display"
+import { AIScoreReveal } from "@/components/property-intake/ai-score-reveal"
 import type {
   OffPlanProject,
   OffPlanUnit,
@@ -204,6 +207,7 @@ export default function PropertyIntakePage() {
   const [marketContext, setMarketContext] = React.useState<MarketContext | null>(null)
   const [notes, setNotes] = React.useState("")
   const [savedMemoId, setSavedMemoId] = React.useState<string | null>(null)
+  const [scoreRevealComplete, setScoreRevealComplete] = React.useState(false)
 
   // Off-Plan flow state
   const [offplanStep, setOffplanStep] = React.useState<OffPlanStep>("upload")
@@ -353,6 +357,7 @@ export default function PropertyIntakePage() {
     if (!property) return
     setStep("evaluating")
     setError(null)
+    setScoreRevealComplete(false)
 
     try {
       const res = await fetch("/api/property-intake/evaluate", {
@@ -401,6 +406,7 @@ export default function PropertyIntakePage() {
     setMarketContext(null)
     setNotes("")
     setSavedMemoId(null)
+    setScoreRevealComplete(false)
   }
 
   const getRecommendationBadge = (rec: string) => {
@@ -536,69 +542,82 @@ export default function PropertyIntakePage() {
 
       {/* Step 2: Extracted Property Review */}
       {(step === "extracted" || step === "evaluating") && property && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>{property.title}</CardTitle>
-                  <CardDescription className="flex items-center gap-1 mt-1">
-                    <MapPin className="h-4 w-4" />
-                    {property.area}{property.subArea && `, ${property.subArea}`}
-                  </CardDescription>
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>{property.title}</CardTitle>
+                    <CardDescription className="flex items-center gap-1 mt-1">
+                      <MapPin className="h-4 w-4" />
+                      {property.area}{property.subArea && `, ${property.subArea}`}
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="capitalize">{property.source}</Badge>
                 </div>
-                <Badge variant="outline" className="capitalize">{property.source}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {property.images.length > 0 && (
-                <div className="relative h-48 overflow-hidden rounded-lg">
-                  <img src={property.images[0]} alt={property.title} className="h-full w-full object-cover" />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-gray-500">Price</span><div className="font-semibold">{formatAED(property.price)}</div></div>
-                <div><span className="text-gray-500">Price/sqft</span><div className="font-semibold">{property.pricePerSqft ? `AED ${property.pricePerSqft.toLocaleString()}` : "N/A"}</div></div>
-                <div><span className="text-gray-500">Size</span><div className="font-semibold">{property.size ? `${property.size.toLocaleString()} sqft` : "N/A"}</div></div>
-                <div><span className="text-gray-500">Type</span><div className="font-semibold">{property.propertyType}</div></div>
-                <div><span className="text-gray-500">Bedrooms</span><div className="font-semibold">{property.bedrooms}</div></div>
-                <div><span className="text-gray-500">Bathrooms</span><div className="font-semibold">{property.bathrooms}</div></div>
-              </div>
-              {property.listingUrl && (
-                <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
-                  View on {property.source}<ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-green-600" />
-                AI Evaluation
-              </CardTitle>
-              <CardDescription>Comprehensive investment analysis powered by AI</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border bg-gray-50 p-4">
-                <h4 className="font-semibold">What will be generated:</h4>
-                <ul className="mt-2 space-y-2 text-sm text-gray-600">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Executive Summary & Investment Thesis</span></li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Neighborhood & Market Analysis</span></li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Pricing, Comparables & Financial Analysis</span></li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy, Risks & Recommendation</span></li>
-                </ul>
-              </div>
-              <Button onClick={handleEvaluate} disabled={step === "evaluating"} className="w-full" size="lg">
-                {step === "evaluating" ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
-                ) : (
-                  <><Sparkles className="mr-2 h-4 w-4" />Generate IC Memo</>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {property.images.length > 0 && (
+                  <div className="relative h-48 overflow-hidden rounded-lg">
+                    <img src={property.images[0]} alt={property.title} className="h-full w-full object-cover" />
+                  </div>
                 )}
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-gray-500">Price</span><div className="font-semibold">{formatAED(property.price)}</div></div>
+                  <div><span className="text-gray-500">Price/sqft</span><div className="font-semibold">{property.pricePerSqft ? `AED ${property.pricePerSqft.toLocaleString()}` : "N/A"}</div></div>
+                  <div><span className="text-gray-500">Size</span><div className="font-semibold">{property.size ? `${property.size.toLocaleString()} sqft` : "N/A"}</div></div>
+                  <div><span className="text-gray-500">Type</span><div className="font-semibold">{property.propertyType}</div></div>
+                  <div><span className="text-gray-500">Bedrooms</span><div className="font-semibold">{property.bedrooms}</div></div>
+                  <div><span className="text-gray-500">Bathrooms</span><div className="font-semibold">{property.bathrooms}</div></div>
+                </div>
+                {property.listingUrl && (
+                  <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
+                    View on {property.source}<ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* CMA Panel - Auto-loads DLD data */}
+            <div className="space-y-4">
+              <CMAPanel
+                area={property.area}
+                propertyType={property.propertyType}
+                bedrooms={property.bedrooms}
+                sizeSqft={property.size}
+                askingPrice={property.price}
+              />
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-green-600" />
+                    AI Evaluation
+                  </CardTitle>
+                  <CardDescription>Comprehensive investment analysis powered by AI</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border bg-gray-50 p-4">
+                    <h4 className="font-semibold">What will be generated:</h4>
+                    <ul className="mt-2 space-y-2 text-sm text-gray-600">
+                      <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Executive Summary & Investment Thesis</span></li>
+                      <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Neighborhood & Market Analysis</span></li>
+                      <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Pricing, Comparables & Financial Analysis</span></li>
+                      <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy, Risks & Recommendation</span></li>
+                    </ul>
+                  </div>
+                  <Button onClick={handleEvaluate} disabled={step === "evaluating"} className="w-full" size="lg">
+                    {step === "evaluating" ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
+                    ) : (
+                      <><Sparkles className="mr-2 h-4 w-4" />Generate IC Memo</>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       )}
 
@@ -874,49 +893,32 @@ export default function PropertyIntakePage() {
                 }}
               />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Score Analysis</CardTitle>
-                  <CardDescription>Investment criteria breakdown</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ScoreRadarChart
-                    data={[
-                      { factor: "Mandate Fit", score: evaluation.factors.mandateFit, maxScore: 25 },
-                      { factor: "Market Timing", score: evaluation.factors.marketTiming, maxScore: 25 },
-                      { factor: "Portfolio Fit", score: evaluation.factors.portfolioFit, maxScore: 25 },
-                      { factor: "Risk Alignment", score: evaluation.factors.riskAlignment, maxScore: 25 },
-                    ]}
-                  />
-                  <Separator />
-                  <div className="space-y-2">
-                    {[
-                      { key: "mandateFit", label: "Mandate Fit" },
-                      { key: "marketTiming", label: "Market Timing" },
-                      { key: "portfolioFit", label: "Portfolio Fit" },
-                      { key: "riskAlignment", label: "Risk Alignment" },
-                    ].map(({ key, label }) => (
-                      <div key={key} className="flex justify-between text-sm">
-                        <span className="text-gray-500">{label}</span>
-                        <span className="font-semibold">{evaluation.factors[key as keyof typeof evaluation.factors]}/25</span>
-                      </div>
-                    ))}
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Overall Score</span>
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-24 overflow-hidden rounded-full bg-gray-100">
-                        <div 
-                          className="h-3 rounded-full bg-green-500" 
-                          style={{ width: `${evaluation.overallScore}%` }} 
-                        />
-                      </div>
-                      <span className="font-bold text-green-600">{evaluation.overallScore}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <AIScoreReveal
+                overallScore={evaluation.overallScore}
+                factors={evaluation.factors}
+                recommendation={evaluation.recommendation}
+                headline={evaluation.headline}
+                onComplete={() => setScoreRevealComplete(true)}
+              />
+
+              {scoreRevealComplete && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Detailed Score Breakdown</CardTitle>
+                    <CardDescription>Radar chart view</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScoreRadarChart
+                      data={[
+                        { factor: "Mandate Fit", score: evaluation.factors.mandateFit, maxScore: 25 },
+                        { factor: "Market Timing", score: evaluation.factors.marketTiming, maxScore: 25 },
+                        { factor: "Portfolio Fit", score: evaluation.factors.portfolioFit, maxScore: 25 },
+                        { factor: "Risk Alignment", score: evaluation.factors.riskAlignment, maxScore: 25 },
+                      ]}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
               {step !== "saved" && (
                 <Card className="border-green-200 bg-green-50">
@@ -1048,8 +1050,18 @@ export default function PropertyIntakePage() {
                 units={offplanUnits}
                 selectedUnits={selectedOffplanUnits}
                 onSelectionChange={setSelectedOffplanUnits}
-                maxSelection={1}
+                maxSelection={5}
               />
+
+              {/* Multi-Unit Comparison */}
+              {selectedOffplanUnits.length >= 2 && offplanProject && offplanPaymentPlan && (
+                <OffPlanUnitComparison
+                  project={offplanProject}
+                  units={selectedOffplanUnits}
+                  paymentPlan={offplanPaymentPlan}
+                  onSelectBest={(unit) => setSelectedOffplanUnits([unit])}
+                />
+              )}
 
               {/* Evaluate Button */}
               <div className="flex justify-end gap-4">
@@ -1069,7 +1081,9 @@ export default function PropertyIntakePage() {
                   ) : (
                     <>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      Generate Off-Plan IC Memo
+                      {selectedOffplanUnits.length > 1
+                        ? `Compare & Evaluate ${selectedOffplanUnits.length} Units`
+                        : "Generate Off-Plan IC Memo"}
                     </>
                   )}
                 </Button>

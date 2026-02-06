@@ -3,6 +3,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import type { PlatformRole, RequestContext } from "@/lib/security/rbac"
+import type { Database } from "@/lib/database.types"
 
 export type AuthUser = {
   id: string
@@ -32,7 +33,7 @@ export async function createSupabaseServerClient() {
     )
   }
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()

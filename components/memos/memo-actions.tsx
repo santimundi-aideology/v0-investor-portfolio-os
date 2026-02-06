@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { MemoShareDialog } from "@/components/memos/memo-share-dialog"
 import type { Memo, Property } from "@/lib/types"
 
 interface MemoActionsProps {
@@ -292,10 +293,17 @@ export function MemoActions({ memo, property }: MemoActionsProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button onClick={handleSend} disabled={downloading || sending}>
-        <Send className="mr-2 h-4 w-4" />
-        {sending ? "Sending…" : "Send to Investor"}
-      </Button>
+      <MemoShareDialog
+        memoId={memo.id}
+        investorEmail={undefined} // Will be fetched from API if needed
+        investorPhone={undefined}
+        investorWhatsApp={undefined}
+        onShare={() => {
+          toast.success("Memo shared", {
+            description: "Share link created and sent to investor",
+          })
+        }}
+      />
     </div>
   )
 }

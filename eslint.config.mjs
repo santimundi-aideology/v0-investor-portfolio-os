@@ -4,22 +4,3 @@ import typescript from "eslint-config-next/typescript"
 const config = [...coreWebVitals, ...typescript]
 export default config
 
-
-
-
-const config = [...coreWebVitals, ...typescript]
-export default config
-
-
-
-
-const config = [...coreWebVitals, ...typescript]
-export default config
-
-
-
-
-const config = [...coreWebVitals, ...typescript]
-export default config
-
-

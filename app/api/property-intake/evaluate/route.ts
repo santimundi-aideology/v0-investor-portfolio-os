@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { propertyEvaluationSchema } from "@/lib/validation/schemas"
+import { validateRequest } from "@/lib/validation/helpers"
 
 /**
  * Evaluate property viability and generate IC memo content
@@ -738,15 +740,12 @@ function createFallbackEvaluation(
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { property } = body as { property: PropertyData }
-
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property data is required" },
-        { status: 400 }
-      )
+    const validation = await validateRequest(req, propertyEvaluationSchema)
+    if (!validation.success) {
+      return validation.error
     }
+
+    const { property } = validation.data
 
     // Get market context for the property's area
     const marketContext = getMarketContext(

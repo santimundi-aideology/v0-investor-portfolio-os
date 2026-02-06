@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/layout/page-header"
@@ -38,6 +39,7 @@ function SettingsPageInner() {
   })
   const [hasChanges, setHasChanges] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   // Notification settings
@@ -48,6 +50,44 @@ function SettingsPageInner() {
   // Preferences
   const [currency, setCurrency] = useState("aed")
   const [language, setLanguage] = useState("en")
+
+  // Load settings on mount
+  React.useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings")
+        if (res.ok) {
+          const data = await res.json()
+          if (data.profile) {
+            setFormData({
+              name: data.profile.name || user.name,
+              email: data.profile.email || user.email,
+              phone: data.profile.phone || "",
+              company: data.profile.company || "",
+            })
+            if (data.profile.avatarUrl) {
+              setAvatarPreview(data.profile.avatarUrl)
+            }
+          }
+          if (data.notifications) {
+            setEmailNotifications(data.notifications.emailNotifications ?? true)
+            setTaskReminders(data.notifications.taskReminders ?? true)
+            setDealUpdates(data.notifications.dealUpdates ?? true)
+          }
+          if (data.preferences) {
+            setCurrency(data.preferences.currency || "aed")
+            setLanguage(data.preferences.language || "en")
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load settings:", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadSettings()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Password dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -89,13 +129,44 @@ function SettingsPageInner() {
 
   const handleSaveChanges = async () => {
     setIsSaving(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsSaving(false)
-    setHasChanges(false)
-    toast.success("Settings saved", {
-      description: "Your profile and preferences have been updated.",
-    })
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || undefined,
+            company: formData.company || undefined,
+            avatarUrl: avatarPreview || undefined,
+          },
+          notifications: {
+            emailNotifications,
+            taskReminders,
+            dealUpdates,
+          },
+          preferences: {
+            currency,
+            language,
+          },
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to save settings")
+      }
+      setIsSaving(false)
+      setHasChanges(false)
+      toast.success("Settings saved", {
+        description: "Your profile and preferences have been updated.",
+      })
+    } catch (err) {
+      setIsSaving(false)
+      toast.error("Failed to save settings", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      })
+    }
   }
 
   const handleChangePassword = async () => {
@@ -119,16 +190,34 @@ function SettingsPageInner() {
     }
 
     setIsChangingPassword(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsChangingPassword(false)
-    setPasswordDialogOpen(false)
-    setCurrentPassword("")
-    setNewPassword("")
-    setConfirmPassword("")
-    toast.success("Password changed", {
-      description: "Your password has been updated successfully.",
-    })
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to change password")
+      }
+      setIsChangingPassword(false)
+      setPasswordDialogOpen(false)
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+      toast.success("Password changed", {
+        description: "Your password has been updated successfully.",
+      })
+    } catch (err) {
+      setIsChangingPassword(false)
+      toast.error("Failed to change password", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      })
+    }
   }
 
   const handleNotificationChange = (setting: string, value: boolean) => {

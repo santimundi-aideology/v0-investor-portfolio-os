@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Bed,
   Bath,
+  Calculator,
 } from "lucide-react"
 import Link from "next/link"
 import { getPropertyById } from "@/lib/mock-data"
@@ -22,6 +23,7 @@ import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { RoleRedirect } from "@/components/security/role-redirect"
 import { PropertyImageGallery } from "@/components/properties/property-image-gallery"
 import { RentalManagementCard } from "@/components/properties/rental-management-card"
+import { PropertyCMASection } from "@/components/properties/property-cma-section"
 
 interface PropertyPageProps {
   params: Promise<{ id: string }>
@@ -138,6 +140,12 @@ async function PropertyPageContent({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/roi-calculator?propertyId=${property.id}`}>
+              <Calculator className="mr-2 h-4 w-4" />
+              ROI Calculator
+            </Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link href={`/memos/new?propertyId=${property.id}`}>
               <FileText className="mr-2 h-4 w-4" />
@@ -278,6 +286,15 @@ async function PropertyPageContent({ id }: { id: string }) {
               </div>
             </CardContent>
           </Card>
+
+          {/* DLD Market Analysis (CMA) */}
+          <PropertyCMASection
+            area={property.area}
+            propertyType={property.type}
+            bedrooms={property.bedrooms ?? 0}
+            sizeSqft={property.size}
+            askingPrice={property.price}
+          />
 
           {/* Source & Ingestion History */}
           <Card>
@@ -527,6 +544,12 @@ async function PropertyPageContent({ id }: { id: string }) {
                 <Link href={`/memos/new?propertyId=${property.id}`}>
                   <FileText className="mr-2 h-4 w-4" />
                   Generate IC Memo
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full bg-transparent" asChild>
+                <Link href={`/roi-calculator?propertyId=${property.id}`}>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  ROI Calculator
                 </Link>
               </Button>
               <Button variant="outline" className="w-full bg-transparent">

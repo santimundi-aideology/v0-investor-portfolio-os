@@ -9,9 +9,7 @@ const nextConfig = {
     ],
   },
   typescript: {
-    // Temporarily ignore build errors for deployment
-    // TODO: Fix TypeScript errors in lib/db/* files
-    ignoreBuildErrors: true,
+    // TypeScript errors should be fixed - removed ignoreBuildErrors
   },
 }
 

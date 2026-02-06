@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, Check, Filter, LayoutGrid, List, Radar, RotateCcw, Search, Loader2, TrendingUp, TrendingDown, MapPin, Building2, Calendar, ExternalLink, Tag, DollarSign, User } from "lucide-react"
+import { AlertTriangle, Check, Filter, LayoutGrid, List, Radar, RotateCcw, Search, Loader2, TrendingUp, TrendingDown, MapPin, Building2, Calendar, ExternalLink, Tag, DollarSign, User, X } from "lucide-react"
 
 import { EmptyState } from "@/components/layout/empty-state"
 import { Badge } from "@/components/ui/badge"
@@ -20,6 +20,7 @@ import type { MarketSignalItem, MarketSignalSeverity, MarketSignalSourceType, Ma
 import { mockMarketSignals } from "@/lib/mock-market-signals"
 import { DataFreshnessIndicator } from "./data-freshness-indicator"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
+import { PropertySignalCard } from "./property-signal-card"
 
 interface PortalListing {
   id: string
@@ -93,28 +94,47 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
   const [timeframe, setTimeframe] = React.useState<"QoQ" | "WoW" | "all">("all")
   const [dataState, setDataState] = React.useState<DataState>("loading")
 
-  const [rows, setRows] = React.useState<MarketSignalItem[]>(() => initialSignals ?? mockMarketSignals)
+  const [rows, setRows] = React.useState<MarketSignalItem[]>(initialSignals || [])
   
   // Signal detail sheet state
   const [selectedSignal, setSelectedSignal] = React.useState<MarketSignalItem | null>(null)
   const [signalDetail, setSignalDetail] = React.useState<SignalDetail | null>(null)
-  const [detailLoading, setDetailLoading] = React.useState(false)
+  const [portalListings, setPortalListings] = React.useState<Record<string, PortalListing>>({})
 
+  // Load signals from API if not provided
   React.useEffect(() => {
-    // DB-backed feed can be server-provided via `initialSignals`.
-    // We keep a small loading delay to preserve UX parity with real fetches.
-    let cancelled = false
-    setDataState("loading")
-    const t = setTimeout(() => {
-      if (cancelled) return
-      setRows(initialSignals ?? mockMarketSignals)
+    if (initialSignals && initialSignals.length > 0) {
+      setRows(initialSignals)
       setDataState("ready")
-    }, 200)
-    return () => {
-      cancelled = true
-      clearTimeout(t)
+      return
     }
+
+    // Fetch from API
+    async function loadSignals() {
+      setDataState("loading")
+      try {
+        const res = await fetch("/api/market-signals?limit=50&activeOnly=true")
+        if (res.ok) {
+          const data = await res.json()
+          setRows(data.signals || [])
+          setDataState("ready")
+        } else {
+          // Fallback to mock if API fails
+          console.warn("Failed to load signals from API, using mock data")
+          setRows(mockMarketSignals)
+          setDataState("ready")
+        }
+      } catch (err) {
+        console.error("Error loading signals:", err)
+        // Fallback to mock
+        setRows(mockMarketSignals)
+        setDataState("ready")
+      }
+    }
+    loadSignals()
   }, [initialSignals])
+  
+  const [detailLoading, setDetailLoading] = React.useState(false)
 
   const types = React.useMemo(() => {
     const set = new Set<MarketSignalType>()
@@ -132,12 +152,14 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
       .filter((s) => (timeframe === "all" ? true : s.timeframe === timeframe))
       .filter((s) => {
         if (!q) return true
+        const searchText = q.toLowerCase()
         return (
-          s.geoName.toLowerCase().includes(q) ||
-          s.segment.toLowerCase().includes(q) ||
-          s.source.toLowerCase().includes(q) ||
-          s.type.toLowerCase().includes(q) ||
-          s.metricLabel.toLowerCase().includes(q)
+          s.geoName.toLowerCase().includes(searchText) ||
+          s.segment.toLowerCase().includes(searchText) ||
+          s.source.toLowerCase().includes(searchText) ||
+          s.type.toLowerCase().includes(searchText) ||
+          s.metricLabel.toLowerCase().includes(searchText) ||
+          (s.propertyTitle && s.propertyTitle.toLowerCase().includes(searchText))
         )
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -203,6 +225,10 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
       if (res.ok) {
         const detail = await res.json()
         setSignalDetail(detail)
+        // Store portal listing if available
+        if (detail.portal_listing) {
+          setPortalListings(prev => ({ ...prev, [signal.id]: detail.portal_listing }))
+        }
       } else {
         // Fallback: use the signal data directly for mock signals
         setSignalDetail({
@@ -230,9 +256,62 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
   }
 
   return (
-    <div className="space-y-4">
-      {/* Data Freshness Status */}
-      <DataFreshnessIndicator />
+    <div className="space-y-6">
+      {/* Stats Summary Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-50/50 to-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Signals</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{summary.total}</p>
+              </div>
+              <div className="rounded-full bg-green-100 p-3">
+                <Radar className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-50/50 to-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">New Signals</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{summary.newCount}</p>
+              </div>
+              <div className="rounded-full bg-blue-100 p-3">
+                <AlertTriangle className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50/50 to-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Official</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{summary.official}</p>
+              </div>
+              <div className="rounded-full bg-purple-100 p-3">
+                <Building2 className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-50/50 to-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Portal</p>
+                <p className="mt-1 text-3xl font-bold text-gray-900">{summary.portal}</p>
+              </div>
+              <div className="rounded-full bg-amber-100 p-3">
+                <Tag className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* AI Market Forecaster */}
       <ContextualAICard
@@ -246,39 +325,22 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
         ]}
       />
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{summary.total} signals</Badge>
-          {summary.newCount ? <Badge variant="outline">{summary.newCount} new</Badge> : null}
-          <Badge variant="outline">Official {summary.official}</Badge>
-          <Badge variant="outline">Portal {summary.portal}</Badge>
-          <DataFreshnessIndicator compact />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-            <TabsList>
-              <TabsTrigger value="cards" className="gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Cards
-              </TabsTrigger>
-              <TabsTrigger value="table" className="gap-2">
-                <List className="h-4 w-4" />
-                Table
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Filters and View Toggle */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <Card className="flex-1 border-gray-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Filter className="h-5 w-5 text-gray-500" />
+                Filters & Search
+              </CardTitle>
+              <Button type="button" variant="ghost" size="sm" onClick={resetFilters} className="gap-2 text-xs">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-12">
             <div className="md:col-span-5">
               <div className="relative">
@@ -362,15 +424,36 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
               </Select>
             </div>
 
-            <div className="md:col-span-6 flex items-center justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={resetFilters} className="gap-2">
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </Button>
-            </div>
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* View Mode Toggle */}
+        <Card className="lg:w-auto border-gray-200 shadow-sm">
+          <CardContent className="p-4">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="cards" className="gap-2">
+                  <LayoutGrid className="h-4 w-4" />
+                  Cards
+                </TabsTrigger>
+                <TabsTrigger value="table" className="gap-2">
+                  <List className="h-4 w-4" />
+                  Table
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Data Freshness Indicator */}
+      <div className="flex items-center justify-between">
+        <DataFreshnessIndicator compact />
+        <div className="text-sm text-gray-500">
+          Showing {filtered.length} of {rows.length} signals
+        </div>
+      </div>
 
       {dataState === "error" ? (
         <EmptyState
@@ -385,20 +468,21 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
         />
       ) : dataState === "loading" ? (
         viewMode === "cards" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader className="pb-2">
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="h-4 w-1/2" />
+              <Card key={i} className="border-l-4 border-l-gray-200">
+                <CardHeader className="pb-4">
+                  <Skeleton className="h-6 w-2/3 mb-2" />
+                  <Skeleton className="h-4 w-full" />
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <Skeleton className="h-4 w-3/4" />
+                <CardContent className="space-y-4">
                   <div className="flex gap-2">
-                    <Skeleton className="h-5 w-16" />
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-5 w-14" />
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-6 w-14" />
                   </div>
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                  <Skeleton className="h-10 w-full" />
                 </CardContent>
               </Card>
             ))}
@@ -426,98 +510,150 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
           }
         />
       ) : viewMode === "cards" ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((s) => (
-            <SignalCard key={s.id} signal={s} onAcknowledge={() => markAcknowledged(s.id)} onDismiss={() => dismissSignal(s.id)} onView={() => viewSignalDetails(s)} />
-          ))}
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((s) => {
+            // Use property card for pricing opportunities, regular card for others
+            if (s.type === "pricing_opportunity") {
+              return (
+                <PropertySignalCard 
+                  key={s.id} 
+                  signal={s} 
+                  listing={portalListings[s.id] || null}
+                  onView={() => viewSignalDetails(s)} 
+                />
+              )
+            }
+            return (
+              <SignalCard 
+                key={s.id} 
+                signal={s} 
+                onAcknowledge={() => markAcknowledged(s.id)} 
+                onDismiss={() => dismissSignal(s.id)} 
+                onView={() => viewSignalDetails(s)} 
+              />
+            )
+          })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Signal</TableHead>
-                  <TableHead>Geo</TableHead>
-                  <TableHead className="hidden md:table-cell">Source</TableHead>
-                  <TableHead className="hidden lg:table-cell">Metric</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="min-w-0">
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="font-semibold">Signal</TableHead>
+                    <TableHead className="font-semibold">Location</TableHead>
+                    <TableHead className="hidden md:table-cell font-semibold">Source</TableHead>
+                    <TableHead className="hidden lg:table-cell font-semibold">Metric</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((s) => (
+                    <TableRow key={s.id} className="hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="min-w-0">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="truncate font-medium">{formatType(s.type)}</div>
-                          <Badge variant="outline" className={badgeToneForSourceType(s.sourceType)}>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <div className="truncate font-semibold text-gray-900">{s.propertyTitle || formatType(s.type)}</div>
+                          <Badge variant="outline" className={cn("text-xs", badgeToneForSourceType(s.sourceType))}>
                             {s.sourceType}
                           </Badge>
-                          <Badge variant="secondary">{s.timeframe}</Badge>
-                          <Badge variant="outline" className={badgeToneForSeverity(s.severity)}>
+                          <Badge variant="secondary" className="text-xs">{s.timeframe}</Badge>
+                          <Badge variant="outline" className={cn("text-xs font-semibold", badgeToneForSeverity(s.severity))}>
                             {s.severity}
                           </Badge>
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {formatTimeAgo(s.createdAt)} · Confidence {(s.confidenceScore * 100).toFixed(0)}%
-                          {typeof s.investorMatches === "number" ? ` · ${s.investorMatches} investor matches` : ""}
+                          <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatTimeAgo(s.createdAt)}</span>
+                            <span>·</span>
+                            <span>Confidence {(s.confidenceScore * 100).toFixed(0)}%</span>
+                            {typeof s.investorMatches === "number" && s.investorMatches > 0 && (
+                              <>
+                                <span>·</span>
+                                <span className="text-blue-600 font-medium">{s.investorMatches} matches</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{s.geoName}</div>
-                      <div className="text-xs text-muted-foreground">{s.segment}</div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="text-sm">{s.source}</div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <div className="text-sm">{s.metricLabel}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {s.currentValueLabel}
-                        {s.prevValueLabel ? ` · prev ${s.prevValueLabel}` : ""}
-                        {typeof s.deltaPct === "number" ? ` · ${formatDeltaPct(s.deltaPct)}` : ""}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={badgeToneForStatus(s.status)}>
-                        {s.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          className="gap-2"
-                          onClick={() => viewSignalDetails(s)}
-                        >
-                          <Radar className="h-4 w-4" />
-                          View
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-2"
-                          onClick={() => markAcknowledged(s.id)}
-                          disabled={s.status !== "new"}
-                        >
-                          <Check className="h-4 w-4" />
-                          Acknowledge
-                        </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => dismissSignal(s.id)} disabled={s.status === "dismissed"}>
-                          Dismiss
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <div className="font-medium text-gray-900">{s.geoName}</div>
+                            <div className="text-xs text-gray-500">{s.segment}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant="secondary" className="text-xs">{s.source}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="text-sm font-medium text-gray-900">{s.metricLabel}</div>
+                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                          <span>{s.currentValueLabel}</span>
+                          {typeof s.deltaPct === "number" && (
+                            <span className={cn(
+                              "font-semibold flex items-center gap-1",
+                              s.deltaPct >= 0 ? "text-green-600" : "text-rose-600"
+                            )}>
+                              {s.deltaPct >= 0 ? (
+                                <TrendingUp className="h-3 w-3" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3" />
+                              )}
+                              {formatDeltaPct(s.deltaPct)}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={badgeToneForStatus(s.status)}>
+                          {s.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            className="gap-2 shadow-sm"
+                            onClick={() => viewSignalDetails(s)}
+                          >
+                            <Radar className="h-4 w-4" />
+                            View
+                          </Button>
+                          {s.status === "new" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2 border-green-200 text-green-700 hover:bg-green-50"
+                              onClick={() => markAcknowledged(s.id)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => dismissSignal(s.id)} 
+                            disabled={s.status === "dismissed"}
+                            className="hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -804,10 +940,14 @@ export function SignalsFeed({ tenantId, initialSignals }: { tenantId: string; in
         </SheetContent>
       </Sheet>
 
-      <Separator />
-
-      <div className="text-xs text-muted-foreground">
-        DB-backed feed. Detectors read only snapshot tables (`market_metric_snapshot`, `portal_listing_snapshot`) and upsert signals deterministically via `signal_key`.
+      {/* Footer */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Data Source:</span> DB-backed feed. Detectors read snapshot tables and upsert signals deterministically.
+          </div>
+          <DataFreshnessIndicator compact />
+        </div>
       </div>
     </div>
   )
@@ -824,46 +964,84 @@ function SignalCard({
   onDismiss: () => void
   onView: () => void
 }) {
+  const severityColors = {
+    urgent: "border-l-rose-500 bg-gradient-to-br from-rose-50/50 to-white",
+    watch: "border-l-amber-500 bg-gradient-to-br from-amber-50/50 to-white",
+    info: "border-l-blue-500 bg-gradient-to-br from-blue-50/50 to-white",
+  }
+
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-3">
+    <Card className={cn(
+      "overflow-hidden border-l-4 transition-all hover:shadow-lg",
+      severityColors[signal.severity] || "border-l-gray-300"
+    )}>
+      <CardHeader className="pb-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle className="truncate text-base">{formatType(signal.type)}</CardTitle>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {signal.geoName} · {signal.segment} · {signal.timeframe}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <CardTitle className="truncate text-lg font-bold">
+                {signal.propertyTitle || formatType(signal.type)}
+              </CardTitle>
+              {signal.status === "new" && (
+                <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <MapPin className="h-3.5 w-3.5" />
+              <span className="font-medium">{signal.geoName}</span>
+              <span>·</span>
+              <span>{signal.segment}</span>
+              <span>·</span>
+              <Badge variant="outline" className="text-xs">{signal.timeframe}</Badge>
             </div>
           </div>
-          <Badge variant="outline" className={badgeToneForStatus(signal.status)}>
+          <Badge variant="outline" className={cn("shrink-0", badgeToneForStatus(signal.status))}>
             {signal.status}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
+        {/* Source badges */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={badgeToneForSourceType(signal.sourceType)}>
+          <Badge variant="outline" className={cn("text-xs", badgeToneForSourceType(signal.sourceType))}>
             {signal.sourceType}
           </Badge>
-          <Badge variant="secondary">{signal.source}</Badge>
-          <Badge variant="outline" className={badgeToneForSeverity(signal.severity)}>
+          <Badge variant="secondary" className="text-xs">{signal.source}</Badge>
+          <Badge variant="outline" className={cn("text-xs font-semibold", badgeToneForSeverity(signal.severity))}>
             {signal.severity}
           </Badge>
         </div>
 
-        <div className="rounded-md border bg-muted/30 p-3">
-          <div className="text-sm font-medium">{signal.metricLabel}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-semibold">{signal.currentValueLabel}</span>
-            {signal.prevValueLabel ? <span className="text-muted-foreground">prev {signal.prevValueLabel}</span> : null}
-            {typeof signal.deltaPct === "number" ? (
-              <span className={cn("font-medium", signal.deltaPct >= 0 ? "text-emerald-600" : "text-rose-600")}>
+        {/* Metric highlight */}
+        <div className="rounded-lg border-2 bg-gradient-to-br from-gray-50 to-white p-4 border-gray-200">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            {signal.metricLabel}
+          </div>
+          <div className="flex items-baseline gap-3">
+            <span className="text-2xl font-bold text-gray-900">{signal.currentValueLabel}</span>
+            {typeof signal.deltaPct === "number" && (
+              <span className={cn(
+                "flex items-center gap-1 text-base font-semibold",
+                signal.deltaPct >= 0 ? "text-green-600" : "text-rose-600"
+              )}>
+                {signal.deltaPct >= 0 ? (
+                  <TrendingUp className="h-4 w-4" />
+                ) : (
+                  <TrendingDown className="h-4 w-4" />
+                )}
                 {formatDeltaPct(signal.deltaPct)}
               </span>
-            ) : null}
+            )}
           </div>
+          {signal.prevValueLabel && (
+            <div className="text-xs text-gray-500 mt-2">
+              Previous: {signal.prevValueLabel}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        {/* Footer info */}
+        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t">
           <div>
             {formatTimeAgo(signal.createdAt)} · Confidence {(signal.confidenceScore * 100).toFixed(0)}%
           </div>

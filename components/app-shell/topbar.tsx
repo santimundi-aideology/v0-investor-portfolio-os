@@ -21,8 +21,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { useApp, usePersonas } from "@/components/providers/app-provider"
-import { notifications } from "@/lib/mock-session"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import type { Notification } from "@/lib/mock-session"
 import { KeyboardShortcutsModal } from "@/components/layout/keyboard-shortcuts-modal"
 
 interface TopbarProps {
@@ -33,7 +33,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const router = useRouter()
   const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
   const personas = usePersonas()
-  const [notificationItems, setNotificationItems] = useState(notifications)
+  const [notificationItems, setNotificationItems] = useState<Notification[]>([])
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -42,6 +42,43 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     // Use setTimeout to defer state update to avoid cascading renders
     const timeout = setTimeout(() => setIsHydrated(true), 0)
     return () => clearTimeout(timeout)
+  }, [])
+
+  // Load notifications from API
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const res = await fetch("/api/notifications?limit=50")
+        if (res.ok) {
+          const data = await res.json()
+          // Transform DB notifications to component format
+          const notifications: Notification[] = (data.notifications || []).map((n: {
+            id: string
+            title: string
+            body: string
+            read_at: string | null
+            created_at: string
+            entity_type?: string
+            entity_id?: string
+            metadata?: Record<string, unknown>
+          }) => ({
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            createdAt: n.created_at,
+            unread: !n.read_at,
+            href: n.metadata?.link as string | undefined,
+          }))
+          setNotificationItems(notifications)
+        }
+      } catch (err) {
+        console.error("Failed to load notifications:", err)
+      }
+    }
+    loadNotifications()
+    // Refresh every 30 seconds
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Global keyboard shortcut for ? to open shortcuts modal

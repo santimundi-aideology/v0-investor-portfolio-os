@@ -2,10 +2,11 @@
 // We don't use "server-only" here because some lib files that import this
 // are also imported by client components for type exports.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 
-let _client: SupabaseClient | null = null;
+let _client: SupabaseClient<Database> | null = null;
 
-export function getSupabaseAdminClient(): SupabaseClient {
+export function getSupabaseAdminClient(): SupabaseClient<Database> {
   if (_client) return _client;
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -18,7 +19,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
     );
   }
 
-  _client = createClient(supabaseUrl, supabaseServiceKey, {
+  _client = createClient<Database>(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false },
   });
 

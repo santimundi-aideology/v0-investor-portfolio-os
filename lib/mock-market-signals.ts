@@ -54,6 +54,10 @@ export type MarketSignalItem = {
 
   confidenceScore: number // 0..1
   investorMatches?: number
+  
+  // Optional property title for pricing_opportunity signals
+  propertyTitle?: string | null
+  metadata?: Record<string, unknown>
 }
 
 function daysAgo(n: number) {

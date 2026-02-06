@@ -85,33 +85,31 @@ export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
   }
 
   const handleDownloadPdf = async () => {
+    if (!memoId) {
+      handlePrint() // Fallback to print if no memoId
+      return
+    }
+
     setIsExporting(true)
     
     try {
-      // Dynamic import of html2pdf to reduce bundle size
-      const html2pdf = (await import("html2pdf.js")).default
-
-      // Find the main content area
-      const contentElement = document.querySelector("main") || document.body
-
-      const opt: any = {
-        margin: [10, 10, 10, 10],
-        filename: `${title.replace(/[^a-zA-Z0-9]/g, "_")}_IC_Memo.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: false,
-        },
-        jsPDF: { 
-          unit: "mm", 
-          format: "a4", 
-          orientation: "portrait" 
-        },
-        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+      // Use server-side PDF generation
+      const response = await fetch(`/api/memos/${memoId}/export-pdf`)
+      
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF")
       }
 
-      await html2pdf().set(opt).from(contentElement).save()
+      // Download the PDF blob
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${title.replace(/[^a-zA-Z0-9]/g, "_")}_IC_Memo.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
       
       onExport?.()
     } catch (error) {
