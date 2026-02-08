@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
-import { filterNavByRole } from "@/lib/nav"
+import { filterNavByRole, filterNavByFeatureFlags } from "@/lib/nav"
 import { useApp } from "@/components/providers/app-provider"
 import { VantageIcon } from "@/components/brand/logo"
 
@@ -19,7 +19,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const { role } = useApp()
-  const sections = filterNavByRole(role)
+  const sections = filterNavByFeatureFlags(filterNavByRole(role))
 
   const renderNavItem = (item: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }) => {
     const isActive = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href)

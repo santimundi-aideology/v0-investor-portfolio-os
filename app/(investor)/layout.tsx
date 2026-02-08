@@ -33,7 +33,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Count unread notifications for the badge
-  const unreadCount = [].filter((n) => n.unread).length
+  const unreadCount = ([] as { unread?: boolean }[]).filter((n) => n.unread).length
 
   // Get investor display info - for demo purposes using user info
   const investorName = user?.name ?? "Investor"

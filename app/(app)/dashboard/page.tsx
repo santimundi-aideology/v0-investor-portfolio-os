@@ -134,11 +134,12 @@ function InternalDashboard() {
     return tasksData.tasks.map((t) => ({
       id: t.id || "",
       title: t.title || "",
-      status: t.status || "todo",
+      status: (t.status || "open") as Task["status"],
       priority: (t.priority || "medium") as Task["priority"],
-      dueDate: t.due_date || null,
-      investorName: t.investor_name || null,
-      propertyTitle: t.property_title || null,
+      dueDate: t.due_date || undefined,
+      investorName: t.investor_name || undefined,
+      propertyTitle: t.property_title || undefined,
+      createdAt: new Date().toISOString(),
     }))
   }, [tasksData])
 
@@ -212,15 +213,17 @@ function InternalDashboard() {
             properties={featuredProperties.map((p) => ({
               id: p.id,
               title: p.title,
+              address: p.area,
               area: p.area,
+              type: "residential" as const,
+              size: 0,
               imageUrl: p.imageUrl || "/placeholder.svg",
               price: 0,
-              pricePerSqft: 0,
               bedrooms: 0,
               bathrooms: 0,
-              propertyType: "Unit",
               status: "available" as const,
               readinessStatus: "READY_FOR_MEMO" as const,
+              createdAt: new Date().toISOString(),
             }))}
           />
         </CardContent>

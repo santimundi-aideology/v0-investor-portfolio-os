@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Shield } from "lucide-react"
 import "@/lib/init-investor-store"
 import { useInvestor } from "@/lib/investor-store"
+import type { Memo } from "@/lib/types"
+import type { Task } from "@/lib/types"
 
 export default function InvestorDetailPage() {
   const params = useParams<{ id: string }>()
@@ -27,8 +29,8 @@ export default function InvestorDetailPage() {
   const shortlist: never[] = []
 
   // Fetch memos and tasks from API
-  const { data: memos } = useAPI<unknown[]>(canonicalId ? `/api/investor/memos?investorId=${canonicalId}` : null)
-  const { data: tasks } = useAPI<unknown[]>(canonicalId ? `/api/tasks?investorId=${canonicalId}` : null)
+  const { data: memos } = useAPI<Memo[]>(canonicalId ? `/api/investor/memos?investorId=${canonicalId}` : null)
+  const { data: tasks } = useAPI<Task[]>(canonicalId ? `/api/tasks?investorId=${canonicalId}` : null)
 
   if (!investor) {
     return (

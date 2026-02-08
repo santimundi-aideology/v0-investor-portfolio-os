@@ -1,5 +1,5 @@
 import type { UserRole } from "@/lib/types"
-import { filterNavByRole } from "@/lib/nav"
+import { filterNavByRole, filterNavByFeatureFlags } from "@/lib/nav"
 
 export type CommandItem =
   | {
@@ -37,7 +37,7 @@ export type CommandPropertyItem = Extract<CommandItem, { kind: "property" }>
 export type CommandActionItem = Extract<CommandItem, { kind: "action" }>
 
 export function getCommandItems(role: UserRole) {
-  const navItems: CommandNavItem[] = filterNavByRole(role).flatMap((section) =>
+  const navItems: CommandNavItem[] = filterNavByFeatureFlags(filterNavByRole(role)).flatMap((section) =>
     section.items.map((item) => ({
       kind: "nav" as const,
       label: item.label,

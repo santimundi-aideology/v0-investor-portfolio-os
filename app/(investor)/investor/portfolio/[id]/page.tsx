@@ -39,7 +39,7 @@ import {
 } from "@/lib/real-estate"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
-import type { MarketSignalItem } from "@/lib/types"
+import type { MarketSignalItem, Property } from "@/lib/types"
 
 function getAIRecommendation(holding: PropertyHolding): {
   action: "hold" | "sell" | "improve"
@@ -197,10 +197,18 @@ export default function HoldingDetailPage() {
   const property = React.useMemo(() => {
     if (!portfolioData?.holdings) return null
     const h = portfolioData.holdings.find((h) => h.id === holdingId)
-    return h?.property ? {
+    if (!h?.property) return null
+    const p = h.property as Record<string, unknown>
+    return {
       ...h.property,
       address: h.property.address ?? h.property.area,
-    } : null
+      type: (h.property.type ?? "residential") as Property["type"],
+      status: (h.property.status ?? "available") as Property["status"],
+      readinessStatus: (p.readinessStatus ?? "READY_FOR_MEMO") as Property["readinessStatus"],
+      price: h.property.price ?? 0,
+      size: h.property.size ?? 0,
+      createdAt: (p.createdAt as string) ?? new Date().toISOString(),
+    } as Property
   }, [portfolioData, holdingId])
 
   const recommendation = React.useMemo(

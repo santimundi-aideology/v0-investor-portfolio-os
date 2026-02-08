@@ -32,6 +32,7 @@ import { PropertyAIChat } from "@/components/ai/property-ai-chat"
 import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
 import { PriceComparisonChart } from "@/components/charts/price-comparison-chart"
 import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
+import type { Investor } from "@/lib/types"
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
 import { useAPI } from "@/lib/hooks/use-api"
 
@@ -197,7 +198,7 @@ function formatPercent(value?: number) {
 
 export default function PropertyIntakePage() {
   // Fetch investors for matching panel
-  const { data: investorsData } = useAPI<Array<{ id: string; name: string; email: string; company: string; avatar?: string; segment?: string; mandate?: Record<string, unknown> }>>("/api/investors")
+  const { data: investorsData } = useAPI<Investor[]>("/api/investors")
   const investors = investorsData ?? []
 
   // Tab state
@@ -227,20 +228,20 @@ export default function PropertyIntakePage() {
 
   // Off-Plan handlers
   const handlePdfExtracted = (result: {
-    project: OffPlanProject
-    units: OffPlanUnit[]
-    paymentPlan: OffPlanPaymentPlan
-    stats: OffPlanExtractionResult["stats"]
+    project: unknown
+    units: unknown[]
+    paymentPlan: unknown
+    stats: unknown
     confidence: string
     model: string
   }) => {
     setOffplanError(null)
     
     // Data already extracted by Claude Opus directly from the PDF
-    setOffplanProject(result.project)
-    setOffplanUnits(result.units)
-    setOffplanPaymentPlan(result.paymentPlan)
-    setOffplanStats(result.stats)
+    setOffplanProject(result.project as OffPlanProject)
+    setOffplanUnits(result.units as OffPlanUnit[])
+    setOffplanPaymentPlan(result.paymentPlan as OffPlanPaymentPlan)
+    setOffplanStats(result.stats as OffPlanExtractionResult["stats"])
     setOffplanStep("extracted")
     
     console.log(`Data extracted using ${result.model} with ${result.confidence} confidence`)

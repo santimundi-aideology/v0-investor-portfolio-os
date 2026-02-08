@@ -132,14 +132,15 @@ export default function RealtorOpsPage() {
         ])
 
         // Set tasks
-        const tasks = (tasksData.tasks || []).map((t: { due_date: string; investor_name?: string; property_title?: string; priority: string }) => ({
+        const tasks = (tasksData.tasks || []).map((t: { id?: string; title?: string; status?: string; due_date: string; investor_name?: string; property_title?: string; priority: string }) => ({
           id: t.id || "",
           title: t.title || "",
-          status: t.status || "todo",
+          status: (t.status || "open") as Task["status"],
           priority: (t.priority || "medium") as Task["priority"],
-          dueDate: t.due_date || null,
-          investorName: t.investor_name || null,
-          propertyTitle: t.property_title || null,
+          dueDate: t.due_date || undefined,
+          investorName: t.investor_name || undefined,
+          propertyTitle: t.property_title || undefined,
+          createdAt: new Date().toISOString(),
         }))
         setPrioritizedTasks(tasks)
 
@@ -151,15 +152,15 @@ export default function RealtorOpsPage() {
           closing: [],
         }
         Object.entries(pipelineData.stages || {}).forEach(([stage, data]: [string, unknown]) => {
-          const deals = (data as { deals: unknown[] })?.deals || []
+          const deals = ((data as { deals: unknown[] })?.deals || []) as Record<string, unknown>[]
           if (stage in pipelines) {
-            pipelines[stage as DealStageKey] = deals.map((d: Record<string, unknown>) => ({
+            pipelines[stage as DealStageKey] = deals.map((d) => ({
               id: d.id as string,
               status: stage as DealRoom["status"],
               ticketSizeAed: d.ticketSize as number,
               propertyTitle: d.propertyTitle as string,
               investorName: d.investorName as string,
-            }))
+            })) as unknown as DealRoom[]
           }
         })
         setStagePipelines(pipelines)

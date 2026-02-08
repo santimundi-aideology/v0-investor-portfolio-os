@@ -66,7 +66,7 @@ function TasksPageInner() {
         assigneeName: t.assigneeName,
         investorId: t.investorId,
         investorName: t.investorName,
-        propertyId: t.listingId,
+        propertyId: t.propertyId,
         propertyTitle: t.propertyTitle,
         createdAt: t.createdAt,
       })))

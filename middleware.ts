@@ -23,6 +23,31 @@ const roleRoutes: Record<string, string[]> = {
   "/audit-log": ["super_admin", "manager"],
 }
 
+// Page routes gated by feature flags (disabled → redirect to /dashboard)
+const featureRouteMap: Record<string, string> = {
+  "/executive-summary": "NEXT_PUBLIC_FF_EXECUTIVE_SUMMARY",
+  "/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
+  "/roi-calculator": "NEXT_PUBLIC_FF_ROI_CALCULATOR",
+  "/deal-room": "NEXT_PUBLIC_FF_DEAL_ROOM",
+  "/market-signals": "NEXT_PUBLIC_FF_MARKET_SIGNALS",
+  "/market-map": "NEXT_PUBLIC_FF_MARKET_MAP",
+  "/market-compare": "NEXT_PUBLIC_FF_MARKET_COMPARE",
+  "/realtor": "NEXT_PUBLIC_FF_REALTOR_OPS",
+  "/real-estate": "NEXT_PUBLIC_FF_REAL_ESTATE",
+  "/tasks": "NEXT_PUBLIC_FF_TASKS",
+  "/team": "NEXT_PUBLIC_FF_ADMIN_PANEL",
+  "/audit-log": "NEXT_PUBLIC_FF_ADMIN_PANEL",
+}
+
+// API routes gated by feature flags (disabled → 404)
+const featureApiRouteMap: Record<string, string> = {
+  "/api/deal-rooms": "NEXT_PUBLIC_FF_DEAL_ROOM",
+  "/api/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
+  "/api/market-signals": "NEXT_PUBLIC_FF_MARKET_SIGNALS",
+  "/api/tasks": "NEXT_PUBLIC_FF_TASKS",
+  "/api/jobs": "NEXT_PUBLIC_FF_DATA_INGESTION",
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -33,6 +58,23 @@ export async function middleware(request: NextRequest) {
     pathname.includes(".")
   ) {
     return NextResponse.next()
+  }
+
+  // Feature flag: block disabled page routes → redirect to /dashboard
+  for (const [routePrefix, envVar] of Object.entries(featureRouteMap)) {
+    if (pathname.startsWith(routePrefix) && process.env[envVar] !== "true") {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+  }
+
+  // Feature flag: block disabled API routes → return 404
+  for (const [routePrefix, envVar] of Object.entries(featureApiRouteMap)) {
+    if (pathname.startsWith(routePrefix) && process.env[envVar] !== "true") {
+      return NextResponse.json(
+        { error: "Feature not enabled" },
+        { status: 404 },
+      )
+    }
   }
 
   // Create response to modify cookies

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
-import { filterNavByRole } from "@/lib/nav"
+import { filterNavByRole, filterNavByFeatureFlags } from "@/lib/nav"
 import { useApp } from "@/components/providers/app-provider"
 import { VantageIcon } from "@/components/brand/logo"
 
@@ -19,7 +19,7 @@ interface MobileSidebarProps {
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
   const { role } = useApp()
-  const sections = filterNavByRole(role)
+  const sections = filterNavByFeatureFlags(filterNavByRole(role))
 
   // Close on route change
   useEffect(() => {

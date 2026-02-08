@@ -56,6 +56,36 @@ TAVILY_API_KEY=your-tavily-api-key
 # NEXT_PUBLIC_DEMO_MODE=true
 ```
 
+### Feature Flag Environment Variables
+
+Feature flags control which features are visible in the application. Use these to incrementally enable deferred features.
+
+| Environment | Feature Flags | Crons | Database |
+|-------------|--------------|-------|----------|
+| Production (`main`) | All **OFF** (not set) | Guarded by flag check | Production Supabase |
+| Preview (`develop`) | All **ON** | Active | Staging Supabase |
+| Local dev | All **ON** | N/A | Local / dev Supabase |
+
+```bash
+# Feature Flags — set to "true" to enable each feature
+# In production: leave ALL unset (features will be hidden)
+# In preview/local: set ALL to "true"
+NEXT_PUBLIC_FF_EXECUTIVE_SUMMARY=true
+NEXT_PUBLIC_FF_MARKET_REPORT=true
+NEXT_PUBLIC_FF_ROI_CALCULATOR=true
+NEXT_PUBLIC_FF_DEAL_ROOM=true
+NEXT_PUBLIC_FF_MARKET_SIGNALS=true
+NEXT_PUBLIC_FF_MARKET_MAP=true
+NEXT_PUBLIC_FF_MARKET_COMPARE=true
+NEXT_PUBLIC_FF_REALTOR_OPS=true
+NEXT_PUBLIC_FF_REAL_ESTATE=true
+NEXT_PUBLIC_FF_ADMIN_PANEL=true
+NEXT_PUBLIC_FF_TASKS=true
+NEXT_PUBLIC_FF_DATA_INGESTION=true
+```
+
+> **Cron jobs:** The `vercel.json` cron schedules still fire in all environments, but the middleware blocks `/api/jobs/*` routes when `NEXT_PUBLIC_FF_DATA_INGESTION` is not `"true"`. This means crons are effectively no-ops in production until the flag is enabled.
+
 ### How to Add Environment Variables in Vercel:
 
 1. Go to your project settings in Vercel
