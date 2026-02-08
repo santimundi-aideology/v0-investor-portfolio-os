@@ -35,6 +35,7 @@ function mapVersionRow(row: MemoVersionRow): MemoVersion {
 function mapMemoRow(row: MemoRow, versions: MemoVersion[]): MemoData {
   return {
     id: row.id,
+    tenantId: row.tenant_id,
     investorId: row.investor_id,
     listingId: row.listing_id ?? undefined,
     state: row.state,

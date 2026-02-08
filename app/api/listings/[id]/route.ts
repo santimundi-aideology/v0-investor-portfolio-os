@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 
 import { deleteListingDb, getListingById, updateListingDb } from "@/lib/db/listings"
-import { AccessError, assertTenantScope, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertTenantScope } from "@/lib/security/rbac"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     assertTenantScope(ctx.tenantId!, ctx)
     const listing = await getListingById((await params).id)
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -18,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can update listings")
     assertTenantScope(ctx.tenantId!, ctx)
     const body = await req.json()
@@ -32,7 +33,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can delete listings")
     assertTenantScope(ctx.tenantId!, ctx)
     await deleteListingDb((await params).id)

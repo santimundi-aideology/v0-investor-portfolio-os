@@ -32,6 +32,7 @@ export type MemoVersion = {
 
 export type MemoData = {
   id: string
+  tenantId: string
   investorId: string
   listingId?: string
   state: string

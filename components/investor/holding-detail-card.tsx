@@ -68,8 +68,8 @@ export function HoldingDetailCard({
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
   }, [images.length])
 
-  // Calculate performance vs mandate (mock)
-  const mandateYieldTarget = 8.5 // Would come from investor mandate
+  // TODO: Derive mandateYieldTarget from the investor's actual mandate/preferences
+  const mandateYieldTarget = 8.5
   const yieldVsMandate = yieldPct - mandateYieldTarget
   const isAboveTarget = yieldVsMandate >= 0
 

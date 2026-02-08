@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowUpRight, Bell, Building2, CalendarClock, FileText, FolderKanban, Radar } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
@@ -19,10 +20,22 @@ import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
 import { PortfolioPerformanceChart } from "@/components/charts/portfolio-performance-chart"
 import { YieldTrendsChart } from "@/components/charts/yield-trends-chart"
 import { cn } from "@/lib/utils"
-import { mockDealRooms, mockMemos, mockProperties } from "@/lib/mock-data"
-import { notifications } from "@/lib/mock-session"
-import { formatMarketSignalType, mockMarketSignals } from "@/lib/mock-market-signals"
+import { useAPI } from "@/lib/hooks/use-api"
 import type { DealRoom } from "@/lib/types"
+
+function formatMarketSignalType(t: string) {
+  switch (t) {
+    case "price_change": return "Price change"
+    case "rent_change": return "Rent change"
+    case "yield_opportunity": return "Yield opportunity"
+    case "supply_spike": return "Supply spike"
+    case "discounting_spike": return "Discounting spike"
+    case "staleness_rise": return "Staleness rise"
+    case "risk_flag": return "Risk flag"
+    case "pricing_opportunity": return "Pricing opportunity"
+    default: return t
+  }
+}
 import {
   calcAppreciationPct,
   calcYieldPct,
@@ -60,10 +73,16 @@ export function InvestorDashboard({
   const summary = React.useMemo(() => getPortfolioSummary(investorId), [investorId])
   const opportunities = React.useMemo(() => getOpportunitiesForInvestor(investorId), [investorId])
 
-  const dealRooms = React.useMemo(
-    () => mockDealRooms.filter((d) => d.investorId === investorId && d.status !== "completed"),
-    [investorId],
-  )
+  // Fetch deal rooms from API (gracefully empty until deal_rooms backend is deployed)
+  const { data: dealRoomsData } = useAPI<DealRoom[] | { dealRooms: DealRoom[] }>(`/api/deal-rooms?investorId=${investorId}`)
+  const dealRooms: DealRoom[] = React.useMemo(() => {
+    if (!dealRoomsData) return []
+    if (Array.isArray(dealRoomsData)) return dealRoomsData
+    if (Array.isArray((dealRoomsData as { dealRooms?: DealRoom[] }).dealRooms)) {
+      return (dealRoomsData as { dealRooms: DealRoom[] }).dealRooms
+    }
+    return []
+  }, [dealRoomsData])
 
   const valueSeries = React.useMemo(() => {
     const base = summary.totalPurchaseCost || summary.totalPortfolioValue
@@ -142,13 +161,18 @@ export function InvestorDashboard({
       .slice(0, 5)
   }, [summary.holdings])
 
+  // Fetch memos, notifications, and market signals from the DB
+  const { data: memosData } = useAPI<Array<{ id: string; title: string; status: string; investorId?: string }>>("/api/investor/memos")
   const investorMemos = React.useMemo(
-    () => mockMemos.filter((m) => m.investorId === investorId).slice(0, 3),
-    [investorId],
+    () => (memosData ?? []).filter((m) => m.investorId === investorId).slice(0, 3),
+    [memosData, investorId],
   )
 
-  const latestNotifications = React.useMemo(() => notifications.slice(0, 3), [])
-  const latestSignals = React.useMemo(() => mockMarketSignals.slice(0, 3), [])
+  const { data: notificationsData } = useAPI<Array<{ id: string; title: string; unread?: boolean; href?: string }>>("/api/notifications")
+  const latestNotifications = React.useMemo(() => (notificationsData ?? []).slice(0, 3), [notificationsData])
+
+  const { data: signalsData } = useAPI<Array<{ id: string; type: string; geoName: string; segment: string; severity: string }>>("/api/market-signals")
+  const latestSignals = React.useMemo(() => (signalsData ?? []).slice(0, 3), [signalsData])
 
   const aiQuestions = [
     "How is my portfolio performing vs market?",
@@ -289,10 +313,13 @@ export function InvestorDashboard({
                           <div className="flex items-center gap-3 min-w-[240px]">
                             {p?.imageUrl && (
                               <div className="relative h-12 w-16 flex-shrink-0 overflow-hidden rounded-lg">
-                                <img
+                                <Image
                                   src={p.imageUrl}
-                                  alt={p.title}
-                                  className="h-full w-full object-cover"
+                                  alt={p.title ?? "Property"}
+                                  fill
+                                  className="object-cover"
+                                  sizes="64px"
+                                  onError={(e) => { e.currentTarget.style.display = "none" }}
                                 />
                               </div>
                             )}
@@ -602,41 +629,19 @@ function OpportunityRow({
   score: number
   reasons: string[]
 }) {
-  const p = mockProperties.find((x) => x.id === propertyId)
-  if (!p) return null
-
   return (
-    <Link href={`/properties/${p.id}`} className="group block">
+    <Link href={`/properties/${propertyId}`} className="group block">
       <Card className="border-gray-100 hover:shadow-md transition-all overflow-hidden">
-        {/* Property Image */}
-        {p.imageUrl && (
-          <div className="relative h-32 w-full overflow-hidden">
-            <img
-              src={p.imageUrl}
-              alt={p.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-            <Badge 
-              variant="secondary" 
-              className="absolute right-2 top-2 bg-white/90 text-gray-900"
-            >
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Badge variant="secondary" className="bg-white/90 text-gray-900">
               Score {score}
             </Badge>
-            <div className="absolute bottom-2 left-2">
-              <Badge className="bg-green-500 text-white text-xs">
-                {p.roi ? `${p.roi}% ROI` : p.area}
-              </Badge>
-            </div>
           </div>
-        )}
-        <CardContent className="p-4">
           <div className="min-w-0">
-            <div className="font-medium truncate group-hover:text-green-600 transition-colors">{p.title}</div>
-            <div className="mt-0.5 text-xs text-gray-500">
-              {p.area} • <span className="capitalize">{p.type}</span>
+            <div className="font-medium truncate group-hover:text-green-600 transition-colors">
+              Property {propertyId.slice(0, 8)}
             </div>
-            <div className="mt-2 text-sm font-semibold text-gray-900">{formatAED(p.price)}</div>
             <div className="mt-1 text-xs text-gray-500 line-clamp-1">{reasons.join(" • ")}</div>
           </div>
         </CardContent>

@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { NotificationCenter } from "@/components/notifications/notification-center"
-import { notifications } from "@/lib/mock-session"
+import type { Notification } from "@/lib/types"
 
 interface InvestorTopbarProps {
   onMenuClick: () => void
@@ -37,7 +37,7 @@ export function InvestorTopbar({
   investorAvatar,
 }: InvestorTopbarProps) {
   const { theme, setTheme } = useTheme()
-  const [notificationItems, setNotificationItems] = useState(notifications)
+  const [notificationItems, setNotificationItems] = useState<Notification[]>([])
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
@@ -45,6 +45,43 @@ export function InvestorTopbar({
   useEffect(() => {
     const timeout = setTimeout(() => setIsHydrated(true), 0)
     return () => clearTimeout(timeout)
+  }, [])
+
+  // Load notifications from API
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const res = await fetch("/api/notifications?limit=50")
+        if (res.ok) {
+          const data = await res.json()
+          // Transform DB notifications to component format
+          const notifications: Notification[] = (data.notifications || []).map((n: {
+            id: string
+            title: string
+            body: string
+            read_at: string | null
+            created_at: string
+            entity_type?: string
+            entity_id?: string
+            metadata?: Record<string, unknown>
+          }) => ({
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            createdAt: n.created_at,
+            unread: !n.read_at,
+            href: n.metadata?.link as string | undefined,
+          }))
+          setNotificationItems(notifications)
+        }
+      } catch (err) {
+        console.error("Failed to load notifications:", err)
+      }
+    }
+    loadNotifications()
+    // Refresh every 30 seconds
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const notificationsButton = (
@@ -219,7 +256,7 @@ export function InvestorTopbar({
         </DropdownMenu>
       </div>
 
-      {/* AI Assistant Dialog - placeholder for integration */}
+      {/* AI Assistant Dialog — suggestion buttons are informational for now */}
       {aiDialogOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ScrollArea, ScrollAreaViewport } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { playMessageSound } from "@/lib/sounds"
 
 type Message = { role: "user" | "assistant"; content: string }
@@ -61,17 +61,12 @@ export function PropertyAIChat({
   const [input, setInput] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [isExpanded, setIsExpanded] = React.useState(variant === "expanded")
-  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  // Auto-scroll
+  // Auto-scroll to bottom when messages change
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
-      })
-    }
-  }, [messages])
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, isLoading])
 
   const toggleExpanded = () => {
     const newState = !isExpanded
@@ -202,7 +197,7 @@ Considerations: ${evaluation.considerations.join(", ")}
       <CardContent className="p-0">
         {/* Messages */}
         <ScrollArea className="h-[280px]">
-          <ScrollAreaViewport ref={scrollRef} className="h-full p-3">
+          <ScrollAreaViewport className="h-full p-3">
             {messages.length === 0 ? (
               <div className="space-y-3">
                 <div className="text-center py-4">
@@ -263,9 +258,12 @@ Considerations: ${evaluation.considerations.join(", ")}
                     </div>
                   </div>
                 )}
+                {/* Invisible element at the end for scrolling */}
+                <div ref={messagesEndRef} />
               </div>
             )}
           </ScrollAreaViewport>
+          <ScrollBar />
         </ScrollArea>
 
         {/* Input */}

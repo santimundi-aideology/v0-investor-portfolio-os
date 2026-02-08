@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, Suspense } from "react"
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Building2, Calendar, Plus, User, Users, Loader2 } from "lucide-react"
@@ -15,7 +15,7 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { mockTasks } from "@/lib/mock-data"
+import { useAPI } from "@/lib/hooks/use-api"
 import type { Task } from "@/lib/types"
 
 const priorityColors: Record<Task["priority"], string> = {
@@ -41,27 +41,70 @@ function TasksPage() {
   )
 }
 
+type TaskFromAPI = Task & { investorName?: string; propertyTitle?: string; assigneeName?: string }
+
 function TasksPageInner() {
   const searchParams = useSearchParams()
   const scopedInvestorId = searchParams.get("investorId")
 
-  const [tasks, setTasks] = useState(mockTasks)
+  const apiUrl = scopedInvestorId ? `/api/tasks?investorId=${scopedInvestorId}` : "/api/tasks"
+  const { data: apiTasks, isLoading, mutate } = useAPI<TaskFromAPI[]>(apiUrl)
 
-  const toggleTaskStatus = (taskId: string) => {
+  const [tasks, setTasks] = useState<Task[]>([])
+
+  // Sync API data into local state
+  useEffect(() => {
+    if (apiTasks && Array.isArray(apiTasks)) {
+      setTasks(apiTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status as Task["status"],
+        priority: (t.priority ?? "medium") as Task["priority"],
+        dueDate: t.dueDate,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName,
+        investorId: t.investorId,
+        investorName: t.investorName,
+        propertyId: t.listingId,
+        propertyTitle: t.propertyTitle,
+        createdAt: t.createdAt,
+      })))
+    }
+  }, [apiTasks])
+
+  const toggleTaskStatus = useCallback(async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    const statusOrder: Task["status"][] = ["open", "in-progress", "done"]
+    const currentIndex = statusOrder.indexOf(task.status)
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
+
+    // Optimistic update
     setTasks((prev) =>
-      prev.map((task) => {
-        if (task.id === taskId) {
-          const statusOrder: Task["status"][] = ["open", "in-progress", "done"]
-          const currentIndex = statusOrder.indexOf(task.status)
-          const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
-          return { ...task, status: nextStatus }
-        }
-        return task
-      }),
+      prev.map((t) => t.id === taskId ? { ...t, status: nextStatus } : t)
     )
-  }
+
+    // Persist to database
+    try {
+      await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, status: nextStatus }),
+      })
+      mutate()
+    } catch (err) {
+      console.error("Failed to update task status:", err)
+      // Revert on error
+      setTasks((prev) =>
+        prev.map((t) => t.id === taskId ? { ...t, status: task.status } : t)
+      )
+    }
+  }, [tasks, mutate])
 
   const visibleTasks = useMemo(() => {
+    // Filtering is done server-side via query param, but double-check here
     if (!scopedInvestorId) return tasks
     return tasks.filter((task) => task.investorId === scopedInvestorId)
   }, [tasks, scopedInvestorId])
@@ -72,12 +115,42 @@ function TasksPageInner() {
   const inProgressCount = getTasksByStatus("in-progress").length
   const doneCount = getTasksByStatus("done").length
 
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <span className="ml-2 text-sm text-gray-500">Loading tasks...</span>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tasks"
         subtitle={`${openCount} open, ${inProgressCount} in progress, ${doneCount} completed`}
-        primaryAction={<NewTaskDialog onCreate={(task) => setTasks((prev) => [task, ...prev])} />}
+        primaryAction={<NewTaskDialog onCreate={async (task) => {
+          // Persist to database
+          try {
+            const res = await fetch("/api/tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: task.title,
+                priority: task.priority,
+                status: task.status,
+              }),
+            })
+            if (res.ok) {
+              mutate() // Refresh from DB
+            } else {
+              // Fallback: add to local state
+              setTasks((prev) => [task, ...prev])
+            }
+          } catch {
+            setTasks((prev) => [task, ...prev])
+          }
+        }} />}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

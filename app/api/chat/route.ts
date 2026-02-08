@@ -7,6 +7,8 @@ import { buildMarketContext, buildAreaMarketIntelligence } from "@/lib/ai/market
 import { buildMemoContext } from "@/lib/ai/memo-context"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { getMemoById } from "@/lib/db/memos"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 import { answerQualifiedInventory } from "@/lib/ai/realtor-actions"
 import { AGENT_TOOLS } from "@/lib/ai/tools/opportunity-tools"
 import { executeOpportunityTool, type ToolExecutionContext } from "@/lib/ai/tools/opportunity-executor"
@@ -236,15 +238,8 @@ async function buildAIResponse(messages: ChatMessage[], systemPrompt: string): P
 
 export async function POST(req: Request) {
   try {
-    // Verify session via headers set by middleware
-    const userId = req.headers.get("x-user-id")
-    const role = req.headers.get("x-role")
-    const tenantIdFromHeader = req.headers.get("x-tenant-id")
-
-    // Require authentication for all chat requests
-    if (!userId || !tenantIdFromHeader) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-    }
+    // Authenticate via session (cookies) with header-based fallback in dev
+    const ctx = await requireAuthContext(req)
 
     const body = (await req.json().catch(() => null)) as ChatBody | null
     if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
@@ -254,8 +249,8 @@ export async function POST(req: Request) {
     if (!agent) return NextResponse.json({ error: "Unknown agentId" }, { status: 400 })
 
     const { tenantId, investorId } = await resolveTenantAndInvestorIds({
-      tenantId: body.tenantId,
-      investorId: body.scopedInvestorId,
+      tenantId: ctx.tenantId || body.tenantId,
+      investorId: ctx.investorId || body.scopedInvestorId,
     })
 
     const lastUserText =
@@ -533,6 +528,11 @@ ${modeInstruction ? `MODE INSTRUCTION:\n${modeInstruction}\n` : ""}`.trim()
       },
     })
   } catch (error) {
+    // Return proper status codes for auth/access errors
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error("[chat] Error processing request:", error)
     const message = error instanceof Error ? error.message : String(error)
     const extra =

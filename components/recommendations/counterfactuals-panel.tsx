@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { CounterfactualCard } from "./counterfactual-card"
 import type { RecommendationBundle } from "@/lib/types"
-import { mockProperties } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -77,23 +76,18 @@ export function CounterfactualsPanel({ bundle, onAddCounterfactual }: Counterfac
         </CardHeader>
         {isExpanded && (
           <CardContent className="space-y-3">
-            {counterfactuals.map((counterfactual) => {
-              const property = mockProperties.find((p) => p.id === counterfactual.propertyId)
-              if (!property) return null
-
-              return (
+            {counterfactuals.map((counterfactual) => (
                 <CounterfactualCard
                   key={counterfactual.propertyId}
                   counterfactual={counterfactual}
-                  propertyTitle={property.title}
-                  propertyPrice={property.price}
-                  propertyArea={property.area}
-                  propertyType={property.type}
-                  readinessStatus={property.readinessStatus}
+                  propertyTitle={counterfactual.propertyId}
+                  propertyPrice={0}
+                  propertyArea="—"
+                  propertyType="—"
+                  readinessStatus={undefined}
                   onAddAnyway={onAddCounterfactual ? handleAddAnyway : undefined}
                 />
-              )
-            })}
+            ))}
           </CardContent>
         )}
       </Card>

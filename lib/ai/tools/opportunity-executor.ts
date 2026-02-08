@@ -23,6 +23,9 @@ import type {
   GetMarketSignalsInput,
   CompareAreasInput,
 } from "./opportunity-tools"
+// TODO: Replace deprecated sync functions (getPortfolioSummary, getHoldingProperty) with async versions
+// (getPortfolioSummaryAsync, getHoldingPropertyAsync) — requires making executeOpportunityTool callers async-aware.
+// These sync functions now return empty data since mock data was removed.
 import { getPortfolioSummary, getHoldingProperty, calcYieldPct, calcAppreciationPct, formatAED } from "@/lib/real-estate"
 
 // Context passed to all tool executions

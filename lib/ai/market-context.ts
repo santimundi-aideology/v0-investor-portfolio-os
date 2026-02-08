@@ -4,7 +4,7 @@ import { getSupabaseAdminClient } from "@/lib/db/client"
 import { getInvestorById } from "@/lib/db/investors"
 import { getHoldingsByInvestor } from "@/lib/db/holdings"
 import { listMarketSignalsFeed } from "@/lib/db/market-signals"
-import { formatMarketSignalType, type MarketSignalItem } from "@/lib/mock-market-signals"
+import { formatMarketSignalType, type MarketSignalItem } from "@/lib/types"
 
 export type MarketContextOptions = {
   investorId: string

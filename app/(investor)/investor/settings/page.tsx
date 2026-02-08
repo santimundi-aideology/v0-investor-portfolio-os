@@ -14,6 +14,7 @@ import {
   Shield,
   Smartphone,
   Sun,
+  Loader2,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -29,14 +30,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useAPI } from "@/lib/hooks/use-api"
 import { cn } from "@/lib/utils"
 
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
+type SettingsResponse = {
+  profile: { name: string; email: string; phone: string; company: string; avatarUrl: string | null }
+  notifications: { emailNotifications: boolean; taskReminders: boolean; dealUpdates: boolean }
+  preferences: { currency: string; language: string }
+}
 
 export default function InvestorSettingsPage() {
   const [isSaving, setIsSaving] = React.useState(false)
   const [saveSuccess, setSaveSuccess] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+
+  // Fetch existing settings from API
+  const { data: serverSettings, isLoading: settingsLoading } = useAPI<SettingsResponse>("/api/settings")
 
   // Settings state
   const [settings, setSettings] = React.useState({
@@ -59,13 +68,49 @@ export default function InvestorSettingsPage() {
     twoFactorEnabled: false,
   })
 
+  // Populate settings from server data when loaded
+  React.useEffect(() => {
+    if (serverSettings) {
+      setSettings((prev) => ({
+        ...prev,
+        emailNotifications: serverSettings.notifications?.emailNotifications ?? prev.emailNotifications,
+        dealRoomUpdates: serverSettings.notifications?.dealUpdates ?? prev.dealRoomUpdates,
+        language: serverSettings.preferences?.language ?? prev.language,
+        currency: serverSettings.preferences?.currency?.toUpperCase() ?? prev.currency,
+      }))
+    }
+  }, [serverSettings])
+
   const handleSave = async () => {
     setIsSaving(true)
-    // Simulate save
-    await new Promise((r) => setTimeout(r, 1000))
-    setIsSaving(false)
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
+    setSaveError(null)
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notifications: {
+            emailNotifications: settings.emailNotifications,
+            taskReminders: settings.memoAlerts,
+            dealUpdates: settings.dealRoomUpdates,
+          },
+          preferences: {
+            currency: settings.currency.toLowerCase(),
+            language: settings.language,
+          },
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to save settings")
+      }
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const updateSetting = <K extends keyof typeof settings>(
@@ -92,21 +137,29 @@ export default function InvestorSettingsPage() {
                 Manage your preferences and account settings
               </p>
             </div>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                "Saving..."
-              ) : saveSuccess ? (
-                <>
-                  <span className="text-green-500 mr-2">✓</span>
-                  Saved
-                </>
-              ) : (
-                <>
-                  <Save className="size-4 mr-2" />
-                  Save Changes
-                </>
+            <div className="flex items-center gap-2">
+              {saveError && (
+                <span className="text-sm text-destructive">{saveError}</span>
               )}
-            </Button>
+              <Button onClick={handleSave} disabled={isSaving || settingsLoading}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : saveSuccess ? (
+                  <>
+                    <span className="text-green-500 mr-2">&#10003;</span>
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <Save className="size-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

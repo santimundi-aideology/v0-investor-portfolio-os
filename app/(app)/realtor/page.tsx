@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { mockActivities, mockDealRooms, mockInvestors, mockProperties, mockTasks } from "@/lib/mock-data"
 import type { DealRoom, Task } from "@/lib/types"
 import { formatAED } from "@/lib/real-estate"
 
@@ -68,112 +67,136 @@ const priorityOrder: Record<Task["priority"], number> = { high: 0, medium: 1, lo
 export default function RealtorOpsPage() {
   const { user } = useApp()
   const today = React.useMemo(() => new Date(), [])
+  const [loading, setLoading] = React.useState(true)
+  const [statCards, setStatCards] = React.useState<Array<{ label: string; value: string; meta: string; icon: React.ComponentType<{ className?: string }> }>>([])
+  const [prioritizedTasks, setPrioritizedTasks] = React.useState<Task[]>([])
+  const [stagePipelines, setStagePipelines] = React.useState<Record<DealStageKey, DealRoom[]>>({
+    preparation: [],
+    "due-diligence": [],
+    negotiation: [],
+    closing: [],
+  })
+  const [investorsNeedingTouch, setInvestorsNeedingTouch] = React.useState<Array<{ id: string; name: string; company: string; lastContact: string; mandate?: { strategy?: string; yieldTarget?: number }; openTasksCount: number }>>([])
+  const [readinessBuckets, setReadinessBuckets] = React.useState<Record<string, number>>({})
+  const [verificationQueue, setVerificationQueue] = React.useState<Array<{ id: string; title: string; area: string }>>([])
+  const [activityFeed, setActivityFeed] = React.useState<Array<{ id: string; type: string; title: string; description: string; timestamp: string }>>([])
 
-  const openTasks = React.useMemo(
-    () => mockTasks.filter((task) => task.status !== "done"),
-    [],
-  )
+  React.useEffect(() => {
+    async function loadRealtorData() {
+      try {
+        const [statsRes, pipelineRes, tasksRes, investorsRes, propertiesRes, activitiesRes] = await Promise.all([
+          fetch("/api/dashboard/stats"),
+          fetch("/api/dashboard/pipeline"),
+          fetch("/api/dashboard/tasks"),
+          fetch("/api/dashboard/investors"),
+          fetch("/api/dashboard/properties"),
+          fetch("/api/dashboard/activities"),
+        ])
 
-  const prioritizedTasks = React.useMemo(() => {
-    return [...openTasks].sort((a, b) => {
-      const aDue = a.dueDate ? differenceInCalendarDays(parseISO(a.dueDate), today) : Number.POSITIVE_INFINITY
-      const bDue = b.dueDate ? differenceInCalendarDays(parseISO(b.dueDate), today) : Number.POSITIVE_INFINITY
-      if (aDue !== bDue) return aDue - bDue
-      return priorityOrder[a.priority] - priorityOrder[b.priority]
-    })
-  }, [openTasks, today])
+        const [statsData, pipelineData, tasksData, investorsData, propertiesData, activitiesData] = await Promise.all([
+          statsRes.json(),
+          pipelineRes.json(),
+          tasksRes.json(),
+          investorsRes.json(),
+          propertiesRes.json(),
+          activitiesRes.json(),
+        ])
 
-  const stagePipelines = React.useMemo(() => {
-    const initial: Record<DealStageKey, DealRoom[]> = {
-      preparation: [],
-      "due-diligence": [],
-      negotiation: [],
-      closing: [],
-    }
-    for (const deal of mockDealRooms) {
-      if (deal.status === "completed") continue
-      if (initial[deal.status as DealStageKey]) {
-        initial[deal.status as DealStageKey].push(deal)
+        // Set stat cards
+        const diligenceDeals = pipelineData.stages?.["due-diligence"]?.count || 0
+        setStatCards([
+          {
+            label: "Active investors",
+            value: `${statsData.activeInvestors || 0}`,
+            meta: "Relationships that need weekly touch",
+            icon: Users,
+          },
+          {
+            label: "Pipeline (AED)",
+            value: formatAED(statsData.pipelineValue || 0),
+            meta: "Ticket size across live deals",
+            icon: FolderKanban,
+          },
+          {
+            label: "Tasks due soon",
+            value: `${statsData.tasksDueSoon || 0}`,
+            meta: "Next 72h reminders",
+            icon: CheckSquare,
+          },
+          {
+            label: "Deals in diligence",
+            value: `${diligenceDeals}`,
+            meta: "Needing inspection / docs",
+            icon: Target,
+          },
+        ])
+
+        // Set tasks
+        const tasks = (tasksData.tasks || []).map((t: { due_date: string; investor_name?: string; property_title?: string; priority: string }) => ({
+          id: t.id || "",
+          title: t.title || "",
+          status: t.status || "todo",
+          priority: (t.priority || "medium") as Task["priority"],
+          dueDate: t.due_date || null,
+          investorName: t.investor_name || null,
+          propertyTitle: t.property_title || null,
+        }))
+        setPrioritizedTasks(tasks)
+
+        // Set pipeline stages
+        const pipelines: Record<DealStageKey, DealRoom[]> = {
+          preparation: [],
+          "due-diligence": [],
+          negotiation: [],
+          closing: [],
+        }
+        Object.entries(pipelineData.stages || {}).forEach(([stage, data]: [string, unknown]) => {
+          const deals = (data as { deals: unknown[] })?.deals || []
+          if (stage in pipelines) {
+            pipelines[stage as DealStageKey] = deals.map((d: Record<string, unknown>) => ({
+              id: d.id as string,
+              status: stage as DealRoom["status"],
+              ticketSizeAed: d.ticketSize as number,
+              propertyTitle: d.propertyTitle as string,
+              investorName: d.investorName as string,
+            }))
+          }
+        })
+        setStagePipelines(pipelines)
+
+        // Set investors
+        setInvestorsNeedingTouch(investorsData.investors || [])
+
+        // Set properties
+        setReadinessBuckets(propertiesData.readinessBuckets || {})
+        setVerificationQueue(propertiesData.verificationQueue || [])
+
+        // Set activities
+        setActivityFeed(activitiesData.activities || [])
+      } catch (err) {
+        console.error("Failed to load realtor data:", err)
+      } finally {
+        setLoading(false)
       }
     }
-    return initial
-  }, [])
-
-  const investorsNeedingTouch = React.useMemo(() => {
-    return [...mockInvestors]
-      .filter((inv) => inv.status !== "inactive")
-      .sort((a, b) => {
-        const aDate = parseISO(a.lastContact)
-        const bDate = parseISO(b.lastContact)
-        return aDate.getTime() - bDate.getTime()
-      })
-      .slice(0, 5)
+    loadRealtorData()
   }, [])
 
   const tasksByInvestor = React.useMemo(() => {
     const map = new Map<string, number>()
-    for (const task of openTasks) {
-      if (!task.investorId) continue
-      map.set(task.investorId, (map.get(task.investorId) ?? 0) + 1)
-    }
+    investorsNeedingTouch.forEach((inv) => {
+      map.set(inv.id, inv.openTasksCount)
+    })
     return map
-  }, [openTasks])
+  }, [investorsNeedingTouch])
 
-  const readinessBuckets = React.useMemo(() => {
-    return mockProperties.reduce(
-      (acc, property) => {
-        acc[property.readinessStatus] = (acc[property.readinessStatus] ?? 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="text-sm text-gray-500">Loading realtor dashboard...</div>
+      </div>
     )
-  }, [])
-
-  const verificationQueue = React.useMemo(
-    () => mockProperties.filter((p) => p.readinessStatus === "NEEDS_VERIFICATION").slice(0, 4),
-    [],
-  )
-
-  const activityFeed = React.useMemo(
-    () => [...mockActivities].sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1)).slice(0, 5),
-    [],
-  )
-
-  const statCards = React.useMemo(() => {
-    const activeInvestors = mockInvestors.filter((inv) => inv.status === "active").length
-    const pipelineValue = mockDealRooms.reduce((sum, deal) => sum + (deal.ticketSizeAed ?? 0), 0)
-    const tasksDueSoon = prioritizedTasks.filter((task) => {
-      if (!task.dueDate) return false
-      return differenceInCalendarDays(parseISO(task.dueDate), today) <= 3
-    }).length
-    const diligenceDeals = mockDealRooms.filter((deal) => deal.status === "due-diligence").length
-    return [
-      {
-        label: "Active investors",
-        value: `${activeInvestors}`,
-        meta: "Relationships that need weekly touch",
-        icon: Users,
-      },
-      {
-        label: "Pipeline (AED)",
-        value: formatAED(pipelineValue),
-        meta: "Ticket size across live deals",
-        icon: FolderKanban,
-      },
-      {
-        label: "Tasks due soon",
-        value: `${tasksDueSoon}`,
-        meta: "Next 72h reminders",
-        icon: CheckSquare,
-      },
-      {
-        label: "Deals in diligence",
-        value: `${diligenceDeals}`,
-        meta: "Needing inspection / docs",
-        icon: Target,
-      },
-    ]
-  }, [prioritizedTasks, today])
+  }
 
   const aiQuestions = [
     "Which investor do I need to follow up with today?",
@@ -338,7 +361,7 @@ export default function RealtorOpsPage() {
                         style={{
                           width: `${Math.min(
                             100,
-                            ((readinessBuckets[status] ?? 0) / mockProperties.length) * 100,
+                            ((readinessBuckets[status] ?? 0) / (Object.values(readinessBuckets).reduce((a, b) => a + b, 0) || 1)) * 100,
                           ).toFixed(0)}%`,
                         }}
                       />

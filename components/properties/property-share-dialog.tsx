@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { Search, Sparkles, UsersRound } from "lucide-react"
 
 import type { Property } from "@/lib/types"
-import { mockInvestors } from "@/lib/mock-data"
+import { useAPI } from "@/lib/hooks/use-api"
 import { matchInvestorsToProperty } from "@/lib/property-matching"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,8 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
   const [message, setMessage] = useState("")
   const [sharing, setSharing] = useState(false)
 
-  const investors = mockInvestors
+  const { data: investorsData } = useAPI<Array<{ id: string; name: string; email: string; company: string; avatar?: string; segment?: string; status?: string }>>("/api/investors")
+  const investors = investorsData ?? []
 
   const aiMatches = useMemo(() => matchInvestorsToProperty(property, investors).slice(0, 3), [property, investors])
 
@@ -154,7 +155,7 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
                     <div key={investor.id} className="rounded-xl border p-4 shadow-sm">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          <AvatarImage src={investor.avatar} />
+                          <AvatarImage src={investor.avatar} alt={`${investor.name} avatar`} />
                           <AvatarFallback>{investor.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>

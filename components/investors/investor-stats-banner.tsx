@@ -7,7 +7,6 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Investor } from "@/lib/types"
-import { mockProperties } from "@/lib/mock-data"
 
 interface InvestorStatsBannerProps {
   investors: Investor[]
@@ -37,13 +36,8 @@ export function InvestorStatsBanner({ investors, className }: InvestorStatsBanne
     }
   }, [investors])
 
-  // Get property images for background collage
-  const bgImages = React.useMemo(() => {
-    return mockProperties
-      .filter(p => p.imageUrl)
-      .slice(0, 4)
-      .map(p => p.imageUrl!)
-  }, [])
+  // Background images could be fetched from properties API in the future
+  const bgImages: string[] = []
 
   return (
     <div className={`relative overflow-hidden rounded-2xl ${className}`}>

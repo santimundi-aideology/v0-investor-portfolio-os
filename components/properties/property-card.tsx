@@ -241,7 +241,7 @@ export function PropertyCard({
           {agent ? (
             <div className="property-card__agent">
               <Avatar className="h-10 w-10">
-                <AvatarImage src={agent.avatar || "/placeholder.svg"} />
+                <AvatarImage src={agent.avatar || "/placeholder.svg"} alt={`${agent.name} avatar`} />
                 <AvatarFallback>
                   {agent.name
                     .split(" ")

@@ -28,7 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/layout/empty-state"
 import { cn } from "@/lib/utils"
-import { notifications as mockNotifications } from "@/lib/mock-session"
+import { useAPI } from "@/lib/hooks/use-api"
 
 // Extended notification type for investor portal
 interface InvestorNotification {
@@ -42,88 +42,7 @@ interface InvestorNotification {
   priority?: "high" | "normal" | "low"
 }
 
-// Mock investor notifications with more variety
-const investorNotifications: InvestorNotification[] = [
-  {
-    id: "in-1",
-    title: "New Investment Memo",
-    body: "A new memo for Marina Tower Office Suite requires your review",
-    createdAt: "Today • 10:30 AM",
-    unread: true,
-    href: "/investor/memos/memo-1",
-    type: "memo",
-    priority: "high",
-  },
-  {
-    id: "in-2",
-    title: "Market Signal: Price Drop",
-    body: "Dubai Marina 2BR prices dropped 5% this quarter - potential opportunity",
-    createdAt: "Today • 09:15 AM",
-    unread: true,
-    href: "/investor/market-signals",
-    type: "signal",
-    priority: "normal",
-  },
-  {
-    id: "in-3",
-    title: "Deal Room Update",
-    body: "JVC Villa acquisition moved to negotiation phase",
-    createdAt: "Yesterday • 4:30 PM",
-    unread: false,
-    href: "/investor/deal-rooms",
-    type: "deal",
-    priority: "normal",
-  },
-  {
-    id: "in-4",
-    title: "Portfolio Performance",
-    body: "Your portfolio appreciated 2.3% this month",
-    createdAt: "Yesterday • 9:00 AM",
-    unread: false,
-    href: "/investor/portfolio",
-    type: "portfolio",
-    priority: "low",
-  },
-  {
-    id: "in-5",
-    title: "Memo Approved",
-    body: "Your approval for Downtown Dubai Office has been recorded",
-    createdAt: "2 days ago • 11:20 AM",
-    unread: false,
-    href: "/investor/memos",
-    type: "memo",
-    priority: "normal",
-  },
-  {
-    id: "in-6",
-    title: "New Opportunities",
-    body: "3 new properties match your investment mandate",
-    createdAt: "3 days ago • 2:00 PM",
-    unread: false,
-    href: "/investor/dashboard",
-    type: "signal",
-    priority: "normal",
-  },
-  {
-    id: "in-7",
-    title: "Quarterly Report Ready",
-    body: "Your Q4 2025 portfolio report is now available",
-    createdAt: "1 week ago",
-    unread: false,
-    href: "/investor/portfolio",
-    type: "portfolio",
-    priority: "low",
-  },
-  {
-    id: "in-8",
-    title: "System Maintenance",
-    body: "Scheduled maintenance on Sunday 2 AM - 4 AM GST",
-    createdAt: "1 week ago",
-    unread: false,
-    type: "system",
-    priority: "low",
-  },
-]
+// Notifications are loaded from API
 
 const typeIcons = {
   memo: FileText,
@@ -142,7 +61,15 @@ const typeColors = {
 }
 
 export default function InvestorNotificationsPage() {
-  const [notifications, setNotifications] = React.useState(investorNotifications)
+  const { data: apiNotifications, isLoading: notificationsLoading } = useAPI<InvestorNotification[]>("/api/notifications")
+  const [notifications, setNotifications] = React.useState<InvestorNotification[]>([])
+
+  // Sync API data into local state for selection/read management
+  React.useEffect(() => {
+    if (apiNotifications) {
+      setNotifications(apiNotifications)
+    }
+  }, [apiNotifications])
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [filter, setFilter] = React.useState<"all" | "unread">("all")
 
@@ -218,6 +145,15 @@ export default function InvestorNotificationsPage() {
 
       {/* Main Content */}
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        {notificationsLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <Bell className="mx-auto size-8 animate-pulse text-muted-foreground/50" />
+              <p className="mt-3 text-sm text-muted-foreground">Loading notifications...</p>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Filters */}
         <div className="mb-4 flex items-center justify-between">
           <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
@@ -364,6 +300,8 @@ export default function InvestorNotificationsPage() {
             </Link>
           </Button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { Sparkles } from "lucide-react"
 
-import type { Notification } from "@/lib/mock-session"
+import type { Notification } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

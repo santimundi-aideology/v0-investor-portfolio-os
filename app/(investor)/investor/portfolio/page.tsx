@@ -12,6 +12,12 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
+  BarChart3,
+  Loader2,
+  AlertCircle,
+  DollarSign,
+  Percent,
+  Home,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,31 +38,88 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { PortfolioKPICards, type KPIData } from "@/components/investor/portfolio-kpi-cards"
+import { Progress } from "@/components/ui/progress"
+import { useApp } from "@/components/providers/app-provider"
 import { cn } from "@/lib/utils"
-import {
-  calcAppreciationPct,
-  calcYieldPct,
-  formatAED,
-  getHoldingsForInvestor,
-  getHoldingProperty,
-  getPortfolioSummary,
-  type PropertyHolding,
-} from "@/lib/real-estate"
 
 type SortOption = "value-desc" | "value-asc" | "yield-desc" | "yield-asc" | "appreciation-desc" | "appreciation-asc"
 
-function getAIRecommendation(holding: PropertyHolding): { action: "hold" | "sell" | "improve"; reason: string } {
-  const appreciation = calcAppreciationPct(holding)
-  const yieldPct = calcYieldPct(holding)
+type EnrichedHolding = {
+  id: string
+  investorId: string
+  listingId: string
+  property: {
+    title: string
+    area: string
+    type: string
+    imageUrl?: string
+    size?: number
+    bedrooms?: number
+    bathrooms?: number
+  } | null
+  financials: {
+    purchasePrice: number
+    purchaseDate: string
+    currentValue: number
+    monthlyRent: number
+    occupancyRate: number
+    annualExpenses: number
+    appreciationPct: number
+    netYieldPct: number
+    grossYieldPct: number
+    netAnnualRent: number
+    totalReturn: number
+  }
+  marketData: {
+    dldMedianPrice: number | null
+    dldMedianPsm: number | null
+    priceVsMarketPct: number | null
+    comparableCount: number
+    areaTransactionCount: number
+    monthlyTrends: { month: string; avgPrice: number; volume: number }[]
+    marketYield: number | null
+  }
+}
 
-  if (appreciation > 15 && yieldPct < 6) {
+type PortfolioSummary = {
+  propertyCount: number
+  totalValue: number
+  totalCost: number
+  appreciationPct: number
+  totalMonthlyIncome: number
+  netAnnualIncome: number
+  avgYieldPct: number
+  avgOccupancy: number
+  dataSource: string
+}
+
+function formatAED(amount: number): string {
+  if (amount >= 1_000_000) return `AED ${(amount / 1_000_000).toFixed(1)}M`
+  if (amount >= 1_000) return `AED ${(amount / 1_000).toFixed(0)}K`
+  return `AED ${amount.toLocaleString()}`
+}
+
+function getAIRecommendation(holding: EnrichedHolding): { action: "hold" | "sell" | "improve"; reason: string } {
+  const { appreciationPct, netYieldPct, occupancyRate } = holding.financials
+  const { priceVsMarketPct } = holding.marketData
+
+  // If we have market data, use it for smarter recommendations
+  if (priceVsMarketPct !== null) {
+    if (priceVsMarketPct > 15 && appreciationPct > 20) {
+      return { action: "sell", reason: `${Math.abs(priceVsMarketPct).toFixed(0)}% above market median — consider locking in gains` }
+    }
+    if (priceVsMarketPct < -10 && netYieldPct > 7) {
+      return { action: "hold", reason: `Below market price with strong ${netYieldPct.toFixed(1)}% yield` }
+    }
+  }
+
+  if (appreciationPct > 15 && netYieldPct < 6) {
     return { action: "sell", reason: "High appreciation, consider taking profits" }
   }
-  if (yieldPct > 9 && holding.occupancyRate > 0.95) {
+  if (netYieldPct > 9 && occupancyRate > 0.95) {
     return { action: "hold", reason: "Strong yield with stable occupancy" }
   }
-  if (holding.occupancyRate < 0.85 || yieldPct < 6) {
+  if (occupancyRate < 0.85 || netYieldPct < 6) {
     return { action: "improve", reason: "Potential for value-add improvements" }
   }
   return { action: "hold", reason: "Performing within expectations" }
@@ -69,56 +132,41 @@ const actionColors = {
 }
 
 export default function InvestorPortfolioPage() {
-  // In production, this would come from auth context
-  const investorId = "inv-1"
+  const { scopedInvestorId: investorId } = useApp()
 
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [areaFilter, setAreaFilter] = React.useState<string>("all")
   const [sortOption, setSortOption] = React.useState<SortOption>("value-desc")
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+  const [summary, setSummary] = React.useState<PortfolioSummary | null>(null)
+  const [holdings, setHoldings] = React.useState<EnrichedHolding[]>([])
 
-  const summary = React.useMemo(() => getPortfolioSummary(investorId), [investorId])
-  const holdings = React.useMemo(() => getHoldingsForInvestor(investorId), [investorId])
-
-  // Generate KPI data for the cards
-  const kpiData: KPIData = React.useMemo(() => {
-    // Generate value series (mock trend)
-    const valueSeries = [
-      { m: "Jan", v: Math.round(summary.totalPortfolioValue * 0.96) },
-      { m: "Feb", v: Math.round(summary.totalPortfolioValue * 0.97) },
-      { m: "Mar", v: Math.round(summary.totalPortfolioValue * 0.98) },
-      { m: "Apr", v: Math.round(summary.totalPortfolioValue * 0.99) },
-      { m: "May", v: Math.round(summary.totalPortfolioValue * 0.995) },
-      { m: "Now", v: Math.round(summary.totalPortfolioValue) },
-    ]
-
-    // Generate income series
-    const incomeSeries = [
-      { m: "Jan", n: Math.round(summary.totalMonthlyRental * 0.92) },
-      { m: "Feb", n: Math.round(summary.totalMonthlyRental * 0.95) },
-      { m: "Mar", n: Math.round(summary.totalMonthlyRental * 0.97) },
-      { m: "Apr", n: Math.round(summary.totalMonthlyRental * 0.98) },
-      { m: "May", n: Math.round(summary.totalMonthlyRental * 0.99) },
-      { m: "Now", n: Math.round(summary.totalMonthlyRental) },
-    ]
-
-    return {
-      totalPortfolioValue: summary.totalPortfolioValue,
-      appreciationPct: summary.appreciationPct,
-      monthlyRentalIncome: summary.totalMonthlyRental,
-      monthlyRentalTrend: 2.3, // Mock trend
-      avgYieldPct: summary.avgYieldPct,
-      occupancyPct: summary.occupancyPct,
-      valueSeries,
-      incomeSeries,
+  React.useEffect(() => {
+    async function fetchPortfolio() {
+      try {
+        setLoading(true)
+        setError(null)
+        if (!investorId) return
+        const res = await fetch(`/api/portfolio/${investorId}`)
+        if (!res.ok) throw new Error("Failed to load portfolio")
+        const data = await res.json()
+        setSummary(data.summary)
+        setHoldings(data.holdings)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load portfolio")
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [summary])
+    fetchPortfolio()
+  }, [investorId])
 
   // Get unique areas and types from holdings
   const areas = React.useMemo(() => {
     const areaSet = new Set<string>()
     holdings.forEach((h) => {
-      const p = getHoldingProperty(h)
-      if (p?.area) areaSet.add(p.area)
+      if (h.property?.area) areaSet.add(h.property.area)
     })
     return Array.from(areaSet).sort()
   }, [holdings])
@@ -126,8 +174,7 @@ export default function InvestorPortfolioPage() {
   const types = React.useMemo(() => {
     const typeSet = new Set<string>()
     holdings.forEach((h) => {
-      const p = getHoldingProperty(h)
-      if (p?.type) typeSet.add(p.type)
+      if (h.property?.type) typeSet.add(h.property.type)
     })
     return Array.from(typeSet).sort()
   }, [holdings])
@@ -136,35 +183,30 @@ export default function InvestorPortfolioPage() {
   const filteredHoldings = React.useMemo(() => {
     let result = holdings.map((h) => ({
       holding: h,
-      property: getHoldingProperty(h),
-      yieldPct: calcYieldPct(h),
-      appreciationPct: calcAppreciationPct(h),
       recommendation: getAIRecommendation(h),
     }))
 
-    // Apply filters
     if (typeFilter !== "all") {
-      result = result.filter((item) => item.property?.type === typeFilter)
+      result = result.filter((item) => item.holding.property?.type === typeFilter)
     }
     if (areaFilter !== "all") {
-      result = result.filter((item) => item.property?.area === areaFilter)
+      result = result.filter((item) => item.holding.property?.area === areaFilter)
     }
 
-    // Apply sorting
     result.sort((a, b) => {
       switch (sortOption) {
         case "value-desc":
-          return b.holding.currentValue - a.holding.currentValue
+          return b.holding.financials.currentValue - a.holding.financials.currentValue
         case "value-asc":
-          return a.holding.currentValue - b.holding.currentValue
+          return a.holding.financials.currentValue - b.holding.financials.currentValue
         case "yield-desc":
-          return b.yieldPct - a.yieldPct
+          return b.holding.financials.netYieldPct - a.holding.financials.netYieldPct
         case "yield-asc":
-          return a.yieldPct - b.yieldPct
+          return a.holding.financials.netYieldPct - b.holding.financials.netYieldPct
         case "appreciation-desc":
-          return b.appreciationPct - a.appreciationPct
+          return b.holding.financials.appreciationPct - a.holding.financials.appreciationPct
         case "appreciation-asc":
-          return a.appreciationPct - b.appreciationPct
+          return a.holding.financials.appreciationPct - b.holding.financials.appreciationPct
         default:
           return 0
       }
@@ -173,31 +215,128 @@ export default function InvestorPortfolioPage() {
     return result
   }, [holdings, typeFilter, areaFilter, sortOption])
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading portfolio with market data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <AlertCircle className="size-8 text-destructive" />
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!summary) return null
+
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Portfolio Holdings</h1>
-        <p className="text-sm sm:text-base text-gray-500">
-          {summary.propertyCount} properties with AI insights
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Portfolio Holdings</h1>
+          <p className="text-sm sm:text-base text-gray-500">
+            {summary.propertyCount} properties with live market data
+            {summary.dataSource === "mock" && (
+              <Badge variant="outline" className="ml-2 text-xs">Demo Data</Badge>
+            )}
+          </p>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <PortfolioKPICards data={kpiData} />
+      {/* KPI Cards - Enhanced with real data */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Portfolio Value</p>
+                <p className="text-2xl font-bold mt-1">{formatAED(summary.totalValue)}</p>
+                <div className={cn(
+                  "flex items-center gap-1 text-xs mt-1",
+                  summary.appreciationPct >= 0 ? "text-emerald-600" : "text-red-600"
+                )}>
+                  {summary.appreciationPct >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                  {summary.appreciationPct >= 0 ? "+" : ""}{summary.appreciationPct}% from cost
+                </div>
+              </div>
+              <div className="rounded-lg bg-primary/10 p-3">
+                <DollarSign className="size-5 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Monthly Income</p>
+                <p className="text-2xl font-bold mt-1">{formatAED(summary.totalMonthlyIncome)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatAED(summary.netAnnualIncome)}/year net
+                </p>
+              </div>
+              <div className="rounded-lg bg-emerald-500/10 p-3">
+                <BarChart3 className="size-5 text-emerald-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Net Yield</p>
+                <p className="text-2xl font-bold mt-1">{summary.avgYieldPct}%</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  After expenses
+                </p>
+              </div>
+              <div className="rounded-lg bg-blue-500/10 p-3">
+                <Percent className="size-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Occupancy</p>
+                <p className="text-2xl font-bold mt-1">{summary.avgOccupancy}%</p>
+                <Progress value={summary.avgOccupancy} className="mt-2 h-1.5" />
+              </div>
+              <div className="rounded-lg bg-amber-500/10 p-3">
+                <Home className="size-5 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Separator />
 
-      {/* Filters and Sort - Mobile collapsible */}
+      {/* Filters and Sort */}
       <div className="space-y-3">
-        {/* Mobile: Stacked filters */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
           <div className="hidden sm:flex items-center gap-2">
             <Filter className="size-4 text-gray-500" />
             <span className="text-sm font-medium">Filter:</span>
           </div>
 
-          {/* Filter row - stacks on mobile */}
           <div className="flex gap-2 w-full sm:w-auto">
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="flex-1 sm:w-[140px] min-h-[44px]">
@@ -228,7 +367,6 @@ export default function InvestorPortfolioPage() {
             </Select>
           </div>
 
-          {/* Sort dropdown */}
           <div className="flex items-center gap-2 sm:ml-auto">
             <span className="text-sm text-gray-500 hidden sm:inline">Sort:</span>
             <DropdownMenu>
@@ -262,17 +400,17 @@ export default function InvestorPortfolioPage() {
         </div>
       </div>
 
-      {/* Holdings Grid - Single column on mobile */}
+      {/* Holdings Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredHoldings.map(({ holding, property, yieldPct, appreciationPct, recommendation }) => (
+        {filteredHoldings.map(({ holding, recommendation }) => (
           <Link key={holding.id} href={`/investor/portfolio/${holding.id}`}>
             <Card className="group overflow-hidden transition-all hover:shadow-md hover:border-primary/50 active:bg-muted/30 cursor-pointer h-full">
               {/* Property Image */}
               <div className="relative h-36 sm:h-40 overflow-hidden bg-muted">
-                {property?.imageUrl ? (
+                {holding.property?.imageUrl ? (
                   <Image
-                    src={property.imageUrl}
-                    alt={property.title || "Property"}
+                    src={holding.property.imageUrl}
+                    alt={holding.property.title || "Property"}
                     fill
                     className="object-cover transition-transform group-hover:scale-105"
                   />
@@ -284,11 +422,11 @@ export default function InvestorPortfolioPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3">
                   <h3 className="font-semibold text-white truncate">
-                    {property?.title || "Property"}
+                    {holding.property?.title || "Property"}
                   </h3>
                   <div className="flex items-center gap-1 text-xs text-white/80">
                     <MapPin className="size-3" />
-                    {property?.area || "Unknown Area"}
+                    {holding.property?.area || "Unknown Area"}
                   </div>
                 </div>
                 <Badge
@@ -305,42 +443,70 @@ export default function InvestorPortfolioPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <div className="text-xs text-gray-500">Value</div>
-                    <div className="text-sm font-semibold">{formatAED(holding.currentValue)}</div>
+                    <div className="text-sm font-semibold">{formatAED(holding.financials.currentValue)}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-500">Yield</div>
+                    <div className="text-xs text-gray-500">Net Yield</div>
                     <div className="flex items-center gap-1 text-sm font-semibold">
-                      {yieldPct.toFixed(1)}%
+                      {holding.financials.netYieldPct}%
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Appreciation</div>
                     <div className={cn(
                       "flex items-center gap-1 text-sm font-semibold",
-                      appreciationPct >= 0 ? "text-emerald-600" : "text-red-600"
+                      holding.financials.appreciationPct >= 0 ? "text-emerald-600" : "text-red-600"
                     )}>
-                      {appreciationPct >= 0 ? (
+                      {holding.financials.appreciationPct >= 0 ? (
                         <TrendingUp className="size-3" />
                       ) : (
                         <TrendingDown className="size-3" />
                       )}
-                      {appreciationPct.toFixed(1)}%
+                      {holding.financials.appreciationPct}%
                     </div>
                   </div>
                 </div>
+
+                {/* DLD Market Comparison */}
+                {holding.marketData.dldMedianPrice && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="size-3.5 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">vs DLD Market</span>
+                          <span className={cn(
+                            "font-medium",
+                            holding.marketData.priceVsMarketPct && holding.marketData.priceVsMarketPct > 0
+                              ? "text-amber-600"
+                              : "text-emerald-600"
+                          )}>
+                            {holding.marketData.priceVsMarketPct
+                              ? `${holding.marketData.priceVsMarketPct > 0 ? "+" : ""}${holding.marketData.priceVsMarketPct.toFixed(1)}%`
+                              : "N/A"}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {holding.marketData.comparableCount} comparables
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 
                 {/* AI Insight */}
                 <div className="flex items-start gap-2">
                   <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
-                  <p className="text-xs text-gray-500">{recommendation.reason}</p>
+                  <p className="text-xs text-gray-500 line-clamp-2">{recommendation.reason}</p>
                 </div>
 
                 {/* Additional Info */}
                 <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="capitalize">{property?.type || "—"}</span>
-                  <span>Occupancy: {(holding.occupancyRate * 100).toFixed(0)}%</span>
+                  <span className="capitalize">{holding.property?.type || "—"}</span>
+                  <span>Occupancy: {(holding.financials.occupancyRate * 100).toFixed(0)}%</span>
                 </div>
               </CardContent>
             </Card>

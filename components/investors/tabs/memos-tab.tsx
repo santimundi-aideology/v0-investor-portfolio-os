@@ -100,6 +100,8 @@ export function MemosTab({ memos, investorId }: MemosTabProps) {
   )
 }
 
+/** Generates sample analysis data for newly created local memos.
+ *  TODO: Replace with AI-generated analysis via the /api/memos/generate endpoint. */
 function buildPlaceholderAnalysis(propertyTitle: string): Memo["analysis"] {
   return {
     summary: `${propertyTitle} sits inside a walkable, supply-constrained micro-market where thoughtful upgrades can drive both NOI growth and exit value.`,

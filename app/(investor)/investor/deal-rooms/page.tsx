@@ -11,6 +11,7 @@ import {
   Clock,
   FileText,
   FolderKanban,
+  Loader2,
   MapPin,
   Users,
 } from "lucide-react"
@@ -23,12 +24,10 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/layout/empty-state"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
+import { useApp } from "@/components/providers/app-provider"
+import { useAPI } from "@/lib/hooks/use-api"
 import { cn } from "@/lib/utils"
-import { getDealRoomsByInvestorId } from "@/lib/mock-data"
 import type { DealRoom } from "@/lib/types"
-
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
 
 const statusConfig: Record<
   DealRoom["status"],
@@ -42,9 +41,9 @@ const statusConfig: Record<
 }
 
 export default function InvestorDealRoomsPage() {
-  // Get deal rooms for this investor
-  const dealRooms = React.useMemo(() => getDealRoomsByInvestorId(INVESTOR_ID), [])
-  
+  const { scopedInvestorId } = useApp()
+  const { data: dealRooms = [], error, isLoading } = useAPI<DealRoom[]>("/api/deal-rooms")
+
   const activeDealRooms = React.useMemo(
     () => dealRooms.filter((d) => d.status !== "completed"),
     [dealRooms]
@@ -96,7 +95,7 @@ export default function InvestorDealRoomsPage() {
                 "What are the next steps for my deals?",
               ]}
               pagePath="/investor/deal-rooms"
-              scopedInvestorId={INVESTOR_ID}
+              scopedInvestorId={scopedInvestorId}
               variant="inline"
             />
           </div>
@@ -105,6 +104,22 @@ export default function InvestorDealRoomsPage() {
 
       {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {isLoading && (
+          <div className="flex items-center justify-center py-16 gap-3">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Loading deal rooms...</span>
+          </div>
+        )}
+
+        {error && !isLoading && (
+          <EmptyState
+            title="Failed to load deals"
+            description="There was a problem fetching your deal rooms. Please try again later."
+            icon={<FolderKanban className="size-5" />}
+          />
+        )}
+
+        {!isLoading && !error && <>
         {/* Summary Cards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -202,6 +217,7 @@ export default function InvestorDealRoomsPage() {
             )}
           </TabsContent>
         </Tabs>
+        </>}
       </div>
     </div>
   )
@@ -294,7 +310,7 @@ function DealRoomCard({ deal }: { deal: DealRoom }) {
               <span className="text-gray-500">/ {totalChecklist}</span>
             </div>
             <Badge variant="outline" className="text-xs">
-              {Math.round((completedChecklist / totalChecklist) * 100)}%
+              {totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0}%
             </Badge>
           </div>
         </div>

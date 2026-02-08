@@ -231,6 +231,12 @@ export function AIBankerChatInterface({
     },
   ])
   const [loading, setLoading] = React.useState(false)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when messages change
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, loading])
 
   const send = React.useCallback(
     async (text: string) => {
@@ -331,6 +337,8 @@ export function AIBankerChatInterface({
                       Thinking…
                     </div>
                   ) : null}
+                  {/* Invisible element at the end for scrolling */}
+                  <div ref={messagesEndRef} />
                 </div>
               </ScrollAreaViewport>
               <ScrollBar />

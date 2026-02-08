@@ -9,11 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Building2, MapPin, TrendingUp, Plus, LayoutGrid, List } from "lucide-react"
+import { Search, Building2, MapPin, TrendingUp, Plus, LayoutGrid, List, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { mockProperties, currentUser } from "@/lib/mock-data"
-import "@/lib/init-property-store"
-import { getAllProperties } from "@/lib/property-store"
 import type { Property, PropertyReadinessStatus } from "@/lib/types"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { PropertyCard } from "./property-card"
@@ -21,6 +18,9 @@ import { PropertyStatsBanner } from "./property-stats-banner"
 import { cn } from "@/lib/utils"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
+import { mapListingToProperty } from "@/lib/utils/map-listing"
 
 const statusColors: Record<Property["status"], string> = {
   available: "bg-green-50 text-green-600 border-green-200",
@@ -65,8 +65,14 @@ export function PropertiesContent() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [shareTarget, setShareTarget] = useState<Property | null>(null)
 
-  // Use property store, fallback to mock data for backward compatibility
-  const allProperties = useMemo(() => (getAllProperties().length > 0 ? getAllProperties() : mockProperties), [])
+  // Fetch properties from database via API
+  const { data: listingsData, isLoading } = useAPI<Record<string, unknown>[]>("/api/listings")
+  const { user } = useApp()
+
+  const allProperties = useMemo(() => {
+    if (!listingsData || !Array.isArray(listingsData)) return []
+    return listingsData.map(mapListingToProperty)
+  }, [listingsData])
   const areas = [...new Set(allProperties.map((p) => p.area))]
 
   const filteredProperties = allProperties.filter((property) => {
@@ -93,6 +99,15 @@ export function PropertiesContent() {
 
   const handleShareDialogChange = (open: boolean) => {
     if (!open) setShareTarget(null)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <span className="ml-2 text-sm text-gray-500">Loading properties...</span>
+      </div>
+    )
   }
 
   return (
@@ -221,9 +236,9 @@ export function PropertiesContent() {
                   featured={index === 0}
                   isNew={isNewListing(property.createdAt)}
                   agent={{
-                    name: currentUser.name,
+                    name: user?.name ?? "Agent",
                     role: "Senior Realtor",
-                    avatar: currentUser.avatar || "/professional-woman-avatar.png",
+                    avatar: user?.avatar || "/professional-woman-avatar.png",
                   }}
                   onFavoriteToggle={handleFavoriteToggle}
                   onShare={handleShare}

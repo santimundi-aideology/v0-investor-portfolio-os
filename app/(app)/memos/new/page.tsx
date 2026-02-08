@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { headers } from "next/headers"
 import { FileText } from "lucide-react"
 
 import { PageHeader } from "@/components/layout/page-header"
@@ -6,7 +7,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { MemoEditor } from "@/components/memos/memo-editor"
-import { getMemoById, mockInvestors, mockProperties } from "@/lib/mock-data"
+import { getListingById } from "@/lib/db/listings"
+import { mapListingToProperty } from "@/lib/utils/map-listing"
+import type { Memo } from "@/lib/types"
+
+async function fetchMemo(memoId: string, cookie: string, baseUrl: string): Promise<Memo | undefined> {
+  try {
+    const res = await fetch(`${baseUrl}/api/memos/${memoId}`, {
+      headers: { cookie },
+      cache: "no-store",
+    })
+    if (!res.ok) return undefined
+    return (await res.json()) as Memo
+  } catch {
+    return undefined
+  }
+}
+
+async function fetchInvestorName(investorId: string, cookie: string, baseUrl: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${baseUrl}/api/investors/${investorId}`, {
+      headers: { cookie },
+      cache: "no-store",
+    })
+    if (!res.ok) return undefined
+    const data = await res.json()
+    return data.name as string | undefined
+  } catch {
+    return undefined
+  }
+}
 
 export default async function NewMemoPage({
   searchParams,
@@ -18,16 +48,27 @@ export default async function NewMemoPage({
   const propertyId = sp?.propertyId
   const memoId = sp?.memoId
 
-  const memo = memoId ? getMemoById(memoId) : undefined
-  const investor = investorId ? mockInvestors.find((i) => i.id === investorId) : undefined
-  const property = propertyId ? mockProperties.find((p) => p.id === propertyId) : undefined
+  const hdrs = await headers()
+  const host = hdrs.get("host") ?? "localhost:3000"
+  const protocol = hdrs.get("x-forwarded-proto") ?? "http"
+  const cookie = hdrs.get("cookie") ?? ""
+  const baseUrl = `${protocol}://${host}`
+
+  // Fetch memo, investor, and property in parallel
+  const [memo, investorName, listing] = await Promise.all([
+    memoId ? fetchMemo(memoId, cookie, baseUrl) : Promise.resolve(undefined),
+    investorId ? fetchInvestorName(investorId, cookie, baseUrl) : Promise.resolve(undefined),
+    propertyId ? getListingById(propertyId) : Promise.resolve(null),
+  ])
+
+  const property = listing ? mapListingToProperty(listing as Record<string, unknown>) : undefined
 
   const headerBadges = (
     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-      {investor?.name ? <Badge variant="outline">Investor: {investor.name}</Badge> : null}
-      {property?.title ? <Badge variant="outline">Property: {property.title}</Badge> : null}
-      {!investor && investorId ? <Badge variant="secondary">Investor ID: {investorId}</Badge> : null}
-      {!property && propertyId ? <Badge variant="secondary">Property ID: {propertyId}</Badge> : null}
+      {(memo?.investorName ?? investorName) ? <Badge variant="outline">Investor: {memo?.investorName ?? investorName}</Badge> : null}
+      {(memo?.propertyTitle ?? property?.title) ? <Badge variant="outline">Property: {memo?.propertyTitle ?? property?.title}</Badge> : null}
+      {!investorName && !memo?.investorName && investorId ? <Badge variant="secondary">Investor ID: {investorId}</Badge> : null}
+      {!property && !memo?.propertyTitle && propertyId ? <Badge variant="secondary">Property ID: {propertyId}</Badge> : null}
     </div>
   )
 
@@ -55,7 +96,7 @@ export default async function NewMemoPage({
         </CardHeader>
         <CardContent className="grid gap-2 text-sm text-muted-foreground">
           <div>
-            <span className="font-medium text-foreground">Investor:</span> {memo?.investorName ?? investor?.name ?? "Not set"}
+            <span className="font-medium text-foreground">Investor:</span> {memo?.investorName ?? investorName ?? "Not set"}
           </div>
           <div>
             <span className="font-medium text-foreground">Property:</span> {memo?.propertyTitle ?? property?.title ?? "Not set"}
@@ -66,7 +107,7 @@ export default async function NewMemoPage({
         </CardContent>
       </Card>
 
-      <MemoEditor initialMemo={memo} investorName={memo?.investorName ?? investor?.name} propertyTitle={memo?.propertyTitle ?? property?.title} />
+      <MemoEditor initialMemo={memo} investorName={memo?.investorName ?? investorName} propertyTitle={memo?.propertyTitle ?? property?.title} />
     </div>
   )
 }

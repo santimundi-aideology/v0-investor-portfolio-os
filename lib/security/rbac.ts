@@ -31,6 +31,16 @@ export class AccessError extends Error {
   }
 }
 
+export class AuthenticationError extends AccessError {
+  status = 401
+  code = "UNAUTHORIZED"
+
+  constructor(message = "Authentication required") {
+    super(message)
+    this.name = "AuthenticationError"
+  }
+}
+
 function requireTenantContext(ctx: RequestContext): string {
   if (!ctx.tenantId) {
     if (ctx.role === "super_admin") {
@@ -161,7 +171,7 @@ export async function buildSessionContext(authUserId: string): Promise<RequestCo
 export function hasPermission(
   ctx: RequestContext, 
   action: "read" | "write" | "delete" | "admin",
-  resource: "investors" | "listings" | "memos" | "tasks" | "users" | "settings"
+  resource: "investors" | "listings" | "memos" | "tasks" | "users" | "settings" | "deal_rooms" | "domains" | "tenants"
 ): boolean {
   // Super admin can do everything
   if (ctx.role === "super_admin") return true
@@ -175,6 +185,9 @@ export function hasPermission(
       tasks: ["read", "write", "delete", "admin"],
       users: ["read", "write", "delete", "admin"],
       settings: ["read", "write", "admin"],
+      deal_rooms: ["read", "write", "delete", "admin"],
+      domains: ["read", "write", "delete", "admin"],
+      tenants: ["read", "write", "delete", "admin"],
     },
     manager: {
       investors: ["read", "write", "delete"],
@@ -183,6 +196,9 @@ export function hasPermission(
       tasks: ["read", "write", "delete"],
       users: ["read", "write"],
       settings: ["read", "write"],
+      deal_rooms: ["read", "write", "delete"],
+      domains: [],
+      tenants: ["read"],
     },
     agent: {
       investors: ["read", "write"],
@@ -191,6 +207,9 @@ export function hasPermission(
       tasks: ["read", "write"],
       users: ["read"],
       settings: ["read"],
+      deal_rooms: ["read", "write"],
+      domains: [],
+      tenants: ["read"],
     },
     investor: {
       investors: ["read"],
@@ -199,6 +218,9 @@ export function hasPermission(
       tasks: ["read"],
       users: [],
       settings: [],
+      deal_rooms: ["read"],
+      domains: [],
+      tenants: [],
     },
   }
 

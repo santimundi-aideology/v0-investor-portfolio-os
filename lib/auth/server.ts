@@ -2,14 +2,15 @@ import "server-only"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { PlatformRole, RequestContext } from "@/lib/security/rbac"
+import { buildRequestContext, AuthenticationError, type PlatformRole, type RequestContext } from "@/lib/security/rbac"
+import type { Database } from "@/lib/database.types"
 
 export type AuthUser = {
   id: string
   email: string
   name: string
   role: PlatformRole
-  tenantId: string
+  tenantId: string | null
   phone?: string
   whatsapp?: string
   avatarUrl?: string
@@ -32,7 +33,7 @@ export async function createSupabaseServerClient() {
     )
   }
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()
@@ -141,6 +142,65 @@ export async function requireRole(...roles: PlatformRole[]): Promise<AuthUser> {
     throw new Error(`Access denied. Required roles: ${roles.join(", ")}`)
   }
   return user
+}
+
+/**
+ * Require an authenticated RequestContext for API routes.
+ *
+ * Strategy:
+ * 1. Try session-based auth (Supabase cookies)
+ * 2. Fall back to header-based auth in non-production (backward compat during migration)
+ * 3. Throw AuthenticationError if neither works
+ */
+export async function requireAuthContext(req?: Request): Promise<RequestContext> {
+  // 1. Try session-based auth (cookies)
+  const sessionCtx = await getRequestContext()
+  if (sessionCtx) {
+    // For investor-role users, resolve their investorId from the database
+    if (sessionCtx.role === "investor") {
+      const adminClient = getSupabaseAdminClient()
+      const { data: investor } = await adminClient
+        .from("investors")
+        .select("id")
+        .eq("owner_user_id", sessionCtx.userId)
+        .maybeSingle()
+      if (investor) {
+        sessionCtx.investorId = investor.id
+      }
+    }
+    return sessionCtx
+  }
+
+  // 2. In non-production, fall back to header-based auth for development/testing
+  if (process.env.NODE_ENV !== "production" && req) {
+    try {
+      const headerCtx = buildRequestContext(req)
+      console.warn("[auth] Session not found — using header-based auth fallback (development only)")
+      return headerCtx
+    } catch {
+      // Header-based auth also failed, fall through
+    }
+  }
+
+  // 3. Not authenticated
+  throw new AuthenticationError()
+}
+
+/**
+ * Checks if an email domain is in the superadmin_domains table.
+ */
+export async function isSuperAdminDomain(email: string): Promise<boolean> {
+  const domain = email.split("@")[1]?.toLowerCase()
+  if (!domain) return false
+
+  const adminClient = getSupabaseAdminClient()
+  const { data } = await adminClient
+    .from("superadmin_domains")
+    .select("domain")
+    .eq("domain", domain)
+    .maybeSingle()
+
+  return !!data
 }
 
 /**

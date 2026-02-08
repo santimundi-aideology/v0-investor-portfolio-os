@@ -47,10 +47,10 @@ import {
   calcAppreciationPct,
   calcYieldPct,
   formatAED,
-  getHoldingsForInvestor,
-  getHoldingProperty,
-  getPortfolioSummary,
 } from "@/lib/real-estate"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
+import { Loader2 } from "lucide-react"
 
 type TimeRange = "3m" | "6m" | "1y" | "all"
 
@@ -113,7 +113,9 @@ interface EnhancedHolding {
   size: number
 }
 
-// Generate mock historical data for charts
+// Historical data projection — generates estimated values based on purchase price
+// and current value. When real DLD transaction history is available, replace these
+// functions with queries to the dld_transactions table for actual historical pricing.
 function generateValueHistory(holdings: EnhancedHolding[], range: TimeRange) {
   const monthsMap: Record<TimeRange, number> = { "3m": 3, "6m": 6, "1y": 12, "all": 24 }
   const months = monthsMap[range]
@@ -189,32 +191,57 @@ function generatePropertyComparison(holdings: EnhancedHolding[]) {
 }
 
 export default function InvestorAnalyticsPage() {
-  // In production, this would come from auth context
-  const investorId = "inv-1"
+  const { scopedInvestorId: investorId } = useApp()
   const [timeRange, setTimeRange] = React.useState<TimeRange>("1y")
   const [comparisonMetric, setComparisonMetric] = React.useState<"yield" | "appreciation" | "occupancy">("yield")
   const [selectedPropertyIds, setSelectedPropertyIds] = React.useState<Set<string>>(new Set())
   const [propertyFilterOpen, setPropertyFilterOpen] = React.useState(false)
 
-  const summary = React.useMemo(() => getPortfolioSummary(investorId), [investorId])
-  const rawHoldings = React.useMemo(() => getHoldingsForInvestor(investorId), [investorId])
+  // Fetch portfolio from API
+  const { data: portfolioData, isLoading } = useAPI<{
+    summary: { propertyCount: number; totalValue: number; totalCost: number; appreciationPct: number; totalMonthlyIncome: number; netAnnualIncome: number; avgYieldPct: number; avgOccupancy: number }
+    holdings: Array<{
+      id: string; investorId: string; listingId: string;
+      property: { title: string; area: string; type: string; imageUrl?: string; size?: number; bedrooms?: number } | null;
+      financials: { purchasePrice: number; purchaseDate: string; currentValue: number; monthlyRent: number; occupancyRate: number; annualExpenses: number; appreciationPct: number; netYieldPct: number }
+    }>
+  }>(investorId ? `/api/portfolio/${investorId}` : null)
 
-  // Enhance holdings with property details
+  const summary = React.useMemo(() => {
+    const s = portfolioData?.summary
+    return {
+      totalPortfolioValue: s?.totalValue ?? 0,
+      totalPurchaseCost: s?.totalCost ?? 0,
+      totalMonthlyRental: s?.totalMonthlyIncome ?? 0,
+      avgYieldPct: s?.avgYieldPct ?? 0,
+      occupancyPct: s?.avgOccupancy ?? 0,
+      appreciationPct: s?.appreciationPct ?? 0,
+      propertyCount: s?.propertyCount ?? 0,
+    }
+  }, [portfolioData])
+
+  // Map API holdings to EnhancedHolding
   const allHoldings: EnhancedHolding[] = React.useMemo(() => {
-    const seed = investorId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-    return rawHoldings.map((h, i) => {
-      const property = getHoldingProperty(h)
-      return {
-        ...h,
-        propertyName: property?.title || generatePropertyName(seed, i),
-        area: property?.area || AREAS[(seed + i * 11) % AREAS.length],
-        imageUrl: property?.imageUrl || PROPERTY_IMAGES[(seed + i * 3) % PROPERTY_IMAGES.length],
-        propertyType: property?.type || ["residential", "commercial", "mixed-use"][(seed + i) % 3],
-        bedrooms: property?.bedrooms || 1 + ((seed + i * 5) % 4),
-        size: property?.size || 800 + ((seed + i * 17) % 3000),
-      }
-    })
-  }, [rawHoldings, investorId])
+    if (!portfolioData?.holdings) return []
+    const seed = (investorId ?? "").split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+    return portfolioData.holdings.map((h, i) => ({
+      id: h.id,
+      investorId: h.investorId,
+      propertyId: h.listingId,
+      purchasePrice: h.financials.purchasePrice,
+      purchaseDate: h.financials.purchaseDate,
+      currentValue: h.financials.currentValue,
+      monthlyRent: h.financials.monthlyRent,
+      occupancyRate: h.financials.occupancyRate,
+      annualExpenses: h.financials.annualExpenses,
+      propertyName: h.property?.title || generatePropertyName(seed, i),
+      area: h.property?.area || AREAS[(seed + i * 11) % AREAS.length],
+      imageUrl: h.property?.imageUrl || PROPERTY_IMAGES[(seed + i * 3) % PROPERTY_IMAGES.length],
+      propertyType: h.property?.type || ["residential", "commercial", "mixed-use"][(seed + i) % 3],
+      bedrooms: h.property?.bedrooms || 1 + ((seed + i * 5) % 4),
+      size: h.property?.size || 800 + ((seed + i * 17) % 3000),
+    }))
+  }, [portfolioData, investorId])
 
   // Filter holdings based on selection
   const holdings = React.useMemo(() => {
@@ -274,6 +301,17 @@ export default function InvestorAnalyticsPage() {
     appreciation: propertyComparison.reduce((sum, p) => sum + p.appreciation, 0) / propertyComparison.length,
     occupancy: propertyComparison.reduce((sum, p) => sum + p.occupancy, 0) / propertyComparison.length,
   }), [propertyComparison])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -368,6 +406,15 @@ export default function InvestorAnalyticsPage() {
             Export
           </Button>
         </div>
+      </div>
+
+      {/* Data source notice */}
+      <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+        <LineChart className="h-4 w-4 shrink-0" />
+        <span>
+          Charts show projected trends based on purchase price and current valuation.
+          Historical data will become more accurate as transaction records accumulate over time.
+        </span>
       </div>
 
       {/* Selected Properties Filter Bar */}
@@ -545,13 +592,12 @@ export default function InvestorAnalyticsPage() {
             <CardContent>
               <div className="space-y-3">
                 {holdings.map((h) => {
-                  const property = getHoldingProperty(h)
                   const monthlyNet = (h.monthlyRent * h.occupancyRate) - (h.annualExpenses / 12)
                   return (
                     <div key={h.id} className="flex items-center justify-between p-3 rounded-lg border">
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium truncate">{property?.title}</div>
-                        <div className="text-xs text-gray-500">{property?.area}</div>
+                        <div className="font-medium truncate">{h.propertyName}</div>
+                        <div className="text-xs text-gray-500">{h.area}</div>
                       </div>
                       <div className="text-right">
                         <div className="font-semibold">{formatAED(monthlyNet)}/mo</div>

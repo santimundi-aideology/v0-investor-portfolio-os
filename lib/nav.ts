@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 import type { UserRole } from "@/lib/types"
 import {
   Building2,
+  Calculator,
   CheckSquare,
   ClipboardList,
   FileText,
@@ -9,10 +10,12 @@ import {
   LayoutDashboard,
   LineChart,
   Map,
+  Presentation,
   Radar,
   ScrollText,
   Search,
   Settings,
+  Shield,
   Users,
   UsersRound,
 } from "lucide-react"
@@ -39,12 +42,13 @@ export const navSections: NavSection[] = [
     label: "Work",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, rolesAllowed: ALL_ROLES },
+      { label: "Executive Summary", href: "/executive-summary", icon: Presentation, rolesAllowed: INTERNAL_ROLES },
       { label: "Real Estate", href: "/real-estate", icon: LineChart, rolesAllowed: ALL_ROLES },
       { label: "Realtor Ops", href: "/realtor", icon: ClipboardList, rolesAllowed: INTERNAL_ROLES },
       { label: "Investors", href: "/investors", icon: Users, rolesAllowed: INTERNAL_ROLES },
       { label: "Properties", href: "/properties", icon: Building2, rolesAllowed: INTERNAL_ROLES },
       { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES },
-      { label: "Deal Rooms", href: "/deal-room", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
+      { label: "Deal Pipeline", href: "/deal-room", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
     ],
   },
   {
@@ -55,6 +59,8 @@ export const navSections: NavSection[] = [
       { label: "Market Signals", href: "/market-signals", icon: Radar, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES] },
       { label: "Market Map", href: "/market-map", icon: Map, rolesAllowed: ALL_ROLES },
       { label: "Price Compare", href: "/market-compare", icon: LineChart, rolesAllowed: ALL_ROLES },
+      { label: "Market Report", href: "/market-report", icon: FileText, rolesAllowed: ALL_ROLES },
+      { label: "ROI Calculator", href: "/roi-calculator", icon: Calculator, rolesAllowed: ALL_ROLES },
     ],
   },
   {
@@ -64,7 +70,9 @@ export const navSections: NavSection[] = [
   {
     label: "Admin",
     items: [
-      { label: "Team", href: "/team", icon: UsersRound, rolesAllowed: ADMIN_ROLES },
+      { label: "Admin Console", href: "/admin", icon: Shield, rolesAllowed: ["owner"] },
+      { label: "Companies", href: "/settings?tab=companies", icon: Building2, rolesAllowed: ["owner"] },
+      { label: "Users", href: "/team", icon: UsersRound, rolesAllowed: ADMIN_ROLES },
       { label: "Audit Log", href: "/audit-log", icon: ScrollText, rolesAllowed: ADMIN_ROLES },
     ],
   },

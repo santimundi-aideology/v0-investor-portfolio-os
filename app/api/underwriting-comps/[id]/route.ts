@@ -4,11 +4,12 @@ import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { listInvestorsByAgent } from "@/lib/db/investors"
 import { deleteCompDb, getCompById } from "@/lib/db/comps"
 import { getUnderwritingById } from "@/lib/db/underwritings"
-import { AccessError, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const comp = await getCompById((await params).id)
     if (!comp) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const uw = await getUnderwritingById(comp.underwritingId)

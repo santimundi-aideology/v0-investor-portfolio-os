@@ -3,12 +3,13 @@ import { NextResponse } from "next/server"
 import { createUnderwritingDb } from "@/lib/db/underwritings"
 import { addCompDb, listComps } from "@/lib/db/comps"
 import { computeScenarios } from "@/lib/domain/underwriting"
-import { buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const ctx = buildRequestContext(req)
+  const ctx = await requireAuthContext(req)
   if (ctx.role !== "super_admin") return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (!ctx.tenantId) return NextResponse.json({ error: "tenant required" }, { status: 400 })
 

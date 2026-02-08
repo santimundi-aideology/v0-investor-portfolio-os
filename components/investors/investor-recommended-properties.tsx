@@ -5,7 +5,6 @@ import Link from "next/link"
 import { ArrowUpRight, Sparkles } from "lucide-react"
 
 import type { Investor, Property } from "@/lib/types"
-import { mockProperties } from "@/lib/mock-data"
 import { getAllProperties } from "@/lib/property-store"
 import { matchPropertiesToInvestor } from "@/lib/property-matching"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,7 +22,9 @@ function formatPrice(value: number) {
 }
 
 export function InvestorRecommendedProperties({ investor, onShare }: InvestorRecommendedPropertiesProps) {
-  const allProperties = React.useMemo(() => (getAllProperties().length > 0 ? getAllProperties() : mockProperties), [])
+  const allProperties = React.useMemo(() => {
+    return getAllProperties()
+  }, [])
 
   const matches = React.useMemo(() => matchPropertiesToInvestor(investor, allProperties).slice(0, 3), [investor, allProperties])
 

@@ -6,8 +6,7 @@
 "use client"
 
 import { initPropertyStore } from "./property-store"
-import { mockProperties } from "./mock-data"
 
-// Initialize store with mock properties
-initPropertyStore(mockProperties)
+// The store starts empty and is populated by API calls
+initPropertyStore([])
 

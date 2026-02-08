@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 
 import { getInvestor, getMemo } from "@/lib/data/store"
-import { AccessError, assertMemoAccess, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const memo = getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     const investor = getInvestor(memo.investorId)

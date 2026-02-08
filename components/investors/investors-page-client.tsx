@@ -7,7 +7,6 @@ import { Search, SlidersHorizontal, Users, UserPlus, Loader2 } from "lucide-reac
 
 import type { Investor } from "@/lib/types"
 import { initInvestorStore, useInvestors, replaceAllInvestors } from "@/lib/investor-store"
-import { getDealRoomsByInvestorId, mockInvestors } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/layout/empty-state"
@@ -84,24 +83,22 @@ export function InvestorsPageClient() {
   const [dbError, setDbError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    // Initialize with mock data first
-    initInvestorStore(mockInvestors)
-    
-    // Then try to fetch from database
+    // Fetch from database
     async function fetchFromDb() {
       try {
         const res = await fetch("/api/investors")
         if (res.ok) {
           const data = await res.json()
           if (Array.isArray(data) && data.length > 0) {
-            // Use database data, clear local storage cache
             const dbInvestors = data.map(mapDbToInvestor)
             replaceAllInvestors(dbInvestors, true)
           }
+        } else {
+          setDbError("Failed to load investors. Please try again.")
         }
       } catch (err) {
-        console.warn("Could not fetch investors from database, using mock data:", err)
-        setDbError("Using demo data (database not connected)")
+        console.error("Could not fetch investors from database:", err)
+        setDbError("Could not connect to the server. Please check your connection.")
       } finally {
         setLoading(false)
       }
@@ -152,11 +149,8 @@ export function InvestorsPageClient() {
     const active = investors.filter((i) => i.status === "active").length
     const watching = investors.filter((i) => i.status === "pending").length
     const closed = investors.filter((i) => i.status === "inactive").length
-    const deals = investors.reduce((sum, i) => sum + getDealRoomsByInvestorId(i.id).length, 0)
-    const ongoingDeals = investors.reduce(
-      (sum, i) => sum + getDealRoomsByInvestorId(i.id).filter((d) => d.status !== "completed").length,
-      0,
-    )
+    const deals = 0 // No deal_rooms DB table exists
+    const ongoingDeals = 0 // No deal_rooms DB table exists
     return { total: investors.length, active, watching, closed, deals, ongoingDeals }
   }, [investors])
 

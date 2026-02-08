@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { getSupabaseAdminClient } from "@/lib/db/client"
+import { propertyEvaluationSchema } from "@/lib/validation/schemas"
+import { validateRequest } from "@/lib/validation/helpers"
 
 /**
  * Evaluate property viability and generate IC memo content
@@ -301,8 +304,117 @@ const DEFAULT_MARKET_DATA: AreaMarketData = {
   daysOnMarket: 50, profile: "value_add"
 }
 
-// Get market context for an area
-function getMarketContext(area: string, propertyType: string, bedrooms: number): MarketContext {
+/**
+ * Get market context for an area by querying real DLD transaction data.
+ * Falls back to the hardcoded DUBAI_MARKET_DATA lookup when DB data is
+ * unavailable or the query fails (e.g. missing views/tables).
+ */
+async function getMarketContext(area: string, propertyType: string, bedrooms: number): Promise<MarketContext> {
+  // Try querying real DLD data from the database first
+  try {
+    const supabase = getSupabaseAdminClient()
+
+    // Map property types to DLD terminology
+    const dldPropertyType = propertyType?.toLowerCase().includes("villa") ? "Villa"
+      : propertyType?.toLowerCase().includes("townhouse") ? "Villa"
+      : propertyType?.toLowerCase().includes("land") ? "Land"
+      : "Unit"
+
+    // Query the pre-computed area stats view
+    const { data: stats } = await supabase
+      .from("dld_area_stats")
+      .select("*")
+      .eq("area_name_en", area)
+      .eq("property_type_en", dldPropertyType)
+      .maybeSingle()
+
+    if (stats && Number(stats.transaction_count) > 5) {
+      const avgPricePerSqm = Number(stats.avg_price_per_sqm)
+      const avgPricePerSqft = avgPricePerSqm > 0 ? Math.round(avgPricePerSqm * 0.092903) : 0
+      const avgPrice = Number(stats.avg_price)
+
+      // Query monthly trends to determine market direction
+      let marketTrend: MarketContext["marketTrend"] = "stable"
+      let rentalGrowth = 3.0
+      let historicalAppreciation = 4.0
+
+      const { data: trends } = await supabase
+        .from("dld_monthly_trends")
+        .select("month, avg_price, avg_price_per_sqm, transaction_count")
+        .eq("area_name_en", area)
+        .order("month", { ascending: false })
+        .limit(6)
+
+      if (trends && trends.length >= 3) {
+        // Compare recent 3 months to prior 3 months
+        const recent = trends.slice(0, 3)
+        const prior = trends.slice(3, 6)
+        const avgRecent = recent.reduce((s, t) => s + Number(t.avg_price_per_sqm), 0) / recent.length
+        const avgPrior = prior.length > 0
+          ? prior.reduce((s, t) => s + Number(t.avg_price_per_sqm), 0) / prior.length
+          : avgRecent
+
+        const changePct = avgPrior > 0 ? ((avgRecent - avgPrior) / avgPrior) * 100 : 0
+        if (changePct > 3) marketTrend = "rising"
+        else if (changePct < -3) marketTrend = "declining"
+        // else stays "stable"
+
+        historicalAppreciation = Math.round(changePct * 2 * 10) / 10 // annualize roughly
+        rentalGrowth = Math.round(changePct * 0.6 * 10) / 10 // rent tracks ~60% of price moves
+      }
+
+      // Estimate yield based on area grade and property type
+      let estimatedYield = avgPricePerSqft > 1500 ? 4.5 : avgPricePerSqft > 1000 ? 5.5 : avgPricePerSqft > 700 ? 6.5 : 7.5
+      if (propertyType.toLowerCase().includes("studio")) estimatedYield += 0.5
+      if (bedrooms >= 3) estimatedYield -= 0.3
+      if (propertyType.toLowerCase().includes("villa") || propertyType.toLowerCase().includes("townhouse")) {
+        estimatedYield -= 0.8
+      }
+
+      // Derive area grade from price level
+      const grade: MarketContext["areaGrade"] = avgPricePerSqft > 2000 ? "A"
+        : avgPricePerSqft > 1200 ? "B"
+        : avgPricePerSqft > 700 ? "C"
+        : "D"
+
+      const txnCount = Number(stats.transaction_count)
+      const liquidity = Math.min(10, Math.max(1, Math.round(Math.log2(txnCount + 1))))
+
+      console.log(`[evaluate] Using real DLD data for ${area} (${dldPropertyType}): ${txnCount} transactions, avg AED ${avgPricePerSqft}/sqft`)
+
+      return {
+        areaMedianPrice: avgPrice,
+        areaMedianPricePerSqft: avgPricePerSqft,
+        areaAverageYield: Math.round(estimatedYield * 10) / 10,
+        priceVsMarket: 0, // Calculated later
+        marketTrend,
+        demandLevel: txnCount > 500 ? "high" : txnCount > 100 ? "medium" : "low",
+        supplyLevel: txnCount > 1000 ? "high" : txnCount > 300 ? "medium" : "low",
+        averageDaysOnMarket: grade === "A" ? 50 : grade === "B" ? 40 : 35,
+        areaGrade: grade,
+        liquidityScore: liquidity,
+        tenantDemand: txnCount > 500 ? "high" : txnCount > 100 ? "medium" : "low",
+        priceVolatility: Math.abs(historicalAppreciation) > 8 ? "high" : Math.abs(historicalAppreciation) > 4 ? "medium" : "low",
+        newSupplyUnits: 0, // Not available from DLD stats
+        occupancyRate: grade === "A" ? 92 : grade === "B" ? 90 : 87,
+        historicalAppreciation: Math.max(0, historicalAppreciation),
+        rentalGrowth: Math.max(0, rentalGrowth),
+        investorProfile: grade === "A" ? "core" : grade === "B" ? "core_plus" : "value_add",
+      }
+    }
+  } catch (err) {
+    console.warn("[evaluate] DLD query failed, falling back to hardcoded data:", err)
+  }
+
+  // Fallback to hardcoded data when DB is not available
+  return getMarketContextFromLookup(area, propertyType, bedrooms)
+}
+
+/**
+ * Fallback: get market context from the hardcoded lookup table.
+ * Used when DLD database queries are unavailable.
+ */
+function getMarketContextFromLookup(area: string, propertyType: string, bedrooms: number): MarketContext {
   // Try to find exact match first, then partial match
   let data: AreaMarketData | undefined = DUBAI_MARKET_DATA[area]
   
@@ -738,18 +850,15 @@ function createFallbackEvaluation(
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { property } = body as { property: PropertyData }
-
-    if (!property) {
-      return NextResponse.json(
-        { error: "Property data is required" },
-        { status: 400 }
-      )
+    const validation = await validateRequest(req, propertyEvaluationSchema)
+    if (!validation.success) {
+      return validation.error
     }
 
-    // Get market context for the property's area
-    const marketContext = getMarketContext(
+    const { property } = validation.data
+
+    // Get market context for the property's area (queries DLD DB, falls back to lookup)
+    const marketContext = await getMarketContext(
       property.area,
       property.propertyType,
       property.bedrooms

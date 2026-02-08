@@ -1,22 +1,28 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Building2, Loader2, AlertCircle, CheckCircle } from "lucide-react"
+import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react"
 import { updatePassword } from "@/lib/auth/actions"
 import { VantageIcon } from "@/components/brand/logo"
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+
+  // Detect if this is an invitation flow (first-time password setup)
+  const type = searchParams.get("type")
+  const isInvite = type === "invite"
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -48,9 +54,13 @@ export default function ResetPasswordPage() {
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Password Updated</h2>
+                <h2 className="text-lg font-semibold">
+                  {isInvite ? "Account Activated" : "Password Updated"}
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your password has been updated successfully. Redirecting to dashboard...
+                  {isInvite
+                    ? "Your account is ready. Redirecting to dashboard..."
+                    : "Your password has been updated successfully. Redirecting to dashboard..."}
                 </p>
               </div>
             </div>
@@ -67,8 +77,12 @@ export default function ResetPasswordPage() {
           <div className="flex items-center gap-2">
             <VantageIcon size={36} />
             <div>
-              <CardTitle>Reset Password</CardTitle>
-              <CardDescription>Enter your new password</CardDescription>
+              <CardTitle>{isInvite ? "Set Your Password" : "Reset Password"}</CardTitle>
+              <CardDescription>
+                {isInvite
+                  ? "Create a password to activate your account"
+                  : "Enter your new password"}
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -81,17 +95,38 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
+            {isInvite && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 mb-2">
+                <p className="text-sm text-blue-800">
+                  Welcome to Vantage! Create a password below to get started.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-2">
-              <Label htmlFor="password">New Password</Label>
-              <Input 
-                id="password" 
-                name="password"
-                type="password" 
-                placeholder="••••••••"
-                minLength={8}
-                required 
-                disabled={isLoading}
-              />
+              <Label htmlFor="password">
+                {isInvite ? "Password" : "New Password"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  minLength={8}
+                  required
+                  disabled={isLoading}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-foreground transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Must be at least 8 characters
               </p>
@@ -99,13 +134,13 @@ export default function ResetPasswordPage() {
 
             <div className="grid gap-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input 
-                id="confirmPassword" 
+              <Input
+                id="confirmPassword"
                 name="confirmPassword"
-                type="password" 
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 minLength={8}
-                required 
+                required
                 disabled={isLoading}
               />
             </div>
@@ -114,10 +149,10 @@ export default function ResetPasswordPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating...
+                  {isInvite ? "Activating..." : "Updating..."}
                 </>
               ) : (
-                "Update Password"
+                isInvite ? "Activate Account" : "Update Password"
               )}
             </Button>
 
@@ -130,5 +165,19 @@ export default function ResetPasswordPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

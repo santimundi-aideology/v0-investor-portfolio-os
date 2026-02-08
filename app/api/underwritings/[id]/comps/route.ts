@@ -4,11 +4,12 @@ import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { listInvestorsByAgent } from "@/lib/db/investors"
 import { addCompDb, listComps } from "@/lib/db/comps"
 import { getUnderwritingById } from "@/lib/db/underwritings"
-import { AccessError, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "manager") throw new AccessError("Managers are read-only")
@@ -56,7 +57,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const uw = await getUnderwritingById((await params).id)
     if (!uw) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (ctx.role === "investor") throw new AccessError("Investors cannot access comps")

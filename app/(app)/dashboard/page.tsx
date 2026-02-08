@@ -22,13 +22,12 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react"
-import { mockActivities, mockDealRooms, mockInvestors, mockProperties, mockTasks } from "@/lib/mock-data"
 import { useApp } from "@/components/providers/app-provider"
 import { InvestorDashboard } from "@/components/investor/investor-dashboard"
 import { PropertyGalleryStrip } from "@/components/properties/featured-properties-carousel"
-import { getInvestorById } from "@/lib/mock-data"
 import type { DealRoom, Task } from "@/lib/types"
 import { formatAED } from "@/lib/real-estate"
+import { useAPI } from "@/lib/hooks/use-api"
 
 const priorityOrder: Record<Task["priority"], number> = { high: 0, medium: 1, low: 2 }
 
@@ -54,8 +53,7 @@ function DashboardPage() {
 
   if (role === "investor") {
     const investorId = scopedInvestorId ?? "inv-1"
-    const investorName = getInvestorById(investorId)?.name ?? "Investor"
-    return <InvestorDashboard investorId={investorId} investorName={investorName} />
+    return <InvestorDashboard investorId={investorId} investorName="Investor" />
   }
 
   return <InternalDashboard />
@@ -64,79 +62,57 @@ function DashboardPage() {
 function InternalDashboard() {
   const { user } = useApp()
   const today = React.useMemo(() => new Date(), [])
+  
+  // Use SWR for data fetching with automatic caching and revalidation
+  const { data: statsData, isLoading: statsLoading } = useAPI<{
+    activeInvestors: number
+    pipelineValue: number
+    liveDealsCount: number
+    tasksDueSoon: number
+    needsVerification: number
+  }>("/api/dashboard/stats", { refreshInterval: 30000 }) // Refresh every 30s
 
-  const openTasks = React.useMemo(() => mockTasks.filter((t) => t.status !== "done"), [])
-  const prioritizedTasks = React.useMemo(() => {
-    return [...openTasks].sort((a, b) => {
-      const aDue = a.dueDate ? differenceInCalendarDays(parseISO(a.dueDate), today) : Number.POSITIVE_INFINITY
-      const bDue = b.dueDate ? differenceInCalendarDays(parseISO(b.dueDate), today) : Number.POSITIVE_INFINITY
-      if (aDue !== bDue) return aDue - bDue
-      return priorityOrder[a.priority] - priorityOrder[b.priority]
-    })
-  }, [openTasks, today])
+  const { data: pipelineData } = useAPI<{ stages: Record<string, { count: number; value: number }> }>("/api/dashboard/pipeline")
+  const { data: tasksData } = useAPI<{ tasks: Array<{ id: string; title: string; status: string; priority: string; due_date: string; investor_name?: string; property_title?: string }> }>("/api/dashboard/tasks")
+  const { data: investorsData } = useAPI<{ investors: Array<{ id: string; name: string; company: string; lastContact: string; mandate?: { strategy?: string; yieldTarget?: number } }> }>("/api/dashboard/investors")
+  const { data: propertiesData } = useAPI<{ readinessBuckets: Record<string, number>; verificationQueue: Array<{ id: string; title: string; area: string }>; featuredProperties: Array<{ id: string; title: string; area: string; imageUrl: string | null }> }>("/api/dashboard/properties")
+  const { data: activitiesData } = useAPI<{ activities: Array<{ id: string; type: string; title: string; description: string; timestamp: string }> }>("/api/dashboard/activities")
 
-  const liveDeals = React.useMemo(() => mockDealRooms.filter((d) => d.status !== "completed"), [])
+  const loading = statsLoading
 
-  const investorsNeedingTouch = React.useMemo(() => {
-    return [...mockInvestors]
-      .filter((inv) => inv.status !== "inactive")
-      .sort((a, b) => parseISO(a.lastContact).getTime() - parseISO(b.lastContact).getTime())
-      .slice(0, 6)
-  }, [])
-
-  const readinessBuckets = React.useMemo(() => {
-    return mockProperties.reduce(
-      (acc, property) => {
-        acc[property.readinessStatus] = (acc[property.readinessStatus] ?? 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
-  }, [])
-
-  const verificationQueue = React.useMemo(
-    () => mockProperties.filter((p) => p.readinessStatus === "NEEDS_VERIFICATION").slice(0, 4),
-    [],
-  )
-
+  // Transform data
   const stats = React.useMemo(() => {
-    const activeInvestors = mockInvestors.filter((inv) => inv.status === "active").length
-    const pipelineValue = liveDeals.reduce((sum, deal) => sum + (deal.ticketSizeAed ?? 0), 0)
-    const tasksDueSoon = prioritizedTasks.filter((task) => {
-      if (!task.dueDate) return false
-      return differenceInCalendarDays(parseISO(task.dueDate), today) <= 3
-    }).length
-    const needsVerification = readinessBuckets["NEEDS_VERIFICATION"] ?? 0
-
+    if (!statsData) return []
     return [
       {
         label: "Active investors",
-        value: `${activeInvestors}`,
+        value: `${statsData.activeInvestors || 0}`,
         meta: "Relationships to keep warm",
         icon: Users,
       },
       {
         label: "Live pipeline (AED)",
-        value: formatAED(pipelineValue),
-        meta: `${liveDeals.length} active deals`,
+        value: formatAED(statsData.pipelineValue || 0),
+        meta: `${statsData.liveDealsCount || 0} active deals`,
         icon: FolderKanban,
       },
       {
         label: "Tasks due soon",
-        value: `${tasksDueSoon}`,
+        value: `${statsData.tasksDueSoon || 0}`,
         meta: "Next 72 hours",
         icon: CheckSquare,
       },
       {
         label: "Needs verification",
-        value: `${needsVerification}`,
+        value: `${statsData.needsVerification || 0}`,
         meta: "Inventory blocking memos",
         icon: AlertCircle,
       },
     ]
-  }, [liveDeals, prioritizedTasks, readinessBuckets, today])
+  }, [statsData])
 
   const pipelineStages = React.useMemo(() => {
+    if (!pipelineData?.stages) return []
     const stageOrder: DealRoom["status"][] = ["preparation", "due-diligence", "negotiation", "closing"]
     const stageLabel: Record<DealRoom["status"], string> = {
       preparation: "Preparation",
@@ -145,22 +121,40 @@ function InternalDashboard() {
       closing: "Closing",
       completed: "Completed",
     }
-    return stageOrder.map((stage) => {
-      const deals = liveDeals.filter((d) => d.status === stage)
-      const value = deals.reduce((sum, d) => sum + (d.ticketSizeAed ?? 0), 0)
-      return {
-        stage,
-        label: stageLabel[stage],
-        count: deals.length,
-        value,
-      }
-    })
-  }, [liveDeals])
+    return stageOrder.map((stage) => ({
+      stage,
+      label: stageLabel[stage],
+      count: pipelineData.stages?.[stage]?.count || 0,
+      value: pipelineData.stages?.[stage]?.value || 0,
+    }))
+  }, [pipelineData])
 
-  const activityFeed = React.useMemo(
-    () => [...mockActivities].sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1)).slice(0, 7),
-    [],
-  )
+  const prioritizedTasks = React.useMemo(() => {
+    if (!tasksData?.tasks) return []
+    return tasksData.tasks.map((t) => ({
+      id: t.id || "",
+      title: t.title || "",
+      status: t.status || "todo",
+      priority: (t.priority || "medium") as Task["priority"],
+      dueDate: t.due_date || null,
+      investorName: t.investor_name || null,
+      propertyTitle: t.property_title || null,
+    }))
+  }, [tasksData])
+
+  const investorsNeedingTouch = investorsData?.investors || []
+  const readinessBuckets = propertiesData?.readinessBuckets || {}
+  const verificationQueue = propertiesData?.verificationQueue || []
+  const featuredProperties = propertiesData?.featuredProperties || []
+  const activityFeed = activitiesData?.activities || []
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="text-sm text-gray-500">Loading dashboard...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -215,7 +209,19 @@ function InternalDashboard() {
         </CardHeader>
         <CardContent className="pt-0">
           <PropertyGalleryStrip
-            properties={mockProperties.filter(p => p.status === "available").slice(0, 8)}
+            properties={featuredProperties.map((p) => ({
+              id: p.id,
+              title: p.title,
+              area: p.area,
+              imageUrl: p.imageUrl || "/placeholder.svg",
+              price: 0,
+              pricePerSqft: 0,
+              bedrooms: 0,
+              bathrooms: 0,
+              propertyType: "Unit",
+              status: "available" as const,
+              readinessStatus: "READY_FOR_MEMO" as const,
+            }))}
           />
         </CardContent>
       </Card>
@@ -357,7 +363,7 @@ function InternalDashboard() {
                       style={{
                         width: `${Math.min(
                           100,
-                          ((readinessBuckets[status] ?? 0) / mockProperties.length) * 100,
+                          ((readinessBuckets[status] ?? 0) / (Object.values(readinessBuckets).reduce((a, b) => a + b, 0) || 1)) * 100,
                         ).toFixed(0)}%`,
                       }}
                     />

@@ -41,8 +41,9 @@ import { PortfolioValueChart } from "@/components/charts/portfolio-value-chart"
 import { RentalIncomeForecastChart } from "@/components/charts/rental-income-forecast-chart"
 import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
-import { mockDealRooms, mockInvestors, mockProperties, mockShortlistItems, mockTasks } from "@/lib/mock-data"
-import type { DealRoom, Investor, ShortlistItem, Task } from "@/lib/types"
+import { useAPI } from "@/lib/hooks/use-api"
+import { mapListingToProperty } from "@/lib/utils/map-listing"
+import type { DealRoom, Investor, Property, ShortlistItem, Task } from "@/lib/types"
 
 function pct(n: number) {
   return `${n.toFixed(1)}%`
@@ -51,7 +52,16 @@ function pct(n: number) {
 const taskPriorityOrder: Record<Task["priority"], number> = { high: 0, medium: 1, low: 2 }
 
 export default function RealEstatePage() {
-  const { role, scopedInvestorId } = useApp()
+  const { role, scopedInvestorId, isLoading } = useApp()
+
+  // Show loading state while app context is initializing
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500">Loading user context...</div>
+      </div>
+    )
+  }
 
   if (role === "realtor") {
     return <RealtorRealEstateView />
@@ -353,8 +363,25 @@ function RealtorRealEstateView() {
     "List tasks due this week and who they impact.",
   ]
 
-  const openTasks = React.useMemo(() => mockTasks.filter((task) => task.status !== "done"), [])
-  const liveDeals = React.useMemo(() => mockDealRooms.filter((deal) => deal.status !== "completed"), [])
+  // Fetch data from APIs (APIs return arrays directly, not wrapped in objects)
+  const { data: investorsData } = useAPI<Investor[]>("/api/investors")
+  const { data: listingsData } = useAPI<Record<string, unknown>[]>("/api/listings")
+  const { data: tasksData } = useAPI<Task[]>("/api/tasks")
+  const { data: dealRoomsData } = useAPI<DealRoom[]>("/api/deal-rooms")
+
+  const investors = React.useMemo(() => investorsData ?? [], [investorsData])
+  const properties = React.useMemo<Property[]>(() => {
+    if (!listingsData) return []
+    return listingsData.map(mapListingToProperty)
+  }, [listingsData])
+  const tasks = React.useMemo(() => tasksData ?? [], [tasksData])
+  const dealRooms = React.useMemo(() => dealRoomsData ?? [], [dealRoomsData])
+
+  // Shortlist: no DB table yet, use empty array
+  const shortlistItems: ShortlistItem[] = []
+
+  const openTasks = React.useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks])
+  const liveDeals = React.useMemo(() => dealRooms.filter((deal) => deal.status !== "completed"), [dealRooms])
 
   const tasksByInvestor = React.useMemo(() => {
     const map = new Map<string, number>()
@@ -380,13 +407,13 @@ function RealtorRealEstateView() {
       newIntake: 0,
       needsVerification: 0,
     }
-    for (const property of mockProperties) {
+    for (const property of properties) {
       if (property.status === "available") stats.active += 1
-      if (differenceInCalendarDays(today, parseISO(property.createdAt)) <= 14) stats.newIntake += 1
+      if (property.createdAt && differenceInCalendarDays(today, parseISO(property.createdAt)) <= 14) stats.newIntake += 1
       if (property.readinessStatus === "NEEDS_VERIFICATION") stats.needsVerification += 1
     }
     return stats
-  }, [today])
+  }, [today, properties])
 
   const tasksDueThisWeek = React.useMemo(() => {
     return openTasks.filter((task) => {
@@ -437,7 +464,7 @@ function RealtorRealEstateView() {
   )
 
   const readinessBuckets = React.useMemo(() => {
-    return mockProperties.reduce(
+    return properties.reduce(
       (acc, property) => {
         const status = property.readinessStatus ?? "DRAFT"
         acc[status] = (acc[status] ?? 0) + 1
@@ -445,18 +472,18 @@ function RealtorRealEstateView() {
       },
       {} as Record<string, number>,
     )
-  }, [])
+  }, [properties])
 
   const verificationQueue = React.useMemo(
-    () => mockProperties.filter((p) => p.readinessStatus === "NEEDS_VERIFICATION").slice(0, 4),
-    [],
+    () => properties.filter((p) => p.readinessStatus === "NEEDS_VERIFICATION").slice(0, 4),
+    [properties],
   )
 
   const coverageRows = React.useMemo(() => {
-    return mockInvestors
+    return investors
       .filter((inv) => inv.status !== "inactive")
       .map((inv) => {
-        const matches = mockProperties.filter((property) => {
+        const matches = properties.filter((property) => {
           const typeMatch = inv.mandate?.propertyTypes?.includes(property.type)
           const areaMatch = inv.mandate?.preferredAreas?.includes(property.area)
           return typeMatch || areaMatch
@@ -476,22 +503,22 @@ function RealtorRealEstateView() {
       })
       .sort((a, b) => a.coveragePct - b.coveragePct)
       .slice(0, 5)
-  }, [tasksByInvestor])
+  }, [tasksByInvestor, investors, properties])
 
   const shortlistFocus = React.useMemo(() => {
-    const investorMap = new Map(mockInvestors.map((inv) => [inv.id, inv]))
-    return [...mockShortlistItems]
+    const investorMap = new Map(investors.map((inv) => [inv.id, inv]))
+    return [...shortlistItems]
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
       .map((item) => ({
         item,
         investor: investorMap.get(item.investorId),
       }))
-  }, [])
+  }, [investors, shortlistItems])
 
   const areaBreakdown = React.useMemo(() => {
     const map = new Map<string, { count: number; trust: number; roi: number }>()
-    for (const property of mockProperties) {
+    for (const property of properties) {
       const area = property.area ?? "Unknown"
       const existing = map.get(area) ?? { count: 0, trust: 0, roi: 0 }
       existing.count += 1
@@ -508,7 +535,7 @@ function RealtorRealEstateView() {
       }))
       .sort((a, b) => b.listings - a.listings)
       .slice(0, 5)
-  }, [])
+  }, [properties])
 
   const dealsToShow = React.useMemo(() => {
     const stageOrder: Record<DealRoom["status"], number> = {
@@ -627,7 +654,7 @@ function RealtorRealEstateView() {
                       style={{
                         width: `${Math.min(
                           100,
-                          ((readinessBuckets[status] ?? 0) / mockProperties.length) * 100,
+                          ((readinessBuckets[status] ?? 0) / Math.max(1, properties.length)) * 100,
                         ).toFixed(0)}%`,
                       }}
                     />
@@ -887,7 +914,7 @@ function RealtorTaskRow({ task, today }: { task: Task; today: Date }) {
 }
 
 function ShortlistPushCard({ item, investor }: { item: ShortlistItem; investor?: Investor }) {
-  const property = item.property ?? mockProperties.find((prop) => prop.id === item.propertyId)
+  const property = item.property ?? null
   if (!property) return null
 
   return (
@@ -1019,7 +1046,10 @@ function OpportunityCard({
   score: number
   reasons: string[]
 }) {
-  const p = mockProperties.find((x) => x.id === propertyId)
+  // OpportunityCard now relies on data from the portfolio API
+  // Properties are not available via mock — skip rendering if no data
+  const { data: listingData } = useAPI<Record<string, unknown>>(propertyId ? `/api/listings/${propertyId}` : null)
+  const p = React.useMemo(() => listingData ? mapListingToProperty(listingData) : null, [listingData])
   if (!p) return null
 
   return (

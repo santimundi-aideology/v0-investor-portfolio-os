@@ -37,25 +37,14 @@ import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { FeaturedPropertiesCarousel, PropertyGalleryStrip } from "@/components/properties/featured-properties-carousel"
 import { cn } from "@/lib/utils"
 import {
-  calcAppreciationPct,
-  calcYieldPct,
-  forecastMonthlyNetIncome,
   formatAED,
-  getHoldingProperty,
-  getPortfolioSummary,
 } from "@/lib/real-estate"
-import {
-  mockDealRooms,
-  mockMemos,
-  mockInvestors,
-  mockProperties,
-} from "@/lib/mock-data"
-import { notifications } from "@/lib/mock-session"
-import { formatMarketSignalType, mockMarketSignals } from "@/lib/mock-market-signals"
-import type { DealRoom, Memo } from "@/lib/types"
-
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
+import { formatMarketSignalType } from "@/lib/types"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
+import { Loader2 } from "lucide-react"
+import type { DealRoom, Memo, Investor } from "@/lib/types"
+import type { MarketSignalItem } from "@/lib/types"
 
 const dealStatusClasses: Record<DealRoom["status"], string> = {
   preparation: "bg-gray-100 text-gray-600",
@@ -93,18 +82,73 @@ interface CalendarEvent {
   type: "meeting" | "deadline" | "reminder"
 }
 
+type PortfolioSummary = {
+  propertyCount: number
+  totalValue: number
+  totalCost: number
+  appreciationPct: number
+  totalMonthlyIncome: number
+  netAnnualIncome: number
+  avgYieldPct: number
+  avgOccupancy: number
+}
+
+type PortfolioHolding = {
+  id: string
+  investorId: string
+  listingId: string
+  property: { title: string; area: string; type: string; imageUrl?: string } | null
+  financials: {
+    purchasePrice: number; currentValue: number; monthlyRent: number;
+    occupancyRate: number; annualExpenses: number; appreciationPct: number; netYieldPct: number
+  }
+}
+
+type NotificationItem = {
+  id: string
+  title: string
+  createdAt: string
+  unread?: boolean
+  href?: string
+}
+
 export default function InvestorDashboardPage() {
-  const investor = React.useMemo(
-    () => mockInvestors.find((i) => i.id === INVESTOR_ID),
-    []
+  const { scopedInvestorId } = useApp()
+
+  // Fetch investor data
+  const { data: investor, isLoading: investorLoading } = useAPI<Investor>(
+    scopedInvestorId ? `/api/investors/${scopedInvestorId}` : null
   )
   const investorName = investor?.name ?? "Investor"
-  const summary = React.useMemo(() => getPortfolioSummary(INVESTOR_ID), [])
+
+  // Fetch portfolio
+  const { data: portfolioData, isLoading: portfolioLoading } = useAPI<{
+    summary: PortfolioSummary
+    holdings: PortfolioHolding[]
+  }>(scopedInvestorId ? `/api/portfolio/${scopedInvestorId}` : null)
+
+  const summary = React.useMemo<PortfolioSummary>(() => portfolioData?.summary ?? {
+    propertyCount: 0, totalValue: 0, totalCost: 0, appreciationPct: 0,
+    totalMonthlyIncome: 0, netAnnualIncome: 0, avgYieldPct: 0, avgOccupancy: 0,
+  }, [portfolioData])
+
+  const holdings = React.useMemo(() => portfolioData?.holdings ?? [], [portfolioData])
+
+  // Fetch memos
+  const { data: apiMemos } = useAPI<Memo[]>("/api/investor/memos")
+
+  // Fetch notifications
+  const { data: apiNotifications } = useAPI<NotificationItem[]>("/api/notifications")
+
+  // Fetch market signals
+  const { data: apiSignals } = useAPI<MarketSignalItem[]>("/api/market-signals")
+
+  const isLoading = investorLoading || portfolioLoading
 
   // Value sparkline data
   const valueSeries = React.useMemo(() => {
-    const base = summary.totalPurchaseCost || summary.totalPortfolioValue
-    const now = summary.totalPortfolioValue
+    const base = summary.totalCost || summary.totalValue
+    const now = summary.totalValue
     return [
       { m: "Jan", v: Math.round(base * 0.98) },
       { m: "Mar", v: Math.round(base * 0.99) },
@@ -113,84 +157,80 @@ export default function InvestorDashboardPage() {
       { m: "Sep", v: Math.round(base * 1.04) },
       { m: "Nov", v: Math.round(now) },
     ]
-  }, [summary.totalPurchaseCost, summary.totalPortfolioValue])
+  }, [summary.totalCost, summary.totalValue])
 
-  // Income sparkline data
+  // Income sparkline data (simplified without holdings forecast)
   const incomeSeries = React.useMemo(() => {
-    const combined: { m: string; n: number }[] = []
-    const all = summary.holdings.flatMap((h) => forecastMonthlyNetIncome(h, 12))
-    const byMonth = new Map<string, number>()
-    for (const p of all) byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.net)
-    const months = Array.from(byMonth.keys()).sort().slice(0, 6)
-    for (const month of months)
-      combined.push({ m: month.slice(5), n: Math.round(byMonth.get(month) ?? 0) })
-    return combined
-  }, [summary.holdings])
+    const monthly = summary.totalMonthlyIncome
+    const months = ["01", "02", "03", "04", "05", "06"]
+    return months.map((m) => ({
+      m,
+      n: Math.round(monthly * (0.95 + Math.random() * 0.1)),
+    }))
+  }, [summary.totalMonthlyIncome])
 
   // Allocation data for pie chart
   const allocation = React.useMemo(() => {
     const byType = new Map<string, number>()
-    for (const h of summary.holdings) {
-      const p = getHoldingProperty(h)
-      const key = p?.type ?? "unknown"
-      byType.set(key, (byType.get(key) ?? 0) + h.currentValue)
+    for (const h of holdings) {
+      const key = h.property?.type ?? "unknown"
+      byType.set(key, (byType.get(key) ?? 0) + h.financials.currentValue)
     }
     return Array.from(byType.entries()).map(([name, value]) => ({
       name,
       value: Math.round(value),
     }))
-  }, [summary.holdings])
+  }, [holdings])
 
   // Top holdings with performance metrics
   const topHoldings = React.useMemo(() => {
-    return [...summary.holdings]
+    return [...holdings]
       .map((h) => ({
-        h,
-        p: getHoldingProperty(h),
-        y: calcYieldPct(h),
-        a: calcAppreciationPct(h),
+        h: {
+          id: h.id,
+          propertyId: h.listingId,
+          currentValue: h.financials.currentValue,
+        },
+        p: h.property ? {
+          title: h.property.title,
+          area: h.property.area,
+          type: h.property.type,
+          imageUrl: h.property.imageUrl,
+        } : null,
+        y: h.financials.netYieldPct,
+        a: h.financials.appreciationPct,
       }))
       .sort((x, y) => y.h.currentValue - x.h.currentValue)
       .slice(0, 5)
-  }, [summary.holdings])
+  }, [holdings])
 
-  // Active deal rooms
-  const dealRooms = React.useMemo(
-    () =>
-      mockDealRooms.filter(
-        (d) => d.investorId === INVESTOR_ID && d.status !== "completed"
-      ),
-    []
-  )
+  // No deal_rooms table yet - always empty
+  const dealRooms: DealRoom[] = []
 
   // Pending memos for review
   const pendingMemos = React.useMemo(() => {
-    const memos = mockMemos.filter((m) => m.investorId === INVESTOR_ID)
-    return memos.map((m) => {
-      const property = mockProperties.find((p) => p.id === m.propertyId)
-      return {
-        id: m.id,
-        title: m.title,
-        propertyTitle: m.propertyTitle,
-        createdAt: m.createdAt,
-        status: m.status,
-        propertyPrice: property?.price,
-        propertyArea: property?.area,
-        expiresIn: m.status === "review" ? "48 hours" : undefined,
-      }
-    })
-  }, [])
+    return (apiMemos ?? []).map((m) => ({
+      id: m.id,
+      title: m.title,
+      propertyTitle: m.propertyTitle,
+      createdAt: m.createdAt,
+      status: m.status,
+      propertyPrice: undefined as number | undefined,
+      propertyArea: undefined as string | undefined,
+      expiresIn: m.status === "review" ? "48 hours" : undefined,
+    }))
+  }, [apiMemos])
 
   // Market signals relevant to portfolio
   const relevantSignals = React.useMemo(() => {
-    const areas = new Set(summary.holdings.map((h) => getHoldingProperty(h)?.area))
-    return mockMarketSignals
+    const areas = new Set(holdings.map((h) => h.property?.area))
+    return (apiSignals ?? [])
       .filter((s) => areas.has(s.geoName) || s.investorMatches)
       .slice(0, 4)
-  }, [summary.holdings])
+  }, [holdings, apiSignals])
 
   // Latest notifications
-  const latestNotifications = React.useMemo(() => notifications.slice(0, 4), [])
+  const latestNotifications = React.useMemo(() => (apiNotifications ?? []).slice(0, 4), [apiNotifications])
 
   // Next actions
   const nextActions: NextAction[] = React.useMemo(
@@ -252,12 +292,12 @@ export default function InvestorDashboardPage() {
   // KPI data for the cards
   const kpiData = React.useMemo(
     () => ({
-      totalPortfolioValue: summary.totalPortfolioValue,
+      totalPortfolioValue: summary.totalValue,
       appreciationPct: summary.appreciationPct,
-      monthlyRentalIncome: summary.totalMonthlyRental,
-      monthlyRentalTrend: 2.5, // Mock trend
+      monthlyRentalIncome: summary.totalMonthlyIncome,
+      monthlyRentalTrend: 2.5,
       avgYieldPct: summary.avgYieldPct,
-      occupancyPct: summary.occupancyPct,
+      occupancyPct: summary.avgOccupancy,
       valueSeries,
       incomeSeries,
     }),
@@ -273,6 +313,17 @@ export default function InvestorDashboardPage() {
     console.log("Rejecting memo:", memoId)
     // In production, this would call an API
   }, [])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100/30">
@@ -292,7 +343,7 @@ export default function InvestorDashboardPage() {
                   Welcome back, {investorName.split(" ")[0]}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-500 truncate sm:whitespace-normal">
-                  {summary.propertyCount} properties • {formatAED(summary.totalPortfolioValue)}
+                  {summary.propertyCount} properties • {formatAED(summary.totalValue)}
                 </p>
               </div>
             </div>
@@ -307,7 +358,7 @@ export default function InvestorDashboardPage() {
                   "Should I consider any changes?",
                 ]}
                 pagePath="/investor/dashboard"
-                scopedInvestorId={INVESTOR_ID}
+                scopedInvestorId={scopedInvestorId}
                 variant="inline"
               />
               <Button variant="outline" asChild className="flex-1 sm:flex-none min-h-[44px]">
@@ -327,7 +378,7 @@ export default function InvestorDashboardPage() {
                 Portfolio Value
               </p>
               <p className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-                {formatAED(summary.totalPortfolioValue)}
+                {formatAED(summary.totalValue)}
               </p>
             </div>
             <Badge
@@ -353,19 +404,19 @@ export default function InvestorDashboardPage() {
           <div className="space-y-6">
             {/* Featured Properties Carousel */}
             <FeaturedPropertiesCarousel
-              properties={mockProperties.filter(p => p.status === "available").slice(0, 5)}
+              properties={[]}
               title="Featured Opportunities"
             />
 
             {/* Opportunity Finder - Featured prominently */}
             <OpportunityFinderPanel
-              investorId={INVESTOR_ID}
+              investorId={scopedInvestorId ?? ""}
               className="min-h-[450px]"
             />
 
             {/* AI Integration Panel */}
             <InvestorAIPanel
-              investorId={INVESTOR_ID}
+              investorId={scopedInvestorId ?? ""}
               investorName={investorName}
             />
 
@@ -452,7 +503,7 @@ export default function InvestorDashboardPage() {
                                 `How does ${p?.area} market compare?`,
                               ]}
                               pagePath="/investor/dashboard"
-                              scopedInvestorId={INVESTOR_ID}
+                              scopedInvestorId={scopedInvestorId}
                               propertyId={h.propertyId}
                               variant="inline"
                             />

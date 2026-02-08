@@ -1,24 +1,21 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Building2, Calendar, FolderKanban, Mail, Phone, Sparkles, MapPin } from "lucide-react"
 import type { Investor } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { EditableAvatar } from "@/components/ui/editable-avatar"
-import { getDealRoomsByInvestorId, mockProperties } from "@/lib/mock-data"
 
 interface InvestorCardProps {
   investor: Investor
 }
 
-// Get sample properties for investor's preferred areas
-function getInvestorPreferredProperties(investor: Investor) {
-  const preferredAreas = investor.mandate?.preferredAreas ?? []
-  return mockProperties
-    .filter(p => preferredAreas.some(area => p.area?.includes(area) || area.includes(p.area ?? "")))
-    .slice(0, 3)
+// Preferred properties would be fetched from API per investor; empty for now
+function getInvestorPreferredProperties(_investor: Investor) {
+  return [] as { id: string; imageUrl?: string; title: string }[]
 }
 
 export function InvestorCard({ investor }: InvestorCardProps) {
@@ -33,7 +30,8 @@ export function InvestorCard({ investor }: InvestorCardProps) {
   const strategy = investor.mandate?.strategy
   const yieldTarget = investor.mandate?.yieldTarget
   const preferredAreasCount = investor.mandate?.preferredAreas?.length ?? 0
-  const ongoingDeals = getDealRoomsByInvestorId(investor.id).filter((d) => d.status !== "completed").length
+  // No deal_rooms DB table yet — always 0
+  const ongoingDeals = 0
   const aumLabel = typeof investor.aumAed === "number" ? `AED ${(investor.aumAed / 1_000_000).toFixed(0)}M AUM` : null
 
   return (
@@ -48,10 +46,13 @@ export function InvestorCard({ investor }: InvestorCardProps) {
                 className="relative flex-1"
                 style={{ clipPath: i === 0 ? undefined : "polygon(10% 0, 100% 0, 100% 100%, 0% 100%)" }}
               >
-                <img
+                <Image
                   src={prop.imageUrl || "/placeholder.jpg"}
                   alt={prop.title}
-                  className="h-full w-full object-cover"
+                  fill
+                  className="object-cover"
+                  sizes="33vw"
+                  onError={(e) => { e.currentTarget.style.display = "none" }}
                 />
               </div>
             ))}

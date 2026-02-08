@@ -1,6 +1,5 @@
 import { addMonths, differenceInMonths } from "date-fns"
 
-import { mockInvestors, mockProperties } from "@/lib/mock-data"
 import type { Counterfactual, RecommendationBundle, Mandate, Property } from "@/lib/types"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { getHoldingsByInvestor, type PropertyHolding as DbPropertyHolding } from "@/lib/db/holdings"
@@ -39,131 +38,9 @@ export type PortfolioOpportunity = {
 }
 
 /**
- * Fallback mock holdings - used when database is unavailable
+ * @deprecated mockHoldings removed — use getHoldingsForInvestorAsync() to query the database.
  */
-export const mockHoldings: PropertyHolding[] = [
-  // ============================================
-  // Investor 1: Mohammed Al-Fayed (Core Plus) - 12 PROPERTIES (Large institutional investor)
-  // ============================================
-  { id: "hold-1", investorId: "inv-1", propertyId: "prop-1", purchasePrice: 8200000, purchaseDate: "2023-02-01", currentValue: 9100000, monthlyRent: 78000, occupancyRate: 0.96, annualExpenses: 210000 },
-  { id: "hold-2", investorId: "inv-1", propertyId: "prop-2", purchasePrice: 11500000, purchaseDate: "2023-01-15", currentValue: 12800000, monthlyRent: 112000, occupancyRate: 0.98, annualExpenses: 280000 },
-  { id: "hold-3", investorId: "inv-1", propertyId: "prop-101", purchasePrice: 6800000, purchaseDate: "2022-06-01", currentValue: 7900000, monthlyRent: 62000, occupancyRate: 1.0, annualExpenses: 175000 },
-  { id: "hold-4", investorId: "inv-1", propertyId: "prop-102", purchasePrice: 9200000, purchaseDate: "2023-03-15", currentValue: 10100000, monthlyRent: 85000, occupancyRate: 0.94, annualExpenses: 235000 },
-  { id: "hold-5", investorId: "inv-1", propertyId: "prop-103", purchasePrice: 14500000, purchaseDate: "2022-11-01", currentValue: 16200000, monthlyRent: 125000, occupancyRate: 0.92, annualExpenses: 360000 },
-  { id: "hold-6", investorId: "inv-1", propertyId: "prop-104", purchasePrice: 7600000, purchaseDate: "2023-05-20", currentValue: 8300000, monthlyRent: 68000, occupancyRate: 0.97, annualExpenses: 195000 },
-  { id: "hold-7", investorId: "inv-1", propertyId: "prop-105", purchasePrice: 5400000, purchaseDate: "2023-08-01", currentValue: 5850000, monthlyRent: 48000, occupancyRate: 1.0, annualExpenses: 140000 },
-  { id: "hold-8", investorId: "inv-1", propertyId: "prop-106", purchasePrice: 12100000, purchaseDate: "2022-09-15", currentValue: 13800000, monthlyRent: 105000, occupancyRate: 0.95, annualExpenses: 310000 },
-  { id: "hold-9", investorId: "inv-1", propertyId: "prop-107", purchasePrice: 8900000, purchaseDate: "2023-07-01", currentValue: 9600000, monthlyRent: 78000, occupancyRate: 0.91, annualExpenses: 225000 },
-  { id: "hold-10", investorId: "inv-1", propertyId: "prop-108", purchasePrice: 6200000, purchaseDate: "2024-01-10", currentValue: 6550000, monthlyRent: 55000, occupancyRate: 0.98, annualExpenses: 160000 },
-  { id: "hold-11", investorId: "inv-1", propertyId: "prop-109", purchasePrice: 10800000, purchaseDate: "2023-04-01", currentValue: 11900000, monthlyRent: 95000, occupancyRate: 0.93, annualExpenses: 275000 },
-  { id: "hold-12", investorId: "inv-1", propertyId: "prop-110", purchasePrice: 7100000, purchaseDate: "2023-10-15", currentValue: 7650000, monthlyRent: 62000, occupancyRate: 1.0, annualExpenses: 180000 },
-
-  // ============================================
-  // Investor 2: Fatima Hassan (Value Add) - 4 PROPERTIES (Medium active investor)
-  // ============================================
-  { id: "hold-13", investorId: "inv-2", propertyId: "prop-3", purchasePrice: 4500000, purchaseDate: "2024-03-15", currentValue: 5100000, monthlyRent: 42000, occupancyRate: 0.92, annualExpenses: 120000 },
-  { id: "hold-14", investorId: "inv-2", propertyId: "prop-4", purchasePrice: 3200000, purchaseDate: "2024-05-01", currentValue: 3600000, monthlyRent: 32000, occupancyRate: 0.88, annualExpenses: 85000 },
-  { id: "hold-15", investorId: "inv-2", propertyId: "prop-111", purchasePrice: 2800000, purchaseDate: "2024-01-20", currentValue: 3150000, monthlyRent: 28000, occupancyRate: 0.95, annualExpenses: 75000 },
-  { id: "hold-16", investorId: "inv-2", propertyId: "prop-112", purchasePrice: 5200000, purchaseDate: "2023-11-01", currentValue: 6000000, monthlyRent: 52000, occupancyRate: 0.90, annualExpenses: 140000 },
-
-  // ============================================
-  // Investor 3: Ahmed Khalil (Core) - 2 PROPERTIES (New investor, just starting)
-  // ============================================
-  { id: "hold-17", investorId: "inv-3", propertyId: "prop-113", purchasePrice: 18000000, purchaseDate: "2024-06-01", currentValue: 18500000, monthlyRent: 95000, occupancyRate: 0.85, annualExpenses: 420000 },
-  { id: "hold-18", investorId: "inv-3", propertyId: "prop-114", purchasePrice: 22000000, purchaseDate: "2024-08-15", currentValue: 22300000, monthlyRent: 115000, occupancyRate: 0.92, annualExpenses: 510000 },
-
-  // ============================================
-  // Investor 4: Layla Mansour (Opportunistic) - 8 PROPERTIES (Growing portfolio)
-  // ============================================
-  { id: "hold-19", investorId: "inv-4", propertyId: "prop-5", purchasePrice: 22000000, purchaseDate: "2023-11-01", currentValue: 26500000, monthlyRent: 195000, occupancyRate: 0.94, annualExpenses: 550000 },
-  { id: "hold-20", investorId: "inv-4", propertyId: "prop-6", purchasePrice: 18500000, purchaseDate: "2024-01-20", currentValue: 21000000, monthlyRent: 165000, occupancyRate: 0.97, annualExpenses: 480000 },
-  { id: "hold-21", investorId: "inv-4", propertyId: "prop-115", purchasePrice: 35000000, purchaseDate: "2023-06-01", currentValue: 42000000, monthlyRent: 285000, occupancyRate: 0.91, annualExpenses: 850000 },
-  { id: "hold-22", investorId: "inv-4", propertyId: "prop-116", purchasePrice: 28000000, purchaseDate: "2023-09-15", currentValue: 33000000, monthlyRent: 225000, occupancyRate: 0.88, annualExpenses: 680000 },
-  { id: "hold-23", investorId: "inv-4", propertyId: "prop-117", purchasePrice: 15500000, purchaseDate: "2024-02-01", currentValue: 17200000, monthlyRent: 135000, occupancyRate: 0.95, annualExpenses: 400000 },
-  { id: "hold-24", investorId: "inv-4", propertyId: "prop-118", purchasePrice: 42000000, purchaseDate: "2023-04-01", currentValue: 51000000, monthlyRent: 345000, occupancyRate: 0.93, annualExpenses: 1050000 },
-  { id: "hold-25", investorId: "inv-4", propertyId: "prop-119", purchasePrice: 19800000, purchaseDate: "2023-12-01", currentValue: 22500000, monthlyRent: 175000, occupancyRate: 0.96, annualExpenses: 510000 },
-  { id: "hold-26", investorId: "inv-4", propertyId: "prop-120", purchasePrice: 24500000, purchaseDate: "2024-03-15", currentValue: 26800000, monthlyRent: 195000, occupancyRate: 0.89, annualExpenses: 620000 },
-
-  // ============================================
-  // Investor 5: Omar Al-Nuaimi (Core Plus Industrial) - 3 PROPERTIES (Specialized investor)
-  // ============================================
-  { id: "hold-27", investorId: "inv-5", propertyId: "prop-7", purchasePrice: 9800000, purchaseDate: "2024-04-01", currentValue: 10500000, monthlyRent: 92000, occupancyRate: 1.0, annualExpenses: 220000 },
-  { id: "hold-28", investorId: "inv-5", propertyId: "prop-121", purchasePrice: 12500000, purchaseDate: "2023-10-01", currentValue: 14200000, monthlyRent: 125000, occupancyRate: 1.0, annualExpenses: 290000 },
-  { id: "hold-29", investorId: "inv-5", propertyId: "prop-122", purchasePrice: 8200000, purchaseDate: "2024-01-15", currentValue: 8900000, monthlyRent: 78000, occupancyRate: 0.98, annualExpenses: 195000 },
-
-  // ============================================
-  // Investor 6: Noura Al-Maktoum (Value Add) - 5 PROPERTIES (Active value-add investor)
-  // ============================================
-  { id: "hold-30", investorId: "inv-6", propertyId: "prop-123", purchasePrice: 8500000, purchaseDate: "2024-02-01", currentValue: 9800000, monthlyRent: 75000, occupancyRate: 0.88, annualExpenses: 220000 },
-  { id: "hold-31", investorId: "inv-6", propertyId: "prop-124", purchasePrice: 12000000, purchaseDate: "2023-11-15", currentValue: 14500000, monthlyRent: 105000, occupancyRate: 0.92, annualExpenses: 310000 },
-  { id: "hold-32", investorId: "inv-6", propertyId: "prop-125", purchasePrice: 6800000, purchaseDate: "2024-04-01", currentValue: 7600000, monthlyRent: 58000, occupancyRate: 0.95, annualExpenses: 175000 },
-  { id: "hold-33", investorId: "inv-6", propertyId: "prop-126", purchasePrice: 15500000, purchaseDate: "2023-08-01", currentValue: 18200000, monthlyRent: 135000, occupancyRate: 0.90, annualExpenses: 390000 },
-  { id: "hold-34", investorId: "inv-6", propertyId: "prop-127", purchasePrice: 9200000, purchaseDate: "2024-05-15", currentValue: 10100000, monthlyRent: 82000, occupancyRate: 0.87, annualExpenses: 235000 },
-
-  // ============================================
-  // Investor 7: Rashid Al-Thani (Core Luxury) - 6 PROPERTIES (Luxury focused)
-  // ============================================
-  { id: "hold-35", investorId: "inv-7", propertyId: "prop-8", purchasePrice: 32000000, purchaseDate: "2023-09-15", currentValue: 35500000, monthlyRent: 185000, occupancyRate: 0.92, annualExpenses: 750000 },
-  { id: "hold-36", investorId: "inv-7", propertyId: "prop-9", purchasePrice: 28000000, purchaseDate: "2024-02-01", currentValue: 30000000, monthlyRent: 165000, occupancyRate: 0.95, annualExpenses: 680000 },
-  { id: "hold-37", investorId: "inv-7", propertyId: "prop-128", purchasePrice: 45000000, purchaseDate: "2023-03-01", currentValue: 52000000, monthlyRent: 265000, occupancyRate: 0.88, annualExpenses: 1100000 },
-  { id: "hold-38", investorId: "inv-7", propertyId: "prop-129", purchasePrice: 38000000, purchaseDate: "2023-06-15", currentValue: 43000000, monthlyRent: 225000, occupancyRate: 0.94, annualExpenses: 920000 },
-  { id: "hold-39", investorId: "inv-7", propertyId: "prop-130", purchasePrice: 25000000, purchaseDate: "2024-01-01", currentValue: 26500000, monthlyRent: 145000, occupancyRate: 0.97, annualExpenses: 610000 },
-  { id: "hold-40", investorId: "inv-7", propertyId: "prop-131", purchasePrice: 55000000, purchaseDate: "2022-11-01", currentValue: 65000000, monthlyRent: 325000, occupancyRate: 0.90, annualExpenses: 1350000 },
-
-  // ============================================
-  // Investor 8: Sarah Chen (Institutional) - 10 PROPERTIES (Large institutional)
-  // ============================================
-  { id: "hold-41", investorId: "inv-8", propertyId: "prop-10", purchasePrice: 45000000, purchaseDate: "2024-06-01", currentValue: 48000000, monthlyRent: 380000, occupancyRate: 0.98, annualExpenses: 1100000 },
-  { id: "hold-42", investorId: "inv-8", propertyId: "prop-132", purchasePrice: 38000000, purchaseDate: "2023-09-01", currentValue: 42500000, monthlyRent: 315000, occupancyRate: 0.96, annualExpenses: 950000 },
-  { id: "hold-43", investorId: "inv-8", propertyId: "prop-133", purchasePrice: 52000000, purchaseDate: "2023-05-15", currentValue: 59000000, monthlyRent: 425000, occupancyRate: 0.94, annualExpenses: 1280000 },
-  { id: "hold-44", investorId: "inv-8", propertyId: "prop-134", purchasePrice: 28000000, purchaseDate: "2024-01-01", currentValue: 30500000, monthlyRent: 235000, occupancyRate: 0.97, annualExpenses: 710000 },
-  { id: "hold-45", investorId: "inv-8", propertyId: "prop-135", purchasePrice: 65000000, purchaseDate: "2023-02-01", currentValue: 75000000, monthlyRent: 525000, occupancyRate: 0.92, annualExpenses: 1600000 },
-  { id: "hold-46", investorId: "inv-8", propertyId: "prop-136", purchasePrice: 42000000, purchaseDate: "2023-07-15", currentValue: 47500000, monthlyRent: 355000, occupancyRate: 0.95, annualExpenses: 1050000 },
-  { id: "hold-47", investorId: "inv-8", propertyId: "prop-137", purchasePrice: 35000000, purchaseDate: "2023-11-01", currentValue: 38500000, monthlyRent: 285000, occupancyRate: 0.93, annualExpenses: 880000 },
-  { id: "hold-48", investorId: "inv-8", propertyId: "prop-138", purchasePrice: 48000000, purchaseDate: "2024-03-01", currentValue: 51000000, monthlyRent: 395000, occupancyRate: 0.98, annualExpenses: 1180000 },
-  { id: "hold-49", investorId: "inv-8", propertyId: "prop-139", purchasePrice: 32000000, purchaseDate: "2023-08-15", currentValue: 36000000, monthlyRent: 265000, occupancyRate: 0.91, annualExpenses: 810000 },
-  { id: "hold-50", investorId: "inv-8", propertyId: "prop-140", purchasePrice: 55000000, purchaseDate: "2024-04-01", currentValue: 57500000, monthlyRent: 445000, occupancyRate: 0.96, annualExpenses: 1380000 },
-
-  // ============================================
-  // Investor 9: James Morrison (Core Holiday Home) - 3 PROPERTIES
-  // ============================================
-  { id: "hold-51", investorId: "inv-9", propertyId: "prop-11", purchasePrice: 8500000, purchaseDate: "2024-03-01", currentValue: 9200000, monthlyRent: 55000, occupancyRate: 0.75, annualExpenses: 180000 },
-  { id: "hold-52", investorId: "inv-9", propertyId: "prop-141", purchasePrice: 6200000, purchaseDate: "2023-12-01", currentValue: 6800000, monthlyRent: 42000, occupancyRate: 0.80, annualExpenses: 155000 },
-  { id: "hold-53", investorId: "inv-9", propertyId: "prop-142", purchasePrice: 11500000, purchaseDate: "2024-01-15", currentValue: 12300000, monthlyRent: 72000, occupancyRate: 0.70, annualExpenses: 285000 },
-
-  // ============================================
-  // Investor 10: Aisha Malik (First-time) - 2 PROPERTIES (Small but growing)
-  // ============================================
-  { id: "hold-54", investorId: "inv-10", propertyId: "prop-12", purchasePrice: 1200000, purchaseDate: "2024-08-01", currentValue: 1280000, monthlyRent: 9500, occupancyRate: 1.0, annualExpenses: 28000 },
-  { id: "hold-55", investorId: "inv-10", propertyId: "prop-143", purchasePrice: 1850000, purchaseDate: "2024-10-01", currentValue: 1920000, monthlyRent: 14500, occupancyRate: 0.95, annualExpenses: 42000 },
-
-  // ============================================
-  // Investor 11: Abdullah Al-Rashid (Opportunistic) - 15 PROPERTIES (Largest portfolio)
-  // ============================================
-  { id: "hold-56", investorId: "inv-11", propertyId: "prop-13", purchasePrice: 85000000, purchaseDate: "2023-06-01", currentValue: 105000000, monthlyRent: 720000, occupancyRate: 0.91, annualExpenses: 2200000 },
-  { id: "hold-57", investorId: "inv-11", propertyId: "prop-14", purchasePrice: 62000000, purchaseDate: "2024-01-15", currentValue: 71000000, monthlyRent: 520000, occupancyRate: 0.88, annualExpenses: 1600000 },
-  { id: "hold-58", investorId: "inv-11", propertyId: "prop-144", purchasePrice: 120000000, purchaseDate: "2022-09-01", currentValue: 155000000, monthlyRent: 1050000, occupancyRate: 0.94, annualExpenses: 3100000 },
-  { id: "hold-59", investorId: "inv-11", propertyId: "prop-145", purchasePrice: 48000000, purchaseDate: "2023-03-15", currentValue: 58000000, monthlyRent: 395000, occupancyRate: 0.92, annualExpenses: 1250000 },
-  { id: "hold-60", investorId: "inv-11", propertyId: "prop-146", purchasePrice: 75000000, purchaseDate: "2023-08-01", currentValue: 88000000, monthlyRent: 615000, occupancyRate: 0.89, annualExpenses: 1950000 },
-  { id: "hold-61", investorId: "inv-11", propertyId: "prop-147", purchasePrice: 95000000, purchaseDate: "2022-12-01", currentValue: 118000000, monthlyRent: 825000, occupancyRate: 0.93, annualExpenses: 2450000 },
-  { id: "hold-62", investorId: "inv-11", propertyId: "prop-148", purchasePrice: 38000000, purchaseDate: "2024-02-01", currentValue: 42500000, monthlyRent: 295000, occupancyRate: 0.95, annualExpenses: 980000 },
-  { id: "hold-63", investorId: "inv-11", propertyId: "prop-149", purchasePrice: 55000000, purchaseDate: "2023-05-15", currentValue: 65000000, monthlyRent: 455000, occupancyRate: 0.90, annualExpenses: 1420000 },
-  { id: "hold-64", investorId: "inv-11", propertyId: "prop-150", purchasePrice: 82000000, purchaseDate: "2023-10-01", currentValue: 95000000, monthlyRent: 675000, occupancyRate: 0.87, annualExpenses: 2150000 },
-  { id: "hold-65", investorId: "inv-11", propertyId: "prop-151", purchasePrice: 42000000, purchaseDate: "2024-04-01", currentValue: 46000000, monthlyRent: 325000, occupancyRate: 0.96, annualExpenses: 1100000 },
-  { id: "hold-66", investorId: "inv-11", propertyId: "prop-152", purchasePrice: 68000000, purchaseDate: "2023-01-15", currentValue: 82000000, monthlyRent: 565000, occupancyRate: 0.91, annualExpenses: 1780000 },
-  { id: "hold-67", investorId: "inv-11", propertyId: "prop-153", purchasePrice: 105000000, purchaseDate: "2022-06-01", currentValue: 135000000, monthlyRent: 925000, occupancyRate: 0.88, annualExpenses: 2750000 },
-  { id: "hold-68", investorId: "inv-11", propertyId: "prop-154", purchasePrice: 35000000, purchaseDate: "2024-05-15", currentValue: 38000000, monthlyRent: 265000, occupancyRate: 0.94, annualExpenses: 920000 },
-  { id: "hold-69", investorId: "inv-11", propertyId: "prop-155", purchasePrice: 72000000, purchaseDate: "2023-07-01", currentValue: 85000000, monthlyRent: 595000, occupancyRate: 0.92, annualExpenses: 1880000 },
-  { id: "hold-70", investorId: "inv-11", propertyId: "prop-156", purchasePrice: 58000000, purchaseDate: "2023-11-15", currentValue: 66000000, monthlyRent: 465000, occupancyRate: 0.89, annualExpenses: 1520000 },
-
-  // ============================================
-  // Investor 12: Elena Petrova (Core Lifestyle) - 4 PROPERTIES
-  // ============================================
-  { id: "hold-71", investorId: "inv-12", propertyId: "prop-15", purchasePrice: 15000000, purchaseDate: "2024-08-15", currentValue: 15800000, monthlyRent: 0, occupancyRate: 0.0, annualExpenses: 380000 }, // Owner-occupied
-  { id: "hold-72", investorId: "inv-12", propertyId: "prop-157", purchasePrice: 8500000, purchaseDate: "2024-02-01", currentValue: 9200000, monthlyRent: 65000, occupancyRate: 0.92, annualExpenses: 215000 },
-  { id: "hold-73", investorId: "inv-12", propertyId: "prop-158", purchasePrice: 12000000, purchaseDate: "2023-10-01", currentValue: 13500000, monthlyRent: 85000, occupancyRate: 0.88, annualExpenses: 305000 },
-  { id: "hold-74", investorId: "inv-12", propertyId: "prop-159", purchasePrice: 6200000, purchaseDate: "2024-05-01", currentValue: 6650000, monthlyRent: 48000, occupancyRate: 0.95, annualExpenses: 160000 },
-]
+export const mockHoldings: PropertyHolding[] = []
 
 /**
  * Fetch market data from DLD area stats - real database
@@ -180,7 +57,7 @@ export async function getMarketDataFromDb(): Promise<MarketData[]> {
     
     if (error || !data) {
       console.warn("[real-estate] Error fetching market data:", error?.message)
-      return mockMarketData
+      return []
     }
 
     return data.map(row => ({
@@ -192,57 +69,14 @@ export async function getMarketDataFromDb(): Promise<MarketData[]> {
     }))
   } catch (err) {
     console.warn("[real-estate] Error fetching market data:", err)
-    return mockMarketData
+    return []
   }
 }
 
 /**
- * Fallback market data when DB is unavailable
+ * @deprecated mockMarketData removed — use getMarketDataFromDb() instead.
  */
-export const mockMarketData: MarketData[] = [
-  {
-    location: "Dubai Marina",
-    trend: [
-      { month: "2024-01", index: 100 },
-      { month: "2024-02", index: 102 },
-      { month: "2024-03", index: 104 },
-      { month: "2024-04", index: 105 },
-      { month: "2024-05", index: 107 },
-      { month: "2024-06", index: 108 },
-    ],
-    avgYieldPct: 8.5,
-    avgYoYAppreciationPct: 5.2,
-    occupancyPct: 94,
-  },
-  {
-    location: "Downtown Dubai",
-    trend: [
-      { month: "2024-01", index: 100 },
-      { month: "2024-02", index: 101 },
-      { month: "2024-03", index: 103 },
-      { month: "2024-04", index: 104 },
-      { month: "2024-05", index: 106 },
-      { month: "2024-06", index: 107 },
-    ],
-    avgYieldPct: 7.8,
-    avgYoYAppreciationPct: 4.8,
-    occupancyPct: 96,
-  },
-  {
-    location: "Business Bay",
-    trend: [
-      { month: "2024-01", index: 100 },
-      { month: "2024-02", index: 102 },
-      { month: "2024-03", index: 104 },
-      { month: "2024-04", index: 106 },
-      { month: "2024-05", index: 108 },
-      { month: "2024-06", index: 110 },
-    ],
-    avgYieldPct: 9.2,
-    avgYoYAppreciationPct: 6.1,
-    occupancyPct: 92,
-  },
-]
+export const mockMarketData: MarketData[] = []
 
 export function formatAED(value: number) {
   const safe = typeof value === "number" && Number.isFinite(value) ? value : 0
@@ -257,8 +91,7 @@ export async function getHoldingsForInvestorAsync(investorId: string): Promise<P
     const dbHoldings = await getHoldingsByInvestor(investorId)
     
     if (dbHoldings.length === 0) {
-      // Fallback to mock data if no DB records
-      return mockHoldings.filter((h) => h.investorId === investorId)
+      return []
     }
     
     // Map DB holdings to PropertyHolding type
@@ -274,17 +107,16 @@ export async function getHoldingsForInvestorAsync(investorId: string): Promise<P
       annualExpenses: h.annualExpenses,
     }))
   } catch (err) {
-    console.warn("[real-estate] Error fetching holdings, using mock:", err)
-    return mockHoldings.filter((h) => h.investorId === investorId)
+    console.warn("[real-estate] Error fetching holdings:", err)
+    return []
   }
 }
 
 /**
- * Synchronous version - uses mock data (for backward compatibility)
- * @deprecated Use getHoldingsForInvestorAsync instead
+ * @deprecated Use getHoldingsForInvestorAsync instead. Returns empty array.
  */
-export function getHoldingsForInvestor(investorId: string) {
-  return mockHoldings.filter((h) => h.investorId === investorId)
+export function getHoldingsForInvestor(_investorId: string): PropertyHolding[] {
+  return []
 }
 
 /**
@@ -300,7 +132,7 @@ export async function getHoldingPropertyAsync(holding: PropertyHolding): Promise
       .maybeSingle()
     
     if (error || !data) {
-      return mockProperties.find((p) => p.id === holding.propertyId) ?? null
+      return null
     }
     
     // Map DB listing to Property type
@@ -320,12 +152,15 @@ export async function getHoldingPropertyAsync(holding: PropertyHolding): Promise
     } as Property
   } catch (err) {
     console.warn("[real-estate] Error fetching property:", err)
-    return mockProperties.find((p) => p.id === holding.propertyId) ?? null
+    return null
   }
 }
 
-export function getHoldingProperty(holding: PropertyHolding) {
-  return mockProperties.find((p) => p.id === holding.propertyId) ?? null
+/**
+ * @deprecated Use getHoldingPropertyAsync instead. Returns null.
+ */
+export function getHoldingProperty(_holding: PropertyHolding): Property | null {
+  return null
 }
 
 export function calcAnnualGrossRent(holding: PropertyHolding) {
@@ -413,11 +248,10 @@ export async function getPortfolioSummaryAsync(investorId: string) {
 }
 
 /**
- * Synchronous version - uses mock data
- * @deprecated Use getPortfolioSummaryAsync instead
+ * @deprecated Use getPortfolioSummaryAsync instead. Returns empty portfolio.
  */
 export function getPortfolioSummary(investorId: string) {
-  const holdings = getHoldingsForInvestor(investorId)
+  const holdings = getHoldingsForInvestor(investorId) // Always returns []
   const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.currentValue, 0)
   const totalPurchasePrice = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
   // Calculate net monthly income for each holding
@@ -570,41 +404,15 @@ export async function getOpportunitiesForInvestorAsync(investorId: string): Prom
     
   } catch (err) {
     console.warn("[real-estate] Error in getOpportunitiesForInvestorAsync:", err)
-    // Fallback to sync version with mock data
-    return getOpportunitiesForInvestor(investorId)
+    return []
   }
 }
 
 /**
- * Synchronous version using mock data - for backward compatibility
- * @deprecated Use getOpportunitiesForInvestorAsync instead
+ * @deprecated Use getOpportunitiesForInvestorAsync instead. Returns empty array.
  */
-export function getOpportunitiesForInvestor(investorId: string): PortfolioOpportunity[] {
-  const investor = mockInvestors.find((i) => i.id === investorId)
-  const mandate = investor?.mandate
-  const ownedIds = new Set(getHoldingsForInvestor(investorId).map((h) => h.propertyId))
-
-  const candidates = mockProperties
-    .filter((p) => !ownedIds.has(p.id))
-    .filter((p) => (mandate?.preferredAreas?.length ? mandate.preferredAreas.includes(p.area) : true))
-
-  return candidates
-    .map((p) => {
-      const score =
-        (p.trustScore ?? 60) * 0.55 +
-        (p.roi ?? 7) * 3.5 +
-        (mandate?.propertyTypes?.includes(p.type) ? 10 : 0)
-
-      const reasons: string[] = []
-      if (p.trustScore && p.trustScore >= 85) reasons.push("High trust score")
-      if (p.roi && p.roi >= 9) reasons.push("Strong yield")
-      if (mandate?.preferredAreas?.includes(p.area)) reasons.push(`Matches preferred area (${p.area})`)
-      if (mandate?.propertyTypes?.includes(p.type)) reasons.push(`Matches mandate type (${p.type})`)
-
-      return { propertyId: p.id, score: Math.round(score), reasons: reasons.slice(0, 3) }
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4)
+export function getOpportunitiesForInvestor(_investorId: string): PortfolioOpportunity[] {
+  return []
 }
 
 /**
@@ -632,10 +440,9 @@ export function buildRecommendationBundle({
   trustPolicy?: { minTrustScore?: number; requireVerification?: boolean }
   budget?: { min?: number; max?: number }
 }): RecommendationBundle {
-  const investor = mockInvestors.find((i) => i.id === investorId)
-  const actualMandate = mandate || investor?.mandate
+  const actualMandate = mandate
   const actualPortfolio = portfolioSnapshot || { holdings: getHoldingsForInvestor(investorId) }
-  const actualCandidates = evaluatedCandidates || mockProperties
+  const actualCandidates = evaluatedCandidates || []
   const actualTrustPolicy = trustPolicy || { minTrustScore: 70, requireVerification: false }
   const actualBudget = budget || {
     min: actualMandate?.minInvestment || 0,
@@ -644,12 +451,6 @@ export function buildRecommendationBundle({
 
   const ownedIds = new Set(actualPortfolio.holdings.map((h) => h.propertyId))
   const areaCounts = new Map<string, number>()
-  actualPortfolio.holdings.forEach((h) => {
-    const prop = mockProperties.find((p) => p.id === h.propertyId)
-    if (prop?.area) {
-      areaCounts.set(prop.area, (areaCounts.get(prop.area) || 0) + 1)
-    }
-  })
 
   // Evaluate all candidates
   const evaluated = actualCandidates

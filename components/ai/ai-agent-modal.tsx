@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea, ScrollAreaViewport } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import type { AIAgentId } from "@/lib/ai/agents"
 import { playMessageSound } from "@/lib/sounds"
 
@@ -203,7 +203,8 @@ export function AIAgentModal({
   const [messages, setMessages] = React.useState<Message[]>([])
   const [input, setInput] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
-  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const scrollViewportRef = React.useRef<HTMLDivElement>(null)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
   
   const config = AGENT_CONFIG[agentId]
   const Icon = config.icon
@@ -213,15 +214,11 @@ export function AIAgentModal({
     setMessages([])
   }, [agentId])
 
-  // Auto-scroll
+  // Auto-scroll to bottom when messages change
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
-      })
-    }
-  }, [messages])
+    // Use messagesEndRef to scroll into view
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, isLoading])
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
@@ -319,7 +316,7 @@ export function AIAgentModal({
 
               {/* Messages */}
               <ScrollArea className="flex-1 bg-white">
-                <ScrollAreaViewport ref={scrollRef} className="h-full p-5">
+                <ScrollAreaViewport ref={scrollViewportRef} className="h-full p-5">
                   {messages.length === 0 ? (
                     <div className="space-y-6 py-6">
                       <div className="text-center">
@@ -389,9 +386,12 @@ export function AIAgentModal({
                           </div>
                         </div>
                       )}
+                      {/* Invisible element at the end for scrolling */}
+                      <div ref={messagesEndRef} />
                     </div>
                   )}
                 </ScrollAreaViewport>
+                <ScrollBar />
               </ScrollArea>
 
               {/* Input */}

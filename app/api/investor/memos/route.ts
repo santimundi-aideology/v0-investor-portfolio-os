@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 
 import { getInvestor, store } from "@/lib/data/store"
-import { AccessError, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 
 export async function GET(req: Request) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
     const investor = getInvestor(ctx.investorId)

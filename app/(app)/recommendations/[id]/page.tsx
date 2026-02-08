@@ -39,8 +39,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import type { Counterfactual, Recommendation, RecommendationStatus } from "@/lib/types"
-import { getInvestorById, getPropertyById } from "@/lib/mock-data"
+import type { Counterfactual, Investor, Property, Recommendation, RecommendationStatus } from "@/lib/types"
+import { useAPI } from "@/lib/hooks/use-api"
+import { mapListingToProperty } from "@/lib/utils/map-listing"
 import {
   addCounterfactualToRecommendation,
   addInvestorQuestion,
@@ -112,10 +113,9 @@ function RelativeTime({ at }: { at?: string }) {
   return <span className="text-xs text-muted-foreground">{label || "—"}</span>
 }
 
-function fitBullets(propertyId: string) {
-  const p = getPropertyById(propertyId)
+function fitBullets(_propertyId: string, p?: Property | null) {
   const bullets: string[] = []
-  if (p?.roi) bullets.push(`Targets yield: ${p.roi}% ROI (placeholder)`)
+  if (p?.roi) bullets.push(`Targets yield: ${p.roi}% ROI`)
   bullets.push(`Area fit: ${p?.area ?? "Prime area"} aligned with mandate`)
   bullets.push("Downside protection: strong comps + liquidity (placeholder)")
   return bullets.slice(0, 3)
@@ -144,6 +144,23 @@ export default function RecommendationDetailPage() {
 
   if (!id) return null
 
+  // Fetch investor and listings data from API
+  const { data: investorData } = useAPI<Investor>(rec ? `/api/investors/${rec.investorId}` : null)
+  const investor = investorData ?? null
+
+  // Fetch listings for property details
+  const { data: listingsData } = useAPI<{ listings: Record<string, unknown>[] }>("/api/listings")
+  const propertiesMap = React.useMemo(() => {
+    const map = new Map<string, Property>()
+    if (listingsData?.listings) {
+      for (const l of listingsData.listings) {
+        const p = mapListingToProperty(l)
+        map.set(p.id, p)
+      }
+    }
+    return map
+  }, [listingsData])
+
   if (!rec) {
     return (
       <>
@@ -161,8 +178,6 @@ export default function RecommendationDetailPage() {
       </>
     )
   }
-
-  const investor = getInvestorById(rec.investorId)
 
   const primaryCta =
     rec.status === "DRAFT"
@@ -411,7 +426,7 @@ export default function RecommendationDetailPage() {
               />
             ) : (
               rec.propertyIds.map((pid) => {
-                const p = getPropertyById(pid)
+                const p = propertiesMap.get(pid) ?? null
                 if (!p) return null
                 const note = rec.propertyNotes?.[pid]
                 return (
@@ -450,7 +465,7 @@ export default function RecommendationDetailPage() {
                       <div className="rounded-md border bg-muted/30 p-3">
                         <div className="text-sm font-medium">Why it fits</div>
                         <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                          {fitBullets(pid).map((b, i) => (
+                          {fitBullets(pid, p).map((b, i) => (
                             <li key={i} className="flex gap-2">
                               <span className="text-emerald-600">•</span>
                               <span>{b}</span>
@@ -510,7 +525,7 @@ export default function RecommendationDetailPage() {
               </summary>
               <div className="mt-4 space-y-3">
                 {rec.counterfactuals.map((c) => {
-                  const p = getPropertyById(c.propertyId)
+                  const p = propertiesMap.get(c.propertyId) ?? null
                   if (!p) return null
                   return (
                     <CounterfactualCard

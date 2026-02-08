@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 
 import { deleteInvestorDb, getInvestorById, updateInvestorDb } from "@/lib/db/investors"
-import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertInvestorAccess } from "@/lib/security/rbac"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
@@ -17,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)
@@ -32,7 +33,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     const investor = await getInvestorById((await params).id)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertInvestorAccess(investor, ctx)

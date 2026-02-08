@@ -4,11 +4,12 @@ import { NextResponse } from "next/server"
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { getInvestor, getUnderwriting, store, createMemo } from "@/lib/data/store"
 import { computeConfidence, evidenceWarnings } from "@/lib/domain/underwriting"
-import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertInvestorAccess } from "@/lib/security/rbac"
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can generate memos")
 
     const body = await req.json()

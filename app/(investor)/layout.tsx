@@ -12,7 +12,7 @@ import { AppProvider, useApp } from "@/components/providers/app-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { DemoBannerWrapper } from "@/components/demo/demo-banner"
 import { AIWidgetProvider } from "@/components/ai/ai-widget-provider"
-import { notifications } from "@/lib/mock-session"
+import { isDemoMode } from "@/lib/demo-mode"
 
 function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -33,7 +33,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Count unread notifications for the badge
-  const unreadCount = notifications.filter((n) => n.unread).length
+  const unreadCount = [].filter((n) => n.unread).length
 
   // Get investor display info - for demo purposes using user info
   const investorName = user?.name ?? "Investor"

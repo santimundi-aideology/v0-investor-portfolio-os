@@ -1,0 +1,358 @@
+{
+  "source": "https://sothebysrealty.ae",
+  "extractedAt": "2026-02-06",
+  "brand": {
+    "name": "Dubai Sotheby's International Realty",
+    "tagline": "The address for luxury property",
+    "subtitle": "Exceptional homes, unrivalled expertise",
+    "website": "https://sothebysrealty.ae",
+    "headOffice": "EMAAR Business Park, Building 4, Office G-05, Sheikh Zayed Rd. Dubai, United Arab Emirates",
+    "parentBrand": "Sotheby's International Realty Affiliates LLC",
+    "note": "Each Office is Independently owned and operated",
+    "relatedBrands": [
+      "United Kingdom Sotheby's International Realty",
+      "Saudi Arabia Sotheby's International Realty",
+      "Abu Dhabi Sotheby's International Realty"
+    ],
+    "colors": {
+      "primaryNavy": "#1B2D5B",
+      "accentGold": "#C9A96E"
+    }
+  },
+  "navigation": {
+    "mainMenu": ["Buy", "Rent", "New Developments", "International", "Sell With Us", "Neighbourhood Guide", "The Journal", "The Team", "About Us", "Contact Us"],
+    "userMenu": ["Sign In", "Favourites", "Saved Searches", "Account"],
+    "propertyCategories": ["Signature Properties", "Apartments", "Penthouses", "Villas"],
+    "searchTabs": ["Sale", "Rent", "Development"]
+  },
+  "spotlightProperties": [
+    {
+      "title": "Showstopping Coastal Masterpiece in EŌME",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "spotlight"
+    },
+    {
+      "title": "Upgraded Waterfront Apartment in The Lana",
+      "location": "Business Bay, Dubai",
+      "category": "spotlight"
+    },
+    {
+      "title": "Turnkey Duplex with Roof Terrace in One at Palm",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "spotlight"
+    },
+    {
+      "title": "World-class Beachfront Villa on Dubai's Most Exclusive Island",
+      "location": "Jumeirah, Dubai",
+      "category": "spotlight"
+    }
+  ],
+  "signatureProperties": [
+    {
+      "name": "Eome",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Signature Properties",
+      "listingCount": 2
+    },
+    {
+      "name": "Signature Villas",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Signature Properties"
+    },
+    {
+      "name": "The Nest",
+      "location": "Al Barari, Dubai",
+      "category": "Signature Properties"
+    },
+    {
+      "name": "Acacia Avenues",
+      "location": "Al Sufouh, Dubai",
+      "category": "Signature Properties"
+    }
+  ],
+  "apartments": [
+    {
+      "building": "Dorchester Collection Dubai",
+      "location": "Business Bay, Dubai",
+      "category": "Apartments",
+      "listingCount": 2
+    },
+    {
+      "building": "Four Seasons Private Residences",
+      "location": "DIFC, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Emirates Crown",
+      "location": "Dubai Marina, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Waldorf Astoria",
+      "location": "DIFC, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "One at Palm Jumeirah",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Mr. C Residences",
+      "location": "Jumeirah, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Atlantis The Royal Residences",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Trident Grand Residence",
+      "location": "Dubai Marina, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "The S Tower",
+      "location": "Dubai Internet City, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "1 JBR",
+      "location": "Jumeirah Beach Residence, Dubai",
+      "category": "Apartments"
+    },
+    {
+      "building": "Eden House The Park",
+      "location": "Al Wasl, Dubai",
+      "category": "Apartments"
+    }
+  ],
+  "penthouses": [
+    {
+      "building": "One at Palm Jumeirah",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Penthouses",
+      "listingCount": 2
+    },
+    {
+      "building": "Four Seasons Private Residences Jumeirah",
+      "location": "Jumeirah, Dubai",
+      "category": "Penthouses"
+    },
+    {
+      "building": "W Residences",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Penthouses"
+    },
+    {
+      "building": "Index Tower",
+      "location": "DIFC, Dubai",
+      "category": "Penthouses"
+    },
+    {
+      "building": "Marina Residences",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Penthouses"
+    },
+    {
+      "building": "Central Park Tower",
+      "location": "DIFC, Dubai",
+      "category": "Penthouses"
+    },
+    {
+      "building": "Emirates Crown",
+      "location": "Dubai Marina, Dubai",
+      "category": "Penthouses"
+    }
+  ],
+  "villas": [
+    {
+      "project": "Jumeirah Bay Island",
+      "location": "Jumeirah, Dubai",
+      "category": "Villas",
+      "listingCount": 2
+    },
+    {
+      "project": "Sector E",
+      "location": "Emirates Hills, Dubai",
+      "category": "Villas",
+      "listingCount": 2
+    },
+    {
+      "project": "Signature Villas",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Villas"
+    },
+    {
+      "project": "Desert Leaf",
+      "location": "Al Barari, Dubai",
+      "category": "Villas"
+    },
+    {
+      "project": "The Parkway at Dubai Hills",
+      "location": "Dubai Hills Estate, Dubai",
+      "category": "Villas"
+    },
+    {
+      "project": "W Residences",
+      "location": "Palm Jumeirah, Dubai",
+      "category": "Villas"
+    }
+  ],
+  "newDevelopments": [
+    {
+      "name": "Dorchester Collection Dubai",
+      "location": "Business Bay, Dubai"
+    },
+    {
+      "name": "Four Seasons Private Residences",
+      "location": "DIFC, Dubai"
+    },
+    {
+      "name": "Waldorf Astoria",
+      "location": "DIFC, Dubai"
+    },
+    {
+      "name": "One at Palm Jumeirah",
+      "location": "Palm Jumeirah, Dubai"
+    },
+    {
+      "name": "Mr. C Residences",
+      "location": "Jumeirah, Dubai"
+    },
+    {
+      "name": "Atlantis The Royal Residences",
+      "location": "Palm Jumeirah, Dubai"
+    },
+    {
+      "name": "Trident Grand Residence",
+      "location": "Dubai Marina, Dubai"
+    },
+    {
+      "name": "The S Tower",
+      "location": "Dubai Internet City, Dubai"
+    },
+    {
+      "name": "1 JBR",
+      "location": "Jumeirah Beach Residence, Dubai"
+    },
+    {
+      "name": "Eden House The Park",
+      "location": "Al Wasl, Dubai"
+    }
+  ],
+  "neighbourhoods": [
+    {
+      "name": "Palm Jumeirah",
+      "featured": true
+    },
+    {
+      "name": "Emirates Hills",
+      "featured": true
+    },
+    {
+      "name": "Jumeirah Bay Island",
+      "featured": true
+    },
+    {
+      "name": "Jumeirah Golf Estates",
+      "featured": true
+    },
+    {
+      "name": "District One",
+      "featured": true
+    },
+    {
+      "name": "Dubai Hills",
+      "featured": true
+    },
+    {
+      "name": "Al Barari",
+      "featured": true
+    },
+    {
+      "name": "Meydan",
+      "featured": false
+    },
+    {
+      "name": "Jumeirah Park",
+      "featured": false
+    }
+  ],
+  "lifestyles": [
+    "Dubai Mansions",
+    "Waterfront Living",
+    "Community Living",
+    "Private Living",
+    "Golf Course Living",
+    "Branded Residences",
+    "Green Area",
+    "Pet Friendly",
+    "Beachfront",
+    "Urban Living",
+    "Active Living",
+    "Family Friendly",
+    "Modern",
+    "Ready to Move In"
+  ],
+  "internationalProperties": [
+    {
+      "destination": "Toscana",
+      "type": "International"
+    },
+    {
+      "destination": "London",
+      "type": "International"
+    },
+    {
+      "destination": "Red Sea",
+      "type": "International"
+    },
+    {
+      "destination": "French Alpes",
+      "type": "International"
+    }
+  ],
+  "journalArticles": [
+    {
+      "title": "Ferrari Takes Centrestage at RM Sotheby's Paris",
+      "category": "Company News"
+    },
+    {
+      "title": "Sotheby's Origins II Returns to Riyadh",
+      "category": "Company News"
+    },
+    {
+      "title": "Sotheby's Paris Reveals The Personal World of Doris Brynner",
+      "category": "Company News"
+    },
+    {
+      "title": "New Pricing Benchmark Set in Emirates Hills with Record Sale",
+      "category": "Company News"
+    }
+  ],
+  "journalCategories": [
+    "Company News",
+    "Lifestyle Articles",
+    "The Market",
+    "Design & Architecture",
+    "Guides",
+    "Media Mentions",
+    "Video Gallery"
+  ],
+  "partnership": {
+    "headline": "Sotheby's Partnership: our brand, our heritage, your benefit",
+    "description": "Our unique partnership with Sotheby's Auction House enables sellers and landlords to engage the discerning auction audience seamlessly and globally.",
+    "auctionHouse": "Over the last two centuries, Sotheby's Auction House has built an iconic brand with unparalleled prestige. Today, Sotheby's International Realty builds on to that legacy, offering a highly curated portfolio.",
+    "rmSothebys": "RM Sotheby's has earned a stellar reputation since 1975 in the collector car industry, consistently exceeding expectations with an impressive inventory of rare and coveted vehicles spanning all eras."
+  },
+  "settings": {
+    "sizeUnits": ["SQ.FT.", "SQ.M."],
+    "defaultCurrency": "AED"
+  },
+  "footerLinks": {
+    "company": ["About Us", "The Team", "New Developments", "International Properties"],
+    "legal": ["Terms of Use", "Privacy Policy", "Archives", "Project Archives"]
+  }
+}

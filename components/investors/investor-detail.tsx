@@ -23,6 +23,7 @@ import { TasksTab } from "@/components/investors/tabs/tasks-tab"
 import { DocumentsTab } from "@/components/investors/tabs/documents-tab"
 import { RecommendationsTab } from "@/components/investors/tabs/recommendations-tab"
 import { DealRoomsTab } from "@/components/investors/tabs/deal-rooms-tab"
+import { InvestorAlertRules } from "@/components/investors/investor-alert-rules"
 import { EditInvestorProfileDialog } from "@/components/investors/edit-investor-profile-dialog"
 import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
@@ -148,6 +149,7 @@ export function InvestorDetail({
               <TabsTrigger value="memos">IC Memos ({memos.length})</TabsTrigger>
                   <TabsTrigger value="dealRooms">Deal Rooms ({dealRooms.filter((d) => d.status !== "completed").length})</TabsTrigger>
               <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
+              <TabsTrigger value="alerts">Alerts</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
 
@@ -173,6 +175,10 @@ export function InvestorDetail({
 
             <TabsContent value="tasks">
               <TasksTab tasks={tasks} />
+            </TabsContent>
+
+            <TabsContent value="alerts">
+              <InvestorAlertRules investorId={investor.id} investorName={investor.name} />
             </TabsContent>
 
             <TabsContent value="documents">

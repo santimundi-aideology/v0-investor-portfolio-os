@@ -3,7 +3,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 
 import { createAuditEventWriter } from "@/lib/audit"
-import { buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
 import { updateMarketSignalStatus } from "@/lib/db/market-signals"
 
 type Body = {
@@ -24,12 +24,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     let actorUserId: string | undefined
     let actorRole: string | undefined
     try {
-      const ctx = buildRequestContext(req)
+      const ctx = await requireAuthContext(req)
       tenantId = ctx.tenantId
       actorUserId = ctx.userId
       actorRole = ctx.role
     } catch {
-      // allow dev/demo calls without headers
+      // allow dev/demo calls without auth session
     }
 
     const body = (await req.json().catch(() => ({}))) as Body

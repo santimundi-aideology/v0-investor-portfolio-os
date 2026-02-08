@@ -32,44 +32,44 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/layout/empty-state"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
-import { mockMarketSignals, formatMarketSignalType } from "@/lib/mock-market-signals"
-import { mockInvestors } from "@/lib/mock-data"
-import { getPortfolioSummary, getHoldingProperty } from "@/lib/real-estate"
+import { formatMarketSignalType } from "@/lib/types"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
 import type {
   MarketSignalItem,
   MarketSignalSeverity,
   MarketSignalType,
-} from "@/lib/mock-market-signals"
-
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
+} from "@/lib/types"
+import type { Investor } from "@/lib/types"
 
 type ViewMode = "cards" | "list"
 
 export default function InvestorMarketSignalsPage() {
+  const { scopedInvestorId } = useApp()
   const [viewMode, setViewMode] = React.useState<ViewMode>("cards")
   const [query, setQuery] = React.useState("")
   const [signalType, setSignalType] = React.useState<MarketSignalType | "all">("all")
   const [severity, setSeverity] = React.useState<MarketSignalSeverity | "all">("all")
   const [relevance, setRelevance] = React.useState<"all" | "portfolio" | "mandate">("all")
-  const [isLoading, setIsLoading] = React.useState(true)
-
-  // Get investor data
-  const investor = React.useMemo(
-    () => mockInvestors.find((i) => i.id === INVESTOR_ID),
-    []
+  // Fetch data from API
+  const { data: investor } = useAPI<Investor>(
+    scopedInvestorId ? `/api/investors/${scopedInvestorId}` : null
   )
-  const summary = React.useMemo(() => getPortfolioSummary(INVESTOR_ID), [])
+  const { data: portfolioData } = useAPI<{
+    holdings: Array<{ property: { area?: string } | null }>
+  }>(scopedInvestorId ? `/api/portfolio/${scopedInvestorId}` : null)
+  const { data: apiSignals, isLoading } = useAPI<MarketSignalItem[]>("/api/market-signals")
 
   // Get areas from portfolio and mandate
   const portfolioAreas = React.useMemo(() => {
     const areas = new Set<string>()
-    for (const h of summary.holdings) {
-      const p = getHoldingProperty(h)
-      if (p?.area) areas.add(p.area)
+    if (portfolioData?.holdings) {
+      for (const h of portfolioData.holdings) {
+        if (h.property?.area) areas.add(h.property.area)
+      }
     }
     return areas
-  }, [summary.holdings])
+  }, [portfolioData])
 
   const mandateAreas = React.useMemo(() => {
     const areas = new Set<string>()
@@ -83,15 +83,15 @@ export default function InvestorMarketSignalsPage() {
   // Signal types for filter
   const signalTypes = React.useMemo(() => {
     const set = new Set<MarketSignalType>()
-    for (const s of mockMarketSignals) set.add(s.type)
+    for (const s of (apiSignals ?? [])) set.add(s.type)
     return Array.from(set)
-  }, [])
+  }, [apiSignals])
 
   // Filter and score signals
   const signals = React.useMemo(() => {
     const q = query.trim().toLowerCase()
     
-    return mockMarketSignals
+    return (apiSignals ?? [])
       .map((s) => {
         // Calculate relevance score
         let relevanceScore = 0
@@ -146,12 +146,6 @@ export default function InvestorMarketSignalsPage() {
     return { total, portfolioCount, mandateCount, urgentCount }
   }, [signals])
 
-  // Simulate loading
-  React.useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 300)
-    return () => clearTimeout(t)
-  }, [])
-
   function resetFilters() {
     setQuery("")
     setSignalType("all")
@@ -186,7 +180,7 @@ export default function InvestorMarketSignalsPage() {
                 "What's the market outlook for Dubai Marina?",
               ]}
               pagePath="/investor/market-signals"
-              scopedInvestorId={INVESTOR_ID}
+              scopedInvestorId={scopedInvestorId}
               variant="inline"
             />
           </div>

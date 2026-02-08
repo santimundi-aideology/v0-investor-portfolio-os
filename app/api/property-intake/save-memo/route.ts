@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { createMemo, store } from "@/lib/data/store"
-import { AccessError, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 
 /**
  * Save property evaluation as IC Memo
@@ -62,7 +63,7 @@ interface SaveMemoRequest {
 
 export async function POST(req: Request) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
 
     // Only agents and admins can create memos
     if (ctx.role === "investor") {

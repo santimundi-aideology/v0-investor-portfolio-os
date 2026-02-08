@@ -1,21 +1,37 @@
 import { NextResponse } from "next/server"
-
-import { getMemo, resolveShareToken, saveMemo, store } from "@/lib/data/store"
-import { transitionMemo } from "@/lib/domain/memos"
+import { resolveShareToken, trackShareTokenClick } from "@/lib/db/share-tokens"
+import { getMemoById } from "@/lib/db/memos"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
-  const share = resolveShareToken((await params).token)
-  if (!share) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  const memo = getMemo(share.memoId)
-  if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  if (!["sent", "opened", "decided"].includes(memo.state)) return NextResponse.json({ error: "Not available" }, { status: 403 })
-
-  // idempotent sent->opened
-  if (memo.state === "sent") {
-    const next = transitionMemo(memo, "opened")
-    saveMemo(next)
+  const token = (await params).token
+  const share = await resolveShareToken(token)
+  
+  if (!share) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ memoId: memo.id, investorId: memo.investorId, tenantId: store.tenantId })
-}
+  const memo = await getMemoById(share.memo_id)
+  if (!memo) {
+    return NextResponse.json({ error: "Memo not found" }, { status: 404 })
+  }
 
+  // Check if memo is in a shareable state
+  if (!["sent", "opened", "decided"].includes(memo.state)) {
+    return NextResponse.json({ error: "Not available" }, { status: 403 })
+  }
+
+  // Track click-through (when investor views the memo)
+  await trackShareTokenClick(token)
+
+  return NextResponse.json({
+    memoId: memo.id,
+    investorId: memo.investorId,
+    tenantId: share.tenant_id,
+    shareToken: {
+      method: share.share_method,
+      openedAt: share.opened_at,
+      openedCount: share.opened_count,
+      clickedAt: share.clicked_at,
+    },
+  })
+}

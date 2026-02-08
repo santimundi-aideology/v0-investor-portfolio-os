@@ -50,10 +50,8 @@ import {
   calcAppreciationPct,
   calcYieldPct,
   formatAED,
-  getHoldingsForInvestor,
-  getHoldingProperty,
 } from "@/lib/real-estate"
-import { mockInvestors } from "@/lib/mock-data"
+import { useAPI } from "@/lib/hooks/use-api"
 import type { Investor } from "@/lib/types"
 
 type TimeRange = "3m" | "6m" | "1y" | "all"
@@ -197,98 +195,45 @@ export default function InvestorAnalyticsPage({ params }: { params: Promise<{ id
   const { id: investorId } = use(params)
   const [timeRange, setTimeRange] = React.useState<TimeRange>("1y")
   const [comparisonMetric, setComparisonMetric] = React.useState<"yield" | "appreciation" | "occupancy">("yield")
-  const [investor, setInvestor] = React.useState<Investor | null | undefined>(undefined)
-  const [isLoading, setIsLoading] = React.useState(true)
 
-  // Fetch investor from API or fall back to mock data
-  React.useEffect(() => {
-    async function fetchInvestor() {
-      setIsLoading(true)
-      try {
-        // First try to find in mock data (for demo purposes)
-        const mockInvestor = mockInvestors.find((i) => i.id === investorId)
-        if (mockInvestor) {
-          setInvestor(mockInvestor)
-          setIsLoading(false)
-          return
-        }
+  // Fetch investor from API
+  const { data: investor, isLoading: investorLoading } = useAPI<Investor>(`/api/investors/${investorId}`)
 
-        // Try to fetch from API
-        const res = await fetch(`/api/investors/${investorId}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data) {
-            setInvestor(data as Investor)
-          } else {
-            setInvestor(null)
-          }
-        } else {
-          setInvestor(null)
-        }
-      } catch (err) {
-        console.error("Error fetching investor:", err)
-        setInvestor(null)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchInvestor()
-  }, [investorId])
+  // Fetch portfolio holdings from API
+  const { data: portfolioData, isLoading: portfolioLoading } = useAPI<{
+    summary: { propertyCount: number; totalValue: number; totalCost: number; appreciationPct: number; totalMonthlyIncome: number; netAnnualIncome: number; avgYieldPct: number; avgOccupancy: number }
+    holdings: Array<{
+      id: string; investorId: string; listingId: string;
+      property: { title: string; area: string; type: string; imageUrl?: string; size?: number; bedrooms?: number } | null;
+      financials: { purchasePrice: number; purchaseDate: string; currentValue: number; monthlyRent: number; occupancyRate: number; annualExpenses: number; appreciationPct: number; netYieldPct: number }
+    }>
+  }>(`/api/portfolio/${investorId}`)
 
-  const rawHoldings = React.useMemo(() => getHoldingsForInvestor(investorId), [investorId])
-  
-  // Generate enhanced holdings with property details
+  const isLoading = investorLoading || portfolioLoading
+
+  // Map portfolio holdings to EnhancedHolding format
   const allHoldings: EnhancedHolding[] = React.useMemo(() => {
+    if (!portfolioData?.holdings) return []
     const seed = investorId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-    
-    if (rawHoldings.length > 0) {
-      // Enhance existing holdings with property details
-      return rawHoldings.map((h, i) => {
-        const property = getHoldingProperty(h)
-        const baseSeed = seed + i * 1000
-        return {
-          ...h,
-          propertyName: property?.title || generatePropertyName(seed, i),
-          area: property?.area || AREAS[(seed + i * 11) % AREAS.length],
-          imageUrl: property?.imageUrl || PROPERTY_IMAGES[(seed + i * 3) % PROPERTY_IMAGES.length],
-          propertyType: property?.type || ["residential", "commercial", "mixed-use"][(seed + i) % 3],
-          bedrooms: property?.bedrooms || 1 + ((seed + i * 5) % 4),
-          size: property?.size || 800 + ((seed + i * 17) % 3000),
-        }
-      })
-    }
-    
-    // Generate synthetic holdings for database investors
-    const propertyCount = 3 + (seed % 5) // 3-7 properties
-    const syntheticHoldings: EnhancedHolding[] = []
-    
-    for (let i = 0; i < propertyCount; i++) {
-      const baseSeed = seed + i * 1000
-      const purchasePrice = 2000000 + (baseSeed % 15000000)
-      const appreciationPct = 5 + (baseSeed % 15)
-      const appreciation = 1 + appreciationPct / 100
-      
-      syntheticHoldings.push({
-        id: `synth-${investorId.slice(0, 8)}-${i}`,
-        investorId,
-        propertyId: `synth-prop-${i}`,
-        purchasePrice,
-        purchaseDate: `2023-${String((baseSeed % 12) + 1).padStart(2, '0')}-15`,
-        currentValue: Math.round(purchasePrice * appreciation),
-        monthlyRent: Math.round(purchasePrice * 0.007),
-        occupancyRate: 0.85 + ((baseSeed % 15) / 100),
-        annualExpenses: Math.round(purchasePrice * 0.025),
-        // Enhanced fields
-        propertyName: generatePropertyName(seed, i),
-        area: AREAS[(seed + i * 11) % AREAS.length],
-        imageUrl: PROPERTY_IMAGES[(seed + i * 3) % PROPERTY_IMAGES.length],
-        propertyType: ["residential", "commercial", "mixed-use"][(seed + i) % 3],
-        bedrooms: 1 + ((seed + i * 5) % 4),
-        size: 800 + ((seed + i * 17) % 3000),
-      })
-    }
-    return syntheticHoldings
-  }, [rawHoldings, investorId])
+
+    return portfolioData.holdings.map((h, i) => ({
+      id: h.id,
+      investorId: h.investorId,
+      propertyId: h.listingId,
+      purchasePrice: h.financials.purchasePrice,
+      purchaseDate: h.financials.purchaseDate,
+      currentValue: h.financials.currentValue,
+      monthlyRent: h.financials.monthlyRent,
+      occupancyRate: h.financials.occupancyRate,
+      annualExpenses: h.financials.annualExpenses,
+      propertyName: h.property?.title || generatePropertyName(seed, i),
+      area: h.property?.area || AREAS[(seed + i * 11) % AREAS.length],
+      imageUrl: h.property?.imageUrl || PROPERTY_IMAGES[(seed + i * 3) % PROPERTY_IMAGES.length],
+      propertyType: h.property?.type || ["residential", "commercial", "mixed-use"][(seed + i) % 3],
+      bedrooms: h.property?.bedrooms || 1 + ((seed + i * 5) % 4),
+      size: h.property?.size || 800 + ((seed + i * 17) % 3000),
+    }))
+  }, [portfolioData, investorId])
 
   // Property selection state
   const [selectedPropertyIds, setSelectedPropertyIds] = React.useState<Set<string>>(new Set())

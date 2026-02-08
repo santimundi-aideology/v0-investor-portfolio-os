@@ -396,6 +396,7 @@ export interface Task {
 
 export interface DealRoom {
   id: string
+  tenantId: string
   title: string
   investorId: string
   investorName: string
@@ -407,14 +408,17 @@ export interface DealRoom {
   timeline: TimelineEvent[]
   createdAt: string
 
-  // --- Enriched deal context (editable in future; shown in CRM) ---
+  // --- Enriched deal context ---
   lastUpdatedAt?: string
   ticketSizeAed?: number
   offerPriceAed?: number
   targetCloseDate?: string
   probability?: number // 0-100
+  priority?: "low" | "medium" | "high" | "urgent"
   nextStep?: string
   summary?: string
+  notes?: string
+  assignedAgentId?: string
 }
 
 export interface DealParty {
@@ -705,5 +709,88 @@ export interface OffPlanEvaluationResult {
   headline: string
   recommendation: "strong_buy" | "buy" | "hold" | "pass"
   memoContent: OffPlanMemoContent
+}
+
+// ============================================================================
+// Market Signal Types (moved from mock-market-signals.ts)
+// ============================================================================
+
+export type MarketSignalSourceType = "official" | "portal"
+export type MarketSignalStatus = "new" | "acknowledged" | "dismissed" | "routed"
+export type MarketSignalSeverity = "info" | "watch" | "urgent"
+
+export type MarketSignalType =
+  | "price_change"
+  | "rent_change"
+  | "yield_opportunity"
+  | "supply_spike"
+  | "discounting_spike"
+  | "staleness_rise"
+  | "risk_flag"
+  | "pricing_opportunity"
+
+export type MarketSignalGeoType = "community" | "submarket" | "city"
+
+export type MarketSignalMetric =
+  | "median_price_psf"
+  | "median_rent_annual"
+  | "gross_yield"
+  | "active_listings"
+  | "price_cuts_count"
+  | "stale_listings_count"
+  | "asking_price"
+
+export type MarketSignalItem = {
+  id: string
+  createdAt: string
+  sourceType: MarketSignalSourceType
+  source: string
+  timeframe: "QoQ" | "WoW"
+  type: MarketSignalType
+  severity: MarketSignalSeverity
+  status: MarketSignalStatus
+  geoType: MarketSignalGeoType
+  geoId: string
+  geoName: string
+  segment: string
+  metric: MarketSignalMetric
+  metricLabel: string
+  currentValue: number
+  currentValueLabel: string
+  prevValue?: number | null
+  prevValueLabel?: string | null
+  deltaValue?: number | null
+  deltaPct?: number | null
+  confidenceScore: number
+  investorMatches?: number
+  propertyTitle?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export function formatMarketSignalType(t: MarketSignalType): string {
+  switch (t) {
+    case "price_change": return "Price change"
+    case "rent_change": return "Rent change"
+    case "yield_opportunity": return "Yield opportunity"
+    case "supply_spike": return "Supply spike"
+    case "discounting_spike": return "Discounting spike"
+    case "staleness_rise": return "Staleness rise"
+    case "risk_flag": return "Risk flag"
+    case "pricing_opportunity": return "Pricing opportunity"
+    default: return t
+  }
+}
+
+// ============================================================================
+// Notification Type (moved from mock-session.ts)
+// ============================================================================
+
+export type Notification = {
+  id: string
+  title: string
+  body: string
+  createdAt: string
+  unread?: boolean
+  href?: string
 }
 

@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { NotificationCenter } from "@/components/notifications/notification-center"
-import type { Notification } from "@/lib/mock-session"
+import type { Notification } from "@/lib/types"
 
 export default function NotificationsPage() {
   const [items, setItems] = React.useState<Notification[]>([])

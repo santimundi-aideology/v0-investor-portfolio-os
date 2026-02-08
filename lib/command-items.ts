@@ -1,5 +1,4 @@
 import type { UserRole } from "@/lib/types"
-import { mockInvestors, mockProperties } from "@/lib/mock-data"
 import { filterNavByRole } from "@/lib/nav"
 
 export type CommandItem =
@@ -47,21 +46,10 @@ export function getCommandItems(role: UserRole) {
     })),
   )
 
-  const recentInvestors: CommandInvestorItem[] = mockInvestors.slice(0, 6).map((inv) => ({
-    kind: "investor",
-    label: inv.name,
-    href: `/investors/${inv.id}`,
-    meta: inv.company,
-    keywords: [inv.company, inv.status],
-  }))
-
-  const recentProperties: CommandPropertyItem[] = mockProperties.slice(0, 6).map((prop) => ({
-    kind: "property",
-    label: prop.title,
-    href: `/properties/${prop.id}`,
-    meta: `${prop.area} • AED ${(prop.price / 1_000_000).toFixed(1)}M`,
-    keywords: [prop.area, prop.type, prop.status],
-  }))
+  // Investors and properties are fetched via /api/search in the command palette.
+  // These are empty by default since this is a sync function.
+  const recentInvestors: CommandInvestorItem[] = []
+  const recentProperties: CommandPropertyItem[] = []
 
   const actions: CommandActionItem[] = [
     { kind: "action", label: "Create investor", href: "/investors", meta: "Opens investors page", shortcut: "I" },

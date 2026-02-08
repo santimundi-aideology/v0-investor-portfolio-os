@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createMemo } from "@/lib/data/store"
-import { buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError } from "@/lib/security/rbac"
 import { createAuditEventWriter } from "@/lib/audit"
 import type {
   OffPlanProject,
@@ -30,7 +31,7 @@ interface SaveOffPlanMemoRequest {
  */
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     
     // Only agents and admins can create memos
     if (ctx.role === "investor") {
@@ -168,6 +169,9 @@ export async function POST(req: NextRequest) {
       message: "Off-plan IC memo saved successfully",
     })
   } catch (error) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error("Save off-plan memo error:", error)
     return NextResponse.json(
       { error: "Failed to save off-plan memo. Please try again." },

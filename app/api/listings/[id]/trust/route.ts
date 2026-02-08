@@ -3,11 +3,12 @@ import { NextResponse } from "next/server"
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { getListingById } from "@/lib/db/listings"
 import { upsertTrustRecordDb } from "@/lib/db/trust"
-import { AccessError, assertTenantScope, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertTenantScope } from "@/lib/security/rbac"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     assertTenantScope(ctx.tenantId!, ctx)
     if (ctx.role === "investor") throw new AccessError("Investors cannot modify trust records")
 

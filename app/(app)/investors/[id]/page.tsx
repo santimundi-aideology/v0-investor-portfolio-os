@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 
-import { getDealRoomsByInvestorId, getMemosByInvestorId, getShortlistByInvestorId, getTasksByInvestorId } from "@/lib/mock-data"
+import { useAPI } from "@/lib/hooks/use-api"
 import { InvestorDetail } from "@/components/investors/investor-detail"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Button } from "@/components/ui/button"
@@ -22,10 +22,13 @@ export default function InvestorDetailPage() {
 
   const investor = useInvestor(canonicalId)
 
-  const shortlist = React.useMemo(() => getShortlistByInvestorId(canonicalId), [canonicalId])
-  const memos = React.useMemo(() => getMemosByInvestorId(canonicalId), [canonicalId])
-  const tasks = React.useMemo(() => getTasksByInvestorId(canonicalId), [canonicalId])
-  const dealRooms = React.useMemo(() => getDealRoomsByInvestorId(canonicalId), [canonicalId])
+  // Deal rooms and shortlist tables don't exist yet - use empty arrays
+  const dealRooms: never[] = []
+  const shortlist: never[] = []
+
+  // Fetch memos and tasks from API
+  const { data: memos } = useAPI<unknown[]>(canonicalId ? `/api/investor/memos?investorId=${canonicalId}` : null)
+  const { data: tasks } = useAPI<unknown[]>(canonicalId ? `/api/tasks?investorId=${canonicalId}` : null)
 
   if (!investor) {
     return (
@@ -42,5 +45,5 @@ export default function InvestorDetailPage() {
     )
   }
 
-  return <InvestorDetail investor={investor} shortlist={shortlist} memos={memos} dealRooms={dealRooms} tasks={tasks} />
+  return <InvestorDetail investor={investor} shortlist={shortlist} memos={memos ?? []} dealRooms={dealRooms} tasks={tasks ?? []} />
 }

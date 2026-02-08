@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Bell, BookOpen, CircleHelp, Keyboard, LifeBuoy, LogOut, Menu, Search, User2 } from "lucide-react"
+import { Bell, BookOpen, Building2, Check, CircleHelp, Keyboard, LifeBuoy, Loader2, LogOut, Menu, Plus, Search, Shield, User2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -17,12 +17,17 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useApp, usePersonas } from "@/components/providers/app-provider"
-import { notifications } from "@/lib/mock-session"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import type { Notification } from "@/lib/types"
 import { KeyboardShortcutsModal } from "@/components/layout/keyboard-shortcuts-modal"
 
 interface TopbarProps {
@@ -31,17 +36,107 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const router = useRouter()
-  const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId } = useApp()
+  const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId, platformRole, tenantsLoading, refreshTenants } = useApp()
   const personas = usePersonas()
-  const [notificationItems, setNotificationItems] = useState(notifications)
+  const [notificationItems, setNotificationItems] = useState<Notification[]>([])
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  // Inline "Add Company" dialog state
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [newCompanyName, setNewCompanyName] = useState("")
+  const [newCompanyPlan, setNewCompanyPlan] = useState("starter")
+  const [isCreating, setIsCreating] = useState(false)
+
+  const handleCreateCompany = useCallback(async () => {
+    if (!newCompanyName.trim()) {
+      toast.error("Company name is required")
+      return
+    }
+    setIsCreating(true)
+    try {
+      const res = await fetch("/api/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCompanyName.trim(), plan: newCompanyPlan }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to create company")
+      }
+      const data = await res.json()
+      toast.success("Company created", {
+        description: `${newCompanyName.trim()} is now available.`,
+      })
+      setCreateDialogOpen(false)
+      setNewCompanyName("")
+      setNewCompanyPlan("starter")
+      refreshTenants()
+      // Auto-switch to the new tenant
+      if (data.tenant?.id) {
+        setCurrentOrgId(data.tenant.id)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create company")
+    } finally {
+      setIsCreating(false)
+    }
+  }, [newCompanyName, newCompanyPlan, refreshTenants, setCurrentOrgId])
+
+  const handleTenantSwitch = useCallback((orgId: string) => {
+    if (orgId === currentOrg?.id) return
+    setCurrentOrgId(orgId)
+    const orgName = orgs.find((o) => o.id === orgId)?.name ?? "company"
+    toast.success(`Switched to ${orgName}`, {
+      description: "Data will refresh for the selected company.",
+    })
+    // Force a page reload to refresh all data for the new tenant context
+    // This ensures SWR caches are cleared and all components re-fetch
+    window.location.reload()
+  }, [currentOrg?.id, setCurrentOrgId, orgs])
 
   useEffect(() => {
     // Use setTimeout to defer state update to avoid cascading renders
     const timeout = setTimeout(() => setIsHydrated(true), 0)
     return () => clearTimeout(timeout)
+  }, [])
+
+  // Load notifications from API
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const res = await fetch("/api/notifications?limit=50")
+        if (res.ok) {
+          const data = await res.json()
+          // Transform DB notifications to component format
+          const notifications: Notification[] = (data.notifications || []).map((n: {
+            id: string
+            title: string
+            body: string
+            read_at: string | null
+            created_at: string
+            entity_type?: string
+            entity_id?: string
+            metadata?: Record<string, unknown>
+          }) => ({
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            createdAt: n.created_at,
+            unread: !n.read_at,
+            href: n.metadata?.link as string | undefined,
+          }))
+          setNotificationItems(notifications)
+        }
+      } catch (err) {
+        console.error("Failed to load notifications:", err)
+      }
+    }
+    loadNotifications()
+    // Refresh every 30 seconds
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Global keyboard shortcut for ? to open shortcuts modal
@@ -94,33 +189,81 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button id="org-switcher-trigger" variant="ghost" className="h-9 gap-2 px-2">
-              <Avatar className="h-6 w-6">
-                <AvatarFallback className="text-[10px]">{currentOrg.avatarText}</AvatarFallback>
-              </Avatar>
-              <span className="max-w-[160px] truncate text-sm font-medium">{currentOrg.name}</span>
-              <Badge variant="secondary" className="hidden sm:inline-flex">
-                {currentOrg.plan}
-              </Badge>
+              {tenantsLoading ? (
+                <Skeleton className="h-6 w-6 rounded-full" />
+              ) : (
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="text-[10px]">{currentOrg.avatarText}</AvatarFallback>
+                </Avatar>
+              )}
+              {tenantsLoading ? (
+                <Skeleton className="hidden sm:block h-4 w-24" />
+              ) : (
+                <span className="max-w-[160px] truncate text-sm font-medium">{currentOrg.name}</span>
+              )}
+              {!tenantsLoading && platformRole === "super_admin" && (
+                <Badge variant="outline" className="hidden sm:inline-flex gap-1 border-purple-300 bg-purple-50 text-purple-700">
+                  <Shield className="h-3 w-3" />
+                  Super Admin
+                </Badge>
+              )}
+              {!tenantsLoading && platformRole !== "super_admin" && (
+                <Badge variant="secondary" className="hidden sm:inline-flex">
+                  {currentOrg.plan}
+                </Badge>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
             <DropdownMenuLabel>Organization</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              {orgs.map((org) => (
-                <DropdownMenuItem key={org.id} onSelect={() => setCurrentOrgId(org.id)}>
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-[10px]">{org.avatarText}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{org.name}</div>
-                      <div className="text-muted-foreground text-xs capitalize">{org.plan}</div>
+              {tenantsLoading ? (
+                <div className="flex items-center gap-2 px-2 py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading companies…</span>
+                </div>
+              ) : orgs.length === 0 ? (
+                <div className="px-2 py-3 text-center">
+                  <Building2 className="mx-auto h-8 w-8 text-gray-300 mb-1" />
+                  <p className="text-sm text-muted-foreground">No companies yet</p>
+                </div>
+              ) : (
+                orgs.map((org) => (
+                  <DropdownMenuItem key={org.id} onSelect={() => handleTenantSwitch(org.id)}>
+                    <div className="flex w-full items-center gap-2">
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarFallback className="text-[10px]">{org.avatarText}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{org.name}</div>
+                        <div className="text-muted-foreground text-xs capitalize">{org.plan}</div>
+                      </div>
+                      {org.id === currentOrg.id && (
+                        <Check className="h-4 w-4 shrink-0 text-green-600" />
+                      )}
                     </div>
-                  </div>
-                </DropdownMenuItem>
-              ))}
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuGroup>
+            {(platformRole === "super_admin" || platformRole === "manager") && (
+              <>
+                <DropdownMenuSeparator />
+                {platformRole === "super_admin" && (
+                  <DropdownMenuItem onSelect={() => setCreateDialogOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Company
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/settings?tab=companies" className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Manage Companies
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -240,6 +383,63 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Inline Create Company Dialog (super_admin) */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Company</DialogTitle>
+            <DialogDescription>
+              Create a new tenant organization. Each company has isolated data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="topbar-company-name">Company Name</Label>
+              <Input
+                id="topbar-company-name"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                placeholder="e.g. Acme Real Estate Group"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isCreating && newCompanyName.trim()) {
+                    handleCreateCompany()
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Plan</Label>
+              <Select value={newCompanyPlan} onValueChange={setNewCompanyPlan}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="starter">Starter</SelectItem>
+                  <SelectItem value="pro">Pro</SelectItem>
+                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={isCreating}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCompany} disabled={isCreating || !newCompanyName.trim()}>
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create Company"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }

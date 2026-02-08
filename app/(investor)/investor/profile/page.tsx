@@ -34,39 +34,109 @@ import {
 } from "@/components/ui/select"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
-import { mockInvestors } from "@/lib/mock-data"
-import { getPortfolioSummary, formatAED } from "@/lib/real-estate"
+import { formatAED } from "@/lib/real-estate"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
+import { Loader2 } from "lucide-react"
 import type { Investor } from "@/lib/types"
 
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
+type PortfolioSummary = {
+  propertyCount: number
+  totalValue: number
+  totalCost: number
+  appreciationPct: number
+  totalMonthlyIncome: number
+  netAnnualIncome: number
+  avgYieldPct: number
+  avgOccupancy: number
+}
 
 export default function InvestorProfilePage() {
+  const { scopedInvestorId } = useApp()
   const [isEditing, setIsEditing] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  // Get investor data
-  const investor = React.useMemo(
-    () => mockInvestors.find((i) => i.id === INVESTOR_ID) as Investor | undefined,
-    []
+  // Fetch investor data from API
+  const { data: investor, isLoading: investorLoading, mutate: mutateInvestor } = useAPI<Investor>(
+    scopedInvestorId ? `/api/investors/${scopedInvestorId}` : null
   )
-  const summary = React.useMemo(() => getPortfolioSummary(INVESTOR_ID), [])
+
+  // Fetch portfolio summary from API
+  const { data: portfolioData, isLoading: portfolioLoading } = useAPI<{ summary: PortfolioSummary }>(
+    scopedInvestorId ? `/api/portfolio/${scopedInvestorId}` : null
+  )
+  const summary = React.useMemo(() => portfolioData?.summary ?? {
+    propertyCount: 0,
+    totalValue: 0,
+    totalCost: 0,
+    appreciationPct: 0,
+    totalMonthlyIncome: 0,
+    netAnnualIncome: 0,
+    avgYieldPct: 0,
+    avgOccupancy: 0,
+  }, [portfolioData])
 
   // Form state
   const [formData, setFormData] = React.useState({
-    name: investor?.name ?? "",
-    email: investor?.email ?? "",
-    phone: investor?.phone ?? "",
-    company: investor?.company ?? "",
-    preferredContactMethod: investor?.preferredContactMethod ?? "email",
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+    preferredContactMethod: "email" as "email" | "phone" | "whatsapp",
   })
 
+  // Update form data when investor loads
+  React.useEffect(() => {
+    if (investor) {
+      setFormData({
+        name: investor.name ?? "",
+        email: investor.email ?? "",
+        phone: investor.phone ?? "",
+        company: investor.company ?? "",
+        preferredContactMethod: investor.preferredContactMethod ?? "email",
+      })
+    }
+  }, [investor])
+
   const handleSave = async () => {
+    if (!scopedInvestorId) return
     setIsSaving(true)
-    // Simulate save
-    await new Promise((r) => setTimeout(r, 1000))
-    setIsSaving(false)
-    setIsEditing(false)
+    try {
+      const res = await fetch(`/api/investors/${scopedInvestorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          company: formData.company,
+          preferredContactMethod: formData.preferredContactMethod,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to save profile")
+      }
+      // Refresh investor data from API
+      mutateInvestor()
+      setIsEditing(false)
+    } catch (err) {
+      console.error("Failed to save profile:", err)
+      // TODO: Show error toast
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (investorLoading || portfolioLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-gray-500">Loading profile...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!investor) {
@@ -106,7 +176,7 @@ export default function InvestorProfilePage() {
                 "How does my portfolio align with my goals?",
               ]}
               pagePath="/investor/profile"
-              scopedInvestorId={INVESTOR_ID}
+              scopedInvestorId={scopedInvestorId}
               variant="inline"
             />
           </div>
@@ -416,7 +486,7 @@ export default function InvestorProfilePage() {
                 </div>
                 <div className="text-center p-4 rounded-lg border bg-gray-50/50">
                   <p className="text-2xl font-bold">
-                    {formatAED(summary.totalPortfolioValue)}
+                    {formatAED(summary.totalValue)}
                   </p>
                   <p className="text-xs text-gray-500">Total Value</p>
                 </div>

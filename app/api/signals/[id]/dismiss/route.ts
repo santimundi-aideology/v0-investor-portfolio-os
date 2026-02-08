@@ -3,7 +3,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 
 import { createAuditEventWriter } from "@/lib/audit"
-import { buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { updateMarketSignalStatus } from "@/lib/db/market-signals"
 
@@ -25,18 +25,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params
     const supabase = getSupabaseAdminClient()
 
-    // Prefer RBAC context when headers are present; otherwise fall back to explicit tenantId in body.
+    // Prefer session-based auth; fall back to explicit tenantId in body for dev/demo.
     let tenantId: string | undefined
     let actorUserId: string | undefined
     let actorRole: string | undefined
     try {
-      // buildRequestContext expects NextRequest; but in route handlers we can still pass Request with same header API
-      const ctx = buildRequestContext(req)
+      const ctx = await requireAuthContext(req)
       tenantId = ctx.tenantId
       actorUserId = ctx.userId
       actorRole = ctx.role
     } catch {
-      // allow dev/demo calls without headers
+      // allow dev/demo calls without auth session
     }
 
     const body = (await req.json().catch(() => ({}))) as Body

@@ -2,11 +2,12 @@ import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { getInvestorById, updateInvestorDb } from "@/lib/db/investors"
-import { AccessError, assertInvestorAccess, buildRequestContext } from "@/lib/security/rbac"
+import { requireAuthContext } from "@/lib/auth/server"
+import { AccessError, assertInvestorAccess } from "@/lib/security/rbac"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = buildRequestContext(req)
+    const ctx = await requireAuthContext(req)
     if (ctx.role !== "manager" && ctx.role !== "super_admin") {
       throw new AccessError("Only manager or super_admin can reassign investors")
     }

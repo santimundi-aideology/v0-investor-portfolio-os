@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
+import Image from "next/image"
+import { headers } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,7 +9,8 @@ import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Calendar, User, Building2, Send } from "lucide-react"
 import Link from "next/link"
 import { MemoActions } from "@/components/memos/memo-actions"
-import { getMemoById, getPropertyById } from "@/lib/mock-data"
+import { getListingById } from "@/lib/db/listings"
+import { mapListingToProperty } from "@/lib/utils/map-listing"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 import type { Memo } from "@/lib/types"
 
@@ -133,12 +136,26 @@ function renderMemoContent(content: string) {
 
 export default async function MemoPage({ params }: MemoPageProps) {
   const { id } = await params
-  const memo = getMemoById(id)
-  const property = memo ? getPropertyById(memo.propertyId) : undefined
 
-  if (!memo) {
+  // Fetch memo from API, forwarding request headers for auth context
+  const hdrs = await headers()
+  const host = hdrs.get("host") ?? "localhost:3000"
+  const protocol = hdrs.get("x-forwarded-proto") ?? "http"
+  const cookie = hdrs.get("cookie") ?? ""
+  const memoRes = await fetch(`${protocol}://${host}/api/memos/${id}`, {
+    headers: { cookie },
+    cache: "no-store",
+  })
+
+  if (!memoRes.ok) {
     notFound()
   }
+
+  const memo = (await memoRes.json()) as Memo
+
+  // Fetch property from DB via listing
+  const listing = memo.propertyId ? await getListingById(memo.propertyId) : null
+  const property = listing ? mapListingToProperty(listing as Record<string, unknown>) : undefined
 
   const analysis = memo.analysis
 
@@ -204,9 +221,16 @@ export default async function MemoPage({ params }: MemoPageProps) {
                       const description = typeof obj.description === "string" ? obj.description : undefined
                       const category = typeof obj.category === "string" ? obj.category : undefined
                       return (
-                        <div key={`${url}-${idx}`} className="overflow-hidden rounded-lg border bg-gray-50">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt={description || property.title} className="h-40 w-full object-cover" />
+                        <div key={`${url}-${idx}`} className="relative h-40 overflow-hidden rounded-lg border bg-gray-50">
+                          <Image
+                            src={url}
+                            alt={description || property.title}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                            unoptimized
+                            onError={(e) => { e.currentTarget.style.display = "none" }}
+                          />
                           <div className="px-3 py-2 text-xs text-gray-500 line-clamp-2">
                             {description || category || property.title}
                           </div>

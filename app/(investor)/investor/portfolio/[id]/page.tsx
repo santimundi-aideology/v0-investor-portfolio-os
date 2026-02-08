@@ -26,8 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { HoldingDetailCard } from "@/components/investor/holding-detail-card"
 import { HoldingPerformanceChart } from "@/components/investor/holding-performance-chart"
 import { cn } from "@/lib/utils"
-import { mockProperties } from "@/lib/mock-data"
-import { mockMarketSignals, formatMarketSignalType } from "@/lib/mock-market-signals"
+import { formatMarketSignalType } from "@/lib/types"
+import { Loader2 } from "lucide-react"
 import {
   calcAppreciationPct,
   calcYieldPct,
@@ -35,11 +35,11 @@ import {
   calcIncomeToDate,
   forecastMonthlyNetIncome,
   formatAED,
-  getHoldingsForInvestor,
-  getHoldingProperty,
-  mockHoldings,
   type PropertyHolding,
 } from "@/lib/real-estate"
+import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
+import type { MarketSignalItem } from "@/lib/types"
 
 function getAIRecommendation(holding: PropertyHolding): {
   action: "hold" | "sell" | "improve"
@@ -51,7 +51,6 @@ function getAIRecommendation(holding: PropertyHolding): {
 } {
   const appreciation = calcAppreciationPct(holding)
   const yieldPct = calcYieldPct(holding)
-  const property = getHoldingProperty(holding)
 
   if (appreciation > 15 && yieldPct < 6) {
     return {
@@ -146,38 +145,7 @@ function getAIRecommendation(holding: PropertyHolding): {
   }
 }
 
-function getComparableProperties(holding: PropertyHolding) {
-  const property = getHoldingProperty(holding)
-  if (!property) return []
-
-  return mockProperties
-    .filter(
-      (p) =>
-        p.id !== property.id &&
-        p.area === property.area &&
-        p.type === property.type &&
-        p.status === "available"
-    )
-    .slice(0, 3)
-    .map((p) => ({
-      id: p.id,
-      title: p.title,
-      area: p.area,
-      price: p.price,
-      size: p.size,
-      roi: p.roi,
-      pricePerSqft: p.size > 0 ? p.price / p.size : 0,
-    }))
-}
-
-function getRelatedMarketSignals(holding: PropertyHolding) {
-  const property = getHoldingProperty(holding)
-  if (!property) return []
-
-  return mockMarketSignals
-    .filter((s) => s.geoName === property.area || s.segment === property.type)
-    .slice(0, 4)
-}
+// Comparables and market signals are now loaded from API within the component
 
 const actionColors = {
   hold: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
@@ -195,31 +163,59 @@ export default function HoldingDetailPage() {
   const params = useParams()
   const holdingId = params.id as string
 
-  // Find the holding
-  const holding = React.useMemo(
-    () => mockHoldings.find((h) => h.id === holdingId),
-    [holdingId]
-  )
+  // Fetch portfolio to find this holding
+  const { scopedInvestorId: investorId } = useApp()
+  const { data: portfolioData, isLoading: portfolioLoading } = useAPI<{
+    holdings: Array<{
+      id: string; investorId: string; listingId: string;
+      property: { id: string; title: string; area: string; type: string; address?: string; imageUrl?: string; size?: number; bedrooms?: number; bathrooms?: number; status?: string; price?: number; roi?: number } | null;
+      financials: { purchasePrice: number; purchaseDate: string; currentValue: number; monthlyRent: number; occupancyRate: number; annualExpenses: number; appreciationPct: number; netYieldPct: number }
+    }>
+  }>(investorId ? `/api/portfolio/${investorId}` : null)
 
-  const property = React.useMemo(
-    () => (holding ? getHoldingProperty(holding) : null),
-    [holding]
-  )
+  // Fetch market signals
+  const { data: signalsData } = useAPI<MarketSignalItem[]>("/api/market-signals")
+
+  // Find the specific holding
+  const holding: PropertyHolding | null = React.useMemo(() => {
+    if (!portfolioData?.holdings) return null
+    const h = portfolioData.holdings.find((h) => h.id === holdingId)
+    if (!h) return null
+    return {
+      id: h.id,
+      investorId: h.investorId,
+      propertyId: h.listingId,
+      purchasePrice: h.financials.purchasePrice,
+      purchaseDate: h.financials.purchaseDate,
+      currentValue: h.financials.currentValue,
+      monthlyRent: h.financials.monthlyRent,
+      occupancyRate: h.financials.occupancyRate,
+      annualExpenses: h.financials.annualExpenses,
+    }
+  }, [portfolioData, holdingId])
+
+  const property = React.useMemo(() => {
+    if (!portfolioData?.holdings) return null
+    const h = portfolioData.holdings.find((h) => h.id === holdingId)
+    return h?.property ? {
+      ...h.property,
+      address: h.property.address ?? h.property.area,
+    } : null
+  }, [portfolioData, holdingId])
 
   const recommendation = React.useMemo(
     () => (holding ? getAIRecommendation(holding) : null),
     [holding]
   )
 
-  const comparables = React.useMemo(
-    () => (holding ? getComparableProperties(holding) : []),
-    [holding]
-  )
+  const comparables: { id: string; title: string; area: string; price: number; size: number; roi?: number; pricePerSqft: number }[] = []
 
-  const marketSignals = React.useMemo(
-    () => (holding ? getRelatedMarketSignals(holding) : []),
-    [holding]
-  )
+  const marketSignals = React.useMemo(() => {
+    if (!signalsData || !property) return []
+    return signalsData
+      .filter((s) => s.geoName === property.area || s.segment === property.type)
+      .slice(0, 4)
+  }, [signalsData, property])
 
   const incomeData = React.useMemo(
     () => (holding ? calcIncomeToDate(holding) : { net: 0, months: 0 }),
@@ -231,7 +227,8 @@ export default function HoldingDetailPage() {
     [holding]
   )
 
-  // Generate historical value data (mock)
+  // Projected value trend based on purchase price → current value. Will be replaced
+  // with actual historical data from DLD transaction records once available.
   const valueHistory = React.useMemo(() => {
     if (!holding) return []
     const months = 12
@@ -248,6 +245,17 @@ export default function HoldingDetailPage() {
       }
     })
   }, [holding])
+
+  if (portfolioLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Loading holding details...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!holding || !property) {
     return (

@@ -76,8 +76,34 @@ export function MemoEditor({ initialMemo, investorName, propertyTitle }: MemoEdi
     }
   }
 
-  const saveDraft = () => {
-    toast.success("Saved draft (mock)", { description: "Wire to your backend to persist." })
+  const [isSaving, setIsSaving] = useState(false)
+
+  const saveDraft = async () => {
+    if (!initialMemo?.id) {
+      toast.info("Save unavailable", {
+        description: "Generate the memo first before saving a draft.",
+      })
+      return
+    }
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/memos/${initialMemo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: { title, content } }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error || `Save failed (${res.status})`)
+      }
+      toast.success("Draft saved")
+    } catch (err) {
+      toast.error("Failed to save draft", {
+        description: (err as Error)?.message ?? "Try again.",
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const addImage = () => {
@@ -162,9 +188,9 @@ export function MemoEditor({ initialMemo, investorName, propertyTitle }: MemoEdi
           <Button variant="outline" onClick={() => setContent(initialMemo?.content ?? content)}>
             Reset
           </Button>
-          <Button onClick={saveDraft} disabled={busyMode !== null}>
-            {busyMode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Save (mock)
+          <Button onClick={saveDraft} disabled={busyMode !== null || isSaving}>
+            {(busyMode || isSaving) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Save Draft
           </Button>
         </div>
       </CardContent>

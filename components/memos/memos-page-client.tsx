@@ -1,20 +1,20 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/layout/empty-state"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Building2, Calendar, FileText, User, TrendingUp } from "lucide-react"
-import { mockMemos, mockProperties } from "@/lib/mock-data"
+import { ArrowRight, Calendar, FileText, Loader2, User } from "lucide-react"
+import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
-
-function getPropertyForMemo(propertyId?: string) {
-  if (!propertyId) return null
-  return mockProperties.find(p => p.id === propertyId)
-}
+import { mapListingToProperty } from "@/lib/utils/map-listing"
+import type { Memo, Property } from "@/lib/types"
 
 function getStatusVariant(status: string) {
   switch (status) {
@@ -41,8 +41,46 @@ function formatDate(dateString: string) {
 
 export function MemosPageClient() {
   const { role, scopedInvestorId } = useApp()
+  const { data: allMemos, isLoading: memosLoading } = useAPI<Memo[]>("/api/memos")
+  const { data: listings, isLoading: listingsLoading } = useAPI<Record<string, unknown>[]>("/api/listings")
 
-  const visible = role === "investor" && scopedInvestorId ? mockMemos.filter((m) => m.investorId === scopedInvestorId) : mockMemos
+  const propertiesMap = React.useMemo(() => {
+    const map = new Map<string, Property>()
+    if (!listings) return map
+    for (const listing of listings) {
+      const property = mapListingToProperty(listing)
+      map.set(property.id, property)
+    }
+    return map
+  }, [listings])
+
+  const visible = React.useMemo(() => {
+    const memos = allMemos ?? []
+    return role === "investor" && scopedInvestorId
+      ? memos.filter((m) => m.investorId === scopedInvestorId)
+      : memos
+  }, [allMemos, role, scopedInvestorId])
+
+  const isLoading = memosLoading || listingsLoading
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="IC Memos"
+          subtitle="Loading memos..."
+          primaryAction={
+            <Button asChild>
+              <Link href="/memos/new">Generate memo</Link>
+            </Button>
+          }
+        />
+        <div className="flex min-h-[300px] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -58,17 +96,20 @@ export function MemosPageClient() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {visible.map((memo) => {
-          const property = getPropertyForMemo(memo.propertyId)
+          const property = memo.propertyId ? propertiesMap.get(memo.propertyId) : undefined
           return (
             <Link key={memo.id} href={`/memos/${memo.id}`} className="group block">
               <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
                 {/* Property Image Header */}
                 {property?.imageUrl && (
                   <div className="relative h-36 overflow-hidden">
-                    <img
+                    <Image
                       src={property.imageUrl}
                       alt={property.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      onError={(e) => { e.currentTarget.style.display = "none" }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
                     
@@ -85,15 +126,6 @@ export function MemosPageClient() {
                       <div className="text-sm font-medium text-white truncate">{property.title}</div>
                       <div className="flex items-center gap-2 text-xs text-white/80">
                         <span>{property.area}</span>
-                        {property.roi && (
-                          <>
-                            <span>•</span>
-                            <span className="flex items-center gap-0.5">
-                              <TrendingUp className="h-3 w-3" />
-                              {property.roi}% ROI
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>

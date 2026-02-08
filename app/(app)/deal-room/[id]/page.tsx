@@ -1,238 +1,499 @@
-import { notFound } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Circle,
+  Clock,
+  DollarSign,
+  FileText,
+  FolderKanban,
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Target,
+  Users,
+} from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Users, Building2, Calendar, CheckCircle2, Circle, FileText, Clock } from "lucide-react"
-import Link from "next/link"
-import { getDealRoomById } from "@/lib/mock-data"
-import type { DealRoom, TimelineEvent } from "@/lib/types"
-import { PartiesInvolvedCard } from "@/components/deal-room/parties-involved-card"
-import { ContextualAICard } from "@/components/ai/contextual-ai-card"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { EmptyState } from "@/components/layout/empty-state"
+import { useAPI } from "@/lib/hooks/use-api"
+import { cn } from "@/lib/utils"
+import type { DealRoom, ChecklistItem } from "@/lib/types"
 
-interface DealRoomPageProps {
-  params: Promise<{ id: string }>
+const statusConfig: Record<
+  DealRoom["status"],
+  { label: string; color: string; progress: number }
+> = {
+  preparation: { label: "Preparation", color: "bg-gray-500", progress: 20 },
+  "due-diligence": { label: "Due Diligence", color: "bg-amber-500", progress: 40 },
+  negotiation: { label: "Negotiation", color: "bg-blue-500", progress: 60 },
+  closing: { label: "Closing", color: "bg-purple-500", progress: 80 },
+  completed: { label: "Completed", color: "bg-green-500", progress: 100 },
 }
 
-const statusColors: Record<DealRoom["status"], string> = {
-  preparation: "bg-muted text-muted-foreground",
-  "due-diligence": "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  negotiation: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-  closing: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-  completed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+function formatCurrency(value: number): string {
+  if (value >= 1000000) return `AED ${(value / 1000000).toFixed(1)}M`
+  return `AED ${value.toLocaleString()}`
 }
 
-const statusLabels: Record<DealRoom["status"], string> = {
-  preparation: "Preparation",
-  "due-diligence": "Due Diligence",
-  negotiation: "Negotiation",
-  closing: "Closing",
-  completed: "Completed",
-}
+export default function DealRoomDetailPage() {
+  const params = useParams()
+  const dealId = params.id as string
+  const { data: deal, error, isLoading } = useAPI<DealRoom>(
+    dealId ? `/api/deal-rooms/${dealId}` : null,
+  )
 
-const timelineIcons: Record<TimelineEvent["type"], typeof Calendar> = {
-  milestone: CheckCircle2,
-  document: FileText,
-  meeting: Users,
-  update: Clock,
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
-
-export default async function DealRoomPage({ params }: DealRoomPageProps) {
-  const { id } = await params
-  const dealRoom = getDealRoomById(id)
-
-  if (!dealRoom) {
-    notFound()
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Loading deal room...</span>
+      </div>
+    )
   }
 
-  const completedItems = dealRoom.checklist.filter((item) => item.completed).length
-  const totalItems = dealRoom.checklist.length
-  const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0
+  if (error || !deal) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <EmptyState
+          title="Deal Room Not Found"
+          description="The deal room you're looking for doesn't exist or you don't have access."
+          icon={<FolderKanban className="size-5" />}
+          action={
+            <Button asChild>
+              <Link href="/deal-room">Back to Deal Pipeline</Link>
+            </Button>
+          }
+        />
+      </div>
+    )
+  }
+
+  const status = statusConfig[deal.status]
+  const completedChecklist = deal.checklist.filter((c) => c.completed).length
+  const totalChecklist = deal.checklist.length
+  const checklistProgress =
+    totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0
 
   // Group checklist by category
-  const checklistByCategory = dealRoom.checklist.reduce(
-    (acc, item) => {
-      if (!acc[item.category]) {
-        acc[item.category] = []
-      }
-      acc[item.category].push(item)
-      return acc
-    },
-    {} as Record<string, typeof dealRoom.checklist>,
-  )
+  const checklistByCategory = new Map<string, ChecklistItem[]>()
+  for (const item of deal.checklist) {
+    const list = checklistByCategory.get(item.category) ?? []
+    list.push(item)
+    checklistByCategory.set(item.category, list)
+  }
 
   return (
     <div className="space-y-6">
-      {/* Back Button */}
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/deal-room">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Deal Rooms
-        </Link>
-      </Button>
-
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
+      <div className="flex items-start gap-4">
+        <Button variant="ghost" size="icon" asChild className="mt-1">
+          <Link href="/deal-room">
+            <ArrowLeft className="size-5" />
+          </Link>
+        </Button>
+        <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">{dealRoom.title}</h1>
-            <Badge variant="outline" className={statusColors[dealRoom.status]}>
-              {statusLabels[dealRoom.status]}
+            <h1 className="text-2xl font-bold tracking-tight">{deal.title}</h1>
+            <Badge
+              variant="outline"
+              className={cn(
+                deal.status === "completed"
+                  ? "border-green-500/30 bg-green-500/10 text-green-700"
+                  : deal.status === "closing"
+                    ? "border-purple-500/30 bg-purple-500/10 text-purple-700"
+                    : deal.status === "negotiation"
+                      ? "border-blue-500/30 bg-blue-500/10 text-blue-700"
+                      : deal.status === "due-diligence"
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                        : "",
+              )}
+            >
+              {status.label}
             </Badge>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <Link href={`/investors/${dealRoom.investorId}`} className="flex items-center gap-1 hover:text-foreground">
-              <Users className="h-4 w-4" />
-              {dealRoom.investorName}
-            </Link>
-            <Link href={`/properties/${dealRoom.propertyId}`} className="flex items-center gap-1 hover:text-foreground">
-              <Building2 className="h-4 w-4" />
-              {dealRoom.propertyTitle}
-            </Link>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              Created {formatDate(dealRoom.createdAt)}
-            </div>
+          <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+            <MapPin className="size-3.5" />
+            <span>{deal.propertyTitle || "No property linked"}</span>
+            {deal.investorName && (
+              <>
+                <span className="mx-1">·</span>
+                <Users className="size-3.5" />
+                <span>{deal.investorName}</span>
+              </>
+            )}
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">Upload Document</Button>
-          <Button>Update Status</Button>
         </div>
       </div>
 
-      {/* Progress Overview */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Deal Progress</span>
-            <span className="text-sm text-muted-foreground">
-              {completedItems} of {totalItems} items complete
-            </span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </CardContent>
-      </Card>
+      {/* Progress */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-500">Deal Progress</span>
+          <span className="font-medium">{status.progress}%</span>
+        </div>
+        <Progress value={status.progress} className="h-2" />
+        <div className="flex justify-between text-xs text-gray-400">
+          <span>Preparation</span>
+          <span>Due Diligence</span>
+          <span>Negotiation</span>
+          <span>Closing</span>
+          <span>Complete</span>
+        </div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Checklist */}
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Document Checklist</CardTitle>
-              <CardDescription>Track required documents and approvals</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {Object.entries(checklistByCategory).map(([category, items]) => (
-                <div key={category}>
-                  <h4 className="font-medium mb-3">{category}</h4>
-                  <div className="space-y-3">
-                    {items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="flex items-center gap-3">
-                          <Checkbox checked={item.completed} />
-                          <div>
-                            <p className={`font-medium ${item.completed ? "line-through text-muted-foreground" : ""}`}>
-                              {item.title}
-                            </p>
-                            {item.dueDate && (
-                              <p className="text-xs text-muted-foreground">Due: {formatDate(item.dueDate)}</p>
-                            )}
-                          </div>
-                        </div>
-                        {item.completed ? (
-                          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                        ) : (
-                          <Circle className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                    ))}
+        {/* Main Column */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Key Metrics */}
+          <div className="grid gap-4 sm:grid-cols-4">
+            <Card>
+              <CardContent className="p-4 text-center">
+                <DollarSign className="size-5 mx-auto text-green-600 mb-1" />
+                <p className="text-lg font-bold">
+                  {deal.ticketSizeAed ? formatCurrency(deal.ticketSizeAed) : "—"}
+                </p>
+                <p className="text-xs text-gray-500">Deal Value</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <Target className="size-5 mx-auto text-blue-600 mb-1" />
+                <p className="text-lg font-bold">
+                  {deal.offerPriceAed ? formatCurrency(deal.offerPriceAed) : "—"}
+                </p>
+                <p className="text-xs text-gray-500">Offer Price</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <Calendar className="size-5 mx-auto text-purple-600 mb-1" />
+                <p className="text-lg font-bold">
+                  {deal.targetCloseDate
+                    ? new Date(deal.targetCloseDate).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "—"}
+                </p>
+                <p className="text-xs text-gray-500">Target Close</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 text-center">
+                <Clock className="size-5 mx-auto text-amber-600 mb-1" />
+                <p className="text-lg font-bold">{deal.probability ?? 0}%</p>
+                <p className="text-xs text-gray-500">Probability</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Next Step */}
+          {deal.nextStep && (
+            <Card className="border-amber-500/30 bg-amber-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <Clock className="size-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900">Next Step</p>
+                    <p className="text-sm text-amber-800 mt-1">{deal.nextStep}</p>
                   </div>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
-              <CardDescription>Key events and milestones</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="relative space-y-4">
-                {dealRoom.timeline.map((event, index) => {
-                  const Icon = timelineIcons[event.type]
-                  return (
-                    <div key={event.id} className="flex gap-4">
-                      <div className="relative flex flex-col items-center">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full border bg-background">
-                          <Icon className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        {index < dealRoom.timeline.length - 1 && (
-                          <div className="absolute top-8 h-full w-px bg-border" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-6">
-                        <p className="font-medium">{event.title}</p>
-                        {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
-                        <p className="text-xs text-muted-foreground mt-1">{formatDate(event.date)}</p>
+          {/* Tabs */}
+          <Tabs defaultValue="checklist">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="checklist" className="gap-2">
+                <CheckCircle2 className="size-4" />
+                Checklist
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className="gap-2">
+                <Clock className="size-4" />
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="gap-2">
+                <FileText className="size-4" />
+                Documents
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="checklist" className="mt-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Due Diligence Checklist</CardTitle>
+                    {totalChecklist > 0 && (
+                      <Badge variant="outline">
+                        {completedChecklist}/{totalChecklist} completed
+                      </Badge>
+                    )}
+                  </div>
+                  {totalChecklist > 0 && (
+                    <Progress value={checklistProgress} className="h-2 mt-2" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {totalChecklist === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">
+                      No checklist items yet
+                    </p>
+                  ) : (
+                    <div className="space-y-6">
+                      {Array.from(checklistByCategory.entries()).map(
+                        ([category, items]) => (
+                          <div key={category}>
+                            <h4 className="font-medium text-sm text-gray-500 uppercase tracking-wider mb-3">
+                              {category}
+                            </h4>
+                            <div className="space-y-2">
+                              {items.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className={cn(
+                                    "flex items-start gap-3 rounded-lg border p-3",
+                                    item.completed && "bg-green-50/50 border-green-200",
+                                  )}
+                                >
+                                  {item.completed ? (
+                                    <CheckCircle2 className="size-5 text-green-600 mt-0.5" />
+                                  ) : (
+                                    <Circle className="size-5 text-gray-300 mt-0.5" />
+                                  )}
+                                  <div className="flex-1">
+                                    <p
+                                      className={cn(
+                                        "font-medium",
+                                        item.completed && "text-green-700",
+                                      )}
+                                    >
+                                      {item.title}
+                                    </p>
+                                    {item.dueDate && !item.completed && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Due: {new Date(item.dueDate).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {!item.completed && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Pending
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="timeline" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Deal Timeline</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {deal.timeline.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">
+                      No timeline events yet
+                    </p>
+                  ) : (
+                    <div className="relative">
+                      <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-gray-200" />
+                      <div className="space-y-4">
+                        {deal.timeline.map((event) => (
+                          <div key={event.id} className="relative pl-10">
+                            <div
+                              className={cn(
+                                "absolute left-2.5 size-3 rounded-full border-2 border-white",
+                                event.type === "milestone"
+                                  ? "bg-green-500"
+                                  : event.type === "document"
+                                    ? "bg-blue-500"
+                                    : "bg-gray-400",
+                              )}
+                            />
+                            <div className="rounded-lg border bg-white p-3">
+                              <div className="flex items-start justify-between">
+                                <p className="font-medium">{event.title}</p>
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {event.type}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {new Date(event.date).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="documents" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Documents</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EmptyState
+                    title="No documents yet"
+                    description="Documents will appear here as they are added to the deal room."
+                    icon={<FileText className="size-5" />}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
-        {/* Parties Involved */}
+        {/* Sidebar */}
         <div className="space-y-6">
-          <PartiesInvolvedCard dealRoomId={dealRoom.id} parties={dealRoom.parties} />
+          {/* Summary */}
+          {deal.summary && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-700">{deal.summary}</p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* AI Due Diligence Assistant */}
-          <ContextualAICard
-            agentId="due_diligence"
-            title="Due Diligence"
-            description="Track DD progress and get checklists"
-            suggestions={[
-              "Generate DD checklist",
-              "What documents are missing?",
-              "Questions to ask the seller"
-            ]}
-            propertyId={dealRoom.propertyId}
-            investorId={dealRoom.investorId}
-          />
+          {/* Notes */}
+          {deal.notes && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{deal.notes}</p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Deal Actions */}
+          {/* Parties */}
           <Card>
-            <CardHeader>
-              <CardTitle>Actions</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="size-4" />
+                Parties ({deal.parties.length})
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full bg-transparent" variant="outline">
-                Schedule Meeting
-              </Button>
-              <Button className="w-full bg-transparent" variant="outline">
-                Request Documents
-              </Button>
-              <Button className="w-full bg-transparent" variant="outline">
-                Add Party
-              </Button>
-              <Separator className="my-3" />
-              <Button className="w-full" variant="destructive">
-                Cancel Deal
-              </Button>
+            <CardContent>
+              {deal.parties.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No parties added</p>
+              ) : (
+                <div className="space-y-4">
+                  {deal.parties.map((party) => (
+                    <div key={party.id} className="flex items-start gap-3">
+                      <div className="size-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+                        {party.name.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{party.name}</p>
+                        <p className="text-xs text-gray-500">{party.role}</p>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                          <a
+                            href={`mailto:${party.email}`}
+                            className="flex items-center gap-1 hover:text-primary"
+                          >
+                            <Mail className="size-3" />
+                            Email
+                          </a>
+                          {party.phone && (
+                            <a
+                              href={`tel:${party.phone}`}
+                              className="flex items-center gap-1 hover:text-primary"
+                            >
+                              <Phone className="size-3" />
+                              Call
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Property */}
+          {deal.propertyId && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="size-4" />
+                  Property
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-4">
+                  <div className="size-16 mx-auto rounded-lg bg-gray-100 flex items-center justify-center mb-3">
+                    <Building2 className="size-8 text-gray-400" />
+                  </div>
+                  <p className="font-medium">{deal.propertyTitle || "Linked property"}</p>
+                  <Button variant="link" size="sm" asChild className="mt-1">
+                    <Link href={`/properties/${deal.propertyId}`}>View Property</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Activity */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-500 space-y-2">
+                <p>
+                  <span className="font-medium text-gray-700">Created:</span>{" "}
+                  {new Date(deal.createdAt).toLocaleDateString()}
+                </p>
+                {deal.lastUpdatedAt && (
+                  <p>
+                    <span className="font-medium text-gray-700">Last Updated:</span>{" "}
+                    {new Date(deal.lastUpdatedAt).toLocaleDateString()}
+                  </p>
+                )}
+                {deal.priority && (
+                  <p>
+                    <span className="font-medium text-gray-700">Priority:</span>{" "}
+                    <span className="capitalize">{deal.priority}</span>
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

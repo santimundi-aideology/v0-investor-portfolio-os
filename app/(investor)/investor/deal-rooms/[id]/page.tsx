@@ -15,6 +15,7 @@ import {
   DollarSign,
   FileText,
   FolderKanban,
+  Loader2,
   Mail,
   MapPin,
   Phone,
@@ -30,12 +31,10 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { EmptyState } from "@/components/layout/empty-state"
+import { useApp } from "@/components/providers/app-provider"
+import { useAPI } from "@/lib/hooks/use-api"
 import { cn } from "@/lib/utils"
-import { getDealRoomById } from "@/lib/mock-data"
 import type { DealRoom, ChecklistItem, TimelineEvent, DealParty } from "@/lib/types"
-
-// Mock investor ID - in production this would come from auth
-const INVESTOR_ID = "inv-1"
 
 const statusConfig: Record<
   DealRoom["status"],
@@ -56,17 +55,40 @@ function formatCurrency(value: number): string {
 }
 
 export default function DealRoomDetailPage() {
+  const { scopedInvestorId } = useApp()
   const params = useParams()
   const dealId = params.id as string
+  const { data: deal, error, isLoading } = useAPI<DealRoom>(
+    dealId ? `/api/deal-rooms/${dealId}` : null,
+  )
 
-  const deal = React.useMemo(() => getDealRoomById(dealId), [dealId])
+  // Group checklist by category
+  const checklistByCategory = React.useMemo(() => {
+    if (!deal) return new Map<string, ChecklistItem[]>()
+    const grouped = new Map<string, ChecklistItem[]>()
+    for (const item of deal.checklist) {
+      const list = grouped.get(item.category) ?? []
+      list.push(item)
+      grouped.set(item.category, list)
+    }
+    return grouped
+  }, [deal])
 
-  if (!deal) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100/30 flex items-center justify-center gap-3">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Loading deal room...</span>
+      </div>
+    )
+  }
+
+  if (error || !deal) {
     return (
       <div className="min-h-screen bg-gray-100/30 flex items-center justify-center">
         <EmptyState
           title="Deal Room Not Found"
-          description="The deal room you're looking for doesn't exist."
+          description="The deal room you're looking for doesn't exist or you don't have access."
           icon={<FolderKanban className="size-5" />}
           action={
             <Button asChild>
@@ -81,18 +103,7 @@ export default function DealRoomDetailPage() {
   const status = statusConfig[deal.status]
   const completedChecklist = deal.checklist.filter((c) => c.completed).length
   const totalChecklist = deal.checklist.length
-  const checklistProgress = Math.round((completedChecklist / totalChecklist) * 100)
-
-  // Group checklist by category
-  const checklistByCategory = React.useMemo(() => {
-    const grouped = new Map<string, ChecklistItem[]>()
-    for (const item of deal.checklist) {
-      const list = grouped.get(item.category) ?? []
-      list.push(item)
-      grouped.set(item.category, list)
-    }
-    return grouped
-  }, [deal.checklist])
+  const checklistProgress = totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0
 
   return (
     <div className="min-h-screen bg-gray-100/30">
@@ -140,7 +151,7 @@ export default function DealRoomDetailPage() {
                 "Are there any risks I should know about?",
               ]}
               pagePath={`/investor/deal-rooms/${dealId}`}
-              scopedInvestorId={INVESTOR_ID}
+              scopedInvestorId={scopedInvestorId}
               variant="inline"
             />
           </div>
