@@ -277,7 +277,7 @@ export function AIBankerChatInterface({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="p-0 !w-[92vw] !max-w-[92vw] sm:!max-w-[92vw] h-[90vh] max-h-[90vh] overflow-hidden"
+        className="p-0 !w-[92vw] !max-w-[92vw] sm:!max-w-[92vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col"
       >
         <DialogHeader
           className="border-b px-5 py-4"
@@ -299,9 +299,9 @@ export function AIBankerChatInterface({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_340px]">
-          <div className="border-b sm:border-b-0 sm:border-r">
-            <ScrollArea className="h-[78vh] min-h-[520px] max-h-[820px]">
+        <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_340px] flex-1 min-h-0 overflow-hidden">
+          <div className="border-b sm:border-b-0 sm:border-r flex flex-col min-h-0">
+            <ScrollArea className="flex-1 min-h-0">
               <ScrollAreaViewport className="p-4">
                 <div className="space-y-3">
                   {messages.map((m, idx) => (
@@ -372,7 +372,7 @@ export function AIBankerChatInterface({
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-4 overflow-auto">
             <div className="text-sm font-medium">Suggested questions</div>
             <div className="mt-3 space-y-2">
               {suggestedQuestions.map((q) => (

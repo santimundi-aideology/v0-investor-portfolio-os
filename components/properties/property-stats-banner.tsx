@@ -114,7 +114,7 @@ export function PropertyStatsBanner({ properties, className }: PropertyStatsBann
                   Add Property
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="border-white/30 text-white hover:bg-white/10">
+              <Button asChild variant="default" className="bg-blue-600 text-white hover:bg-blue-700 border-0">
                 <Link href="/recommendations/new">
                   AI Match <ArrowUpRight className="ml-1 h-4 w-4" />
                 </Link>

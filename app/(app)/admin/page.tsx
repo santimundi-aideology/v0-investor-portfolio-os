@@ -197,6 +197,10 @@ function AdminConsoleInner() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", role: "agent", tenantId: "", org_role: "member" })
   const [inviteSaving, setInviteSaving] = useState(false)
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null)
+  const [userEditForm, setUserEditForm] = useState({ name: "", email: "", role: "agent", tenantId: "", phone: "", whatsapp: "", isActive: true })
+  const [userEditSaving, setUserEditSaving] = useState(false)
 
   // Domains
   const [domains, setDomains] = useState<DomainRow[]>([])
@@ -403,6 +407,78 @@ function AdminConsoleInner() {
       setInviteSaving(false)
     }
   }, [inviteForm, fetchUsers, fetchStats])
+
+  const openEditUser = useCallback((user: UserRow) => {
+    setEditingUser(user)
+    setUserEditForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenant_id ?? "",
+      phone: "",
+      whatsapp: "",
+      isActive: user.is_active ?? true,
+    })
+    setEditUserDialogOpen(true)
+  }, [])
+
+  const saveUserEdit = useCallback(async () => {
+    if (!editingUser) return
+    if (!userEditForm.name.trim()) {
+      toast.error("Name is required")
+      return
+    }
+    setUserEditSaving(true)
+    try {
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: userEditForm.name.trim(),
+          email: userEditForm.email.trim(),
+          role: userEditForm.role,
+          tenantId: userEditForm.tenantId || undefined,
+          phone: userEditForm.phone || undefined,
+          whatsapp: userEditForm.whatsapp || undefined,
+          isActive: userEditForm.isActive,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to update user")
+      }
+      toast.success("User updated successfully")
+      setEditUserDialogOpen(false)
+      fetchUsers()
+      fetchStats()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Update failed")
+    } finally {
+      setUserEditSaving(false)
+    }
+  }, [editingUser, userEditForm, fetchUsers, fetchStats])
+
+  const toggleUserActive = useCallback(
+    async (user: UserRow) => {
+      try {
+        const res = await fetch(`/api/admin/users/${user.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: !user.is_active }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || "Failed to toggle status")
+        }
+        toast.success(`User ${user.is_active ? "deactivated" : "activated"}`)
+        fetchUsers()
+        fetchStats()
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Toggle failed")
+      }
+    },
+    [fetchUsers, fetchStats],
+  )
 
   // ── Domain Mutations ───────────────────────────────────────
 
@@ -704,9 +780,7 @@ function AdminConsoleInner() {
                           </TableCell>
                           <TableCell>{typeLabel(t.type)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {t.plan}
-                            </Badge>
+                            <PlanBadge plan={t.plan as PlanTier} />
                           </TableCell>
                           <TableCell className="text-center">{t.userCount ?? 0}</TableCell>
                           <TableCell>
@@ -759,35 +833,44 @@ function AdminConsoleInner() {
 
           {/* Org Dialog */}
           <Dialog open={orgDialogOpen} onOpenChange={setOrgDialogOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingOrg ? "Edit Organization" : "Add Organization"}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingOrg
-                    ? "Update the organization details."
-                    : "Create a new organization on the platform."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
+            <DialogContent className="!gap-0 !p-0 overflow-hidden" style={{ width: "min(90vw, 650px)", maxWidth: "650px" }}>
+              <div className="border-b bg-[radial-gradient(900px_circle_at_15%_0%,rgba(34,197,94,0.12),transparent_55%),radial-gradient(700px_circle_at_85%_30%,rgba(16,185,129,0.10),transparent_55%)] px-6 py-5">
+                <DialogHeader className="space-y-1">
+                  <DialogTitle className="flex items-center gap-2">
+                    <span className="inline-flex size-9 items-center justify-center rounded-xl bg-green-50 text-green-600">
+                      <Building2 className="h-5 w-5" />
+                    </span>
+                    <span>{editingOrg ? "Edit organization" : "Add organization"}</span>
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingOrg
+                      ? "Update the organization details."
+                      : "Create a new organization on the platform."}
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
                 <div className="space-y-2">
-                  <Label htmlFor="org-name">Name</Label>
+                  <Label htmlFor="org-name">Company name</Label>
                   <Input
                     id="org-name"
+                    className="h-11"
                     value={orgForm.name}
                     onChange={(e) => setOrgForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Organization name"
+                    placeholder="Palm & Partners Realty"
+                    autoFocus
                   />
+                  <p className="text-xs text-muted-foreground">
+                    This is the display name used across the app.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Type</Label>
-                    <Select
-                      value={orgForm.type}
-                      onValueChange={(v) => setOrgForm((f) => ({ ...f, type: v }))}
-                    >
-                      <SelectTrigger>
+                    <Select value={orgForm.type} onValueChange={(v) => setOrgForm((f) => ({ ...f, type: v }))}>
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -799,13 +882,11 @@ function AdminConsoleInner() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-2">
                     <Label>Plan</Label>
-                    <Select
-                      value={orgForm.plan}
-                      onValueChange={(v) => setOrgForm((f) => ({ ...f, plan: v }))}
-                    >
-                      <SelectTrigger>
+                    <Select value={orgForm.plan} onValueChange={(v) => setOrgForm((f) => ({ ...f, plan: v }))}>
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -818,40 +899,64 @@ function AdminConsoleInner() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="org-domain">Domain</Label>
-                  <Input
-                    id="org-domain"
-                    value={orgForm.domain}
-                    onChange={(e) => setOrgForm((f) => ({ ...f, domain: e.target.value }))}
-                    placeholder="example.com"
-                  />
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="org-domain">Domain</Label>
+                    <Input
+                      id="org-domain"
+                      className="h-11"
+                      value={orgForm.domain}
+                      onChange={(e) => setOrgForm((f) => ({ ...f, domain: e.target.value }))}
+                      placeholder="example.com"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Used for email-domain based access rules.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="org-email">Contact email</Label>
+                    <Input
+                      id="org-email"
+                      className="h-11"
+                      type="email"
+                      value={orgForm.contact_email}
+                      onChange={(e) => setOrgForm((f) => ({ ...f, contact_email: e.target.value }))}
+                      placeholder="admin@example.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. For onboarding and billing notifications.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="org-email">Contact Email</Label>
-                  <Input
-                    id="org-email"
-                    type="email"
-                    value={orgForm.contact_email}
-                    onChange={(e) => setOrgForm((f) => ({ ...f, contact_email: e.target.value }))}
-                    placeholder="admin@example.com"
-                  />
+
+                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Tip: You can leave Domain/Contact email blank and add them later.
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOrgDialogOpen(false)}>
+
+              <DialogFooter className="border-t bg-muted/20 px-6 py-4">
+                <Button variant="outline" onClick={() => setOrgDialogOpen(false)} disabled={orgSaving}>
                   Cancel
                 </Button>
-                <Button onClick={saveOrg} disabled={orgSaving}>
+                <Button onClick={saveOrg} disabled={orgSaving || !orgForm.name.trim()}>
                   {orgSaving ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Saving...
                     </>
                   ) : editingOrg ? (
-                    "Save Changes"
+                    "Save changes"
                   ) : (
-                    "Create"
+                    "Create organization"
                   )}
                 </Button>
               </DialogFooter>
@@ -919,12 +1024,13 @@ function AdminConsoleInner() {
                       <TableHead>Organization</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead className="w-[50px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No users found
                         </TableCell>
                       </TableRow>
@@ -964,6 +1070,25 @@ function AdminConsoleInner() {
                           <TableCell className="text-muted-foreground text-sm">
                             {formatDate(u.created_at)}
                           </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditUser(u)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleUserActive(u)}>
+                                  <ToggleLeft className="h-4 w-4 mr-2" />
+                                  {u.is_active ? "Deactivate" : "Activate"}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -973,49 +1098,58 @@ function AdminConsoleInner() {
             </CardContent>
           </Card>
 
-          {/* Invite Dialog */}
-          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Invite User</DialogTitle>
-                <DialogDescription>
-                  Send an invitation email to a new user.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="invite-email">Email</Label>
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={(e) =>
-                      setInviteForm((f) => ({ ...f, email: e.target.value }))
-                    }
-                    placeholder="user@example.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invite-name">Name</Label>
-                  <Input
-                    id="invite-name"
-                    value={inviteForm.name}
-                    onChange={(e) =>
-                      setInviteForm((f) => ({ ...f, name: e.target.value }))
-                    }
-                    placeholder="Full name"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          {/* Edit User Dialog */}
+          <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
+            <DialogContent className="!gap-0 !p-0 overflow-hidden" style={{ width: "min(90vw, 650px)", maxWidth: "650px" }}>
+              <div className="border-b bg-[radial-gradient(900px_circle_at_15%_0%,rgba(59,130,246,0.10),transparent_55%),radial-gradient(700px_circle_at_85%_30%,rgba(16,185,129,0.10),transparent_55%)] px-6 py-5">
+                <DialogHeader className="space-y-1">
+                  <DialogTitle className="flex items-center gap-2">
+                    <span className="inline-flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Pencil className="h-5 w-5" />
+                    </span>
+                    <span>Edit user</span>
+                  </DialogTitle>
+                  <DialogDescription>
+                    Update user details and permissions.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select
-                      value={inviteForm.role}
-                      onValueChange={(v) =>
-                        setInviteForm((f) => ({ ...f, role: v }))
-                      }
-                    >
-                      <SelectTrigger>
+                    <Label htmlFor="edit-user-name">Full name</Label>
+                    <Input
+                      id="edit-user-name"
+                      className="h-11"
+                      value={userEditForm.name}
+                      onChange={(e) => setUserEditForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="John Smith"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-user-email">Email</Label>
+                    <Input
+                      id="edit-user-email"
+                      className="h-11"
+                      type="email"
+                      value={userEditForm.email}
+                      onChange={(e) => setUserEditForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="user@example.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Platform role</Label>
+                    <Select value={userEditForm.role} onValueChange={(v) => setUserEditForm((f) => ({ ...f, role: v }))}>
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1026,16 +1160,170 @@ function AdminConsoleInner() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Controls app-wide permissions.
+                    </p>
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Org Role</Label>
-                    <Select
-                      value={inviteForm.org_role}
-                      onValueChange={(v) =>
-                        setInviteForm((f) => ({ ...f, org_role: v }))
-                      }
-                    >
-                      <SelectTrigger>
+                    <Label>Organization</Label>
+                    <Select value={userEditForm.tenantId} onValueChange={(v) => setUserEditForm((f) => ({ ...f, tenantId: v }))}>
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue placeholder="Select organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenants
+                          .filter((t) => t.is_active)
+                          .map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      User's primary organization.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-user-phone">Phone</Label>
+                    <Input
+                      id="edit-user-phone"
+                      className="h-11"
+                      value={userEditForm.phone}
+                      onChange={(e) => setUserEditForm((f) => ({ ...f, phone: e.target.value }))}
+                      placeholder="+971 50 123 4567"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-user-whatsapp">WhatsApp</Label>
+                    <Input
+                      id="edit-user-whatsapp"
+                      className="h-11"
+                      value={userEditForm.whatsapp}
+                      onChange={(e) => setUserEditForm((f) => ({ ...f, whatsapp: e.target.value }))}
+                      placeholder="+971 50 123 4567"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label>Account status</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {userEditForm.isActive ? "User can sign in" : "User is blocked from signing in"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={userEditForm.isActive ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => setUserEditForm((f) => ({ ...f, isActive: !f.isActive }))}
+                  >
+                    {userEditForm.isActive ? "Active" : "Inactive"}
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter className="border-t bg-muted/20 px-6 py-4">
+                <Button variant="outline" onClick={() => setEditUserDialogOpen(false)} disabled={userEditSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={saveUserEdit} disabled={userEditSaving || !userEditForm.name.trim()}>
+                  {userEditSaving ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save changes"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Invite Dialog */}
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogContent className="!gap-0 !p-0 overflow-hidden" style={{ width: "min(90vw, 700px)", maxWidth: "700px" }}>
+              <div className="border-b bg-[radial-gradient(900px_circle_at_15%_0%,rgba(59,130,246,0.10),transparent_55%),radial-gradient(700px_circle_at_85%_30%,rgba(16,185,129,0.10),transparent_55%)] px-6 py-5">
+                <DialogHeader className="space-y-1">
+                  <DialogTitle className="flex items-center gap-2">
+                    <span className="inline-flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <UserPlus className="h-5 w-5" />
+                    </span>
+                    <span>Invite user</span>
+                  </DialogTitle>
+                  <DialogDescription>
+                    Send an invitation email and assign role + organization access.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-email">Email</Label>
+                    <Input
+                      id="invite-email"
+                      className="h-11"
+                      type="email"
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="user@example.com"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This is where the invitation will be sent.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-name">Full name</Label>
+                    <Input
+                      id="invite-name"
+                      className="h-11"
+                      value={inviteForm.name}
+                      onChange={(e) => setInviteForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Alex Johnson"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Helps personalize the invite and UI.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Platform role</Label>
+                    <Select value={inviteForm.role} onValueChange={(v) => setInviteForm((f) => ({ ...f, role: v }))}>
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {USER_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {typeLabel(r)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Controls app-wide permissions.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Org role</Label>
+                    <Select value={inviteForm.org_role} onValueChange={(v) => setInviteForm((f) => ({ ...f, org_role: v }))}>
+                      <SelectTrigger className="h-11 w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1046,43 +1334,51 @@ function AdminConsoleInner() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Membership inside the organization.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Organization</Label>
+                    <Select value={inviteForm.tenantId} onValueChange={(v) => setInviteForm((f) => ({ ...f, tenantId: v }))}>
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue placeholder="Select organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenants
+                          .filter((t) => t.is_active)
+                          .map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Required. Determines the tenant scope.
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Organization</Label>
-                  <Select
-                    value={inviteForm.tenantId}
-                    onValueChange={(v) =>
-                      setInviteForm((f) => ({ ...f, tenantId: v }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select organization" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants
-                        .filter((t) => t.is_active)
-                        .map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+
+                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Tip: Start with <span className="font-medium text-foreground">Agent</span> for internal team members and
+                  <span className="font-medium text-foreground"> Investor</span> for client accounts.
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+
+              <DialogFooter className="border-t bg-muted/20 px-6 py-4">
+                <Button variant="outline" onClick={() => setInviteDialogOpen(false)} disabled={inviteSaving}>
                   Cancel
                 </Button>
-                <Button onClick={sendInvite} disabled={inviteSaving}>
+                <Button onClick={sendInvite} disabled={inviteSaving || !inviteForm.email.trim() || !inviteForm.tenantId}>
                   {inviteSaving ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Sending...
                     </>
                   ) : (
-                    "Send Invitation"
+                    "Send invitation"
                   )}
                 </Button>
               </DialogFooter>

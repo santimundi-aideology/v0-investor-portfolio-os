@@ -132,10 +132,14 @@ export function AuthProvider({
             isLoading: false,
             isAuthenticated: false,
           })
-          // Redirect to login on sign out (unless already on public route)
-          if (!publicRoutes.some(route => pathname.startsWith(route))) {
-            router.push("/login")
-          }
+          // Note: redirect is handled by the signOut() function itself.
+          // Only redirect here if signOut was triggered externally (e.g. another tab).
+          // Use a short delay to avoid race with the signOut() redirect.
+          setTimeout(() => {
+            if (!publicRoutes.some(route => window.location.pathname.startsWith(route))) {
+              window.location.href = "/login"
+            }
+          }, 100)
         } else if (event === "TOKEN_REFRESHED") {
           // Refresh user data on token refresh
           if (session?.user) {
@@ -158,9 +162,29 @@ export function AuthProvider({
 
   const signOut = React.useCallback(async () => {
     if (!supabase) return
-    await supabase.auth.signOut()
-    router.push("/login")
-  }, [supabase, router])
+
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error) {
+        console.warn("Sign out API error (proceeding with local cleanup):", error.message)
+      }
+    } catch (err) {
+      console.warn("Sign out threw (proceeding with local cleanup):", err)
+    }
+
+    // Safety net: manually clear any remaining Supabase auth cookies
+    // in case the client library failed to remove them
+    document.cookie.split(";").forEach((c) => {
+      const name = c.trim().split("=")[0]
+      if (name.startsWith("sb-")) {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
+      }
+    })
+
+    // Use hard redirect instead of router.push to bypass Next.js client-side cache
+    // This ensures a full page load with cleared cookies hitting the middleware fresh
+    window.location.href = "/login"
+  }, [supabase])
 
   const refreshUser = React.useCallback(async () => {
     if (!supabase) return

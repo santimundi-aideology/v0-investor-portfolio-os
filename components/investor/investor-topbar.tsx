@@ -16,11 +16,19 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import type { Notification } from "@/lib/types"
+import { useAuth } from "@/components/providers/auth-provider"
 
 interface InvestorTopbarProps {
   onMenuClick: () => void
@@ -28,6 +36,11 @@ interface InvestorTopbarProps {
   companyName?: string
   investorAvatar?: string
   onAIAssistantClick?: () => void
+  /** Super admin mode: show investor selector */
+  isSuperAdmin?: boolean
+  availableInvestors?: { id: string; name: string; company?: string; email?: string; status?: string }[]
+  selectedInvestorId?: string
+  onInvestorChange?: (investorId: string) => void
 }
 
 export function InvestorTopbar({
@@ -35,7 +48,12 @@ export function InvestorTopbar({
   investorName = "Investor",
   companyName = "Investment Portfolio",
   investorAvatar,
+  isSuperAdmin = false,
+  availableInvestors = [],
+  selectedInvestorId,
+  onInvestorChange,
 }: InvestorTopbarProps) {
+  const { signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const [notificationItems, setNotificationItems] = useState<Notification[]>([])
   const unreadCount = notificationItems.filter((n) => n.unread).length
@@ -112,21 +130,51 @@ export function InvestorTopbar({
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
-      {/* Left side - Mobile menu & Investor info */}
+      {/* Left side - Mobile menu & Investor info / selector */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
           <span className="sr-only">Open navigation</span>
         </Button>
 
-        <div className="hidden sm:flex flex-col">
-          <span className="text-sm font-semibold text-foreground leading-tight">
-            {investorName}
-          </span>
-          <span className="text-xs text-gray-500">
-            {companyName}
-          </span>
-        </div>
+        {isSuperAdmin && availableInvestors.length > 0 ? (
+          <div className="hidden sm:flex items-center gap-3">
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs shrink-0">
+              Admin Preview
+            </Badge>
+            <Select
+              value={selectedInvestorId ?? ""}
+              onValueChange={(value) => onInvestorChange?.(value)}
+            >
+              <SelectTrigger className="w-[220px] h-9 text-sm">
+                <SelectValue placeholder="Select investor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableInvestors
+                  .filter((inv) => inv.status === "active")
+                  .map((inv) => (
+                    <SelectItem key={inv.id} value={inv.id}>
+                      <div className="flex flex-col">
+                        <span>{inv.name}</span>
+                        {inv.company && (
+                          <span className="text-xs text-muted-foreground">{inv.company}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <div className="hidden sm:flex flex-col">
+            <span className="text-sm font-semibold text-foreground leading-tight">
+              {investorName}
+            </span>
+            <span className="text-xs text-gray-500">
+              {companyName}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Center - Search (desktop) */}
@@ -248,7 +296,7 @@ export function InvestorTopbar({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onSelect={() => signOut()} className="text-destructive focus:text-destructive">
               Sign out
               <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
             </DropdownMenuItem>

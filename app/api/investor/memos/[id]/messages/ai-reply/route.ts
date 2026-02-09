@@ -2,7 +2,7 @@ import { createHash } from "crypto"
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addMessage, getMemo, store } from "@/lib/data/store"
+import { addMessage, getMemo } from "@/lib/db/memo-ops"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 
@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (memo.investorId !== ctx.investorId) throw new AccessError("Forbidden")
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       assumptions,
     )}, scenarios=${JSON.stringify(scenarios)}. Unknown items remain marked as "Unknown".`
 
-    const msg = addMessage({
+    const msg = await addMessage({
       memoId: memo.id,
       body: replyText,
       versionContext: version,
@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const write = createAuditEventWriter()
     await write(
       AuditEvents.aiGenerationRequested({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         feature: "qna.ai_reply",
@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
     await write(
       AuditEvents.aiOutputAccepted({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         feature: "qna.ai_reply",

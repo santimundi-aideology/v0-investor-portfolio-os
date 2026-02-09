@@ -64,7 +64,7 @@ export const personas: Persona[] = [
       "Portfolio view (assets + watchlist + alerts)",
     ],
     permissionNotes: ["External access must be scoped to their own data only (single investorId scope)."],
-    scopedInvestorId: "inv-1",
+    scopedInvestorId: "a1111111-1111-1111-1111-111111111111",
     user: {
       id: "user-investor-1",
       name: "Mohammed Al-Fayed",

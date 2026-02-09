@@ -58,7 +58,36 @@ export default function InvestorMarketSignalsPage() {
   const { data: portfolioData } = useAPI<{
     holdings: Array<{ property: { area?: string } | null }>
   }>(scopedInvestorId ? `/api/portfolio/${scopedInvestorId}` : null)
-  const { data: apiSignals, isLoading } = useAPI<MarketSignalItem[]>("/api/market-signals")
+  const { data: signalsResponse, isLoading } = useAPI<{ signals: Array<{ id: string; type: string; title: string; description: string; area: string; propertyType: string | null; severity: string; sourceType: string; status: string; detectedAt: string }> }>("/api/market-signals")
+  const apiSignals = React.useMemo(() => {
+    const signals = signalsResponse?.signals ?? []
+    // Transform to MarketSignalItem format expected by the UI
+    return signals.map((s) => ({
+      id: s.id,
+      type: s.type as MarketSignalType,
+      sourceType: s.sourceType as MarketSignalSourceType,
+      source: "DLD Market Analysis",
+      timeframe: "QoQ" as const,
+      severity: (s.severity === "high" ? "urgent" : s.severity === "medium" ? "watch" : "info") as MarketSignalSeverity,
+      status: (s.status === "active" ? "new" : "dismissed") as MarketSignalStatus,
+      geoType: "community" as const,
+      geoId: s.area,
+      geoName: s.area,
+      segment: s.propertyType || "all",
+      metric: "median_price_psf" as const,
+      metricLabel: s.title,
+      currentValue: 0,
+      currentValueLabel: s.title,
+      prevValue: null,
+      prevValueLabel: null,
+      deltaPct: null,
+      confidenceScore: 0.8,
+      createdAt: s.detectedAt,
+      investorMatches: 0,
+      propertyTitle: null,
+      metadata: {},
+    }))
+  }, [signalsResponse])
 
   // Get areas from portfolio and mandate
   const portfolioAreas = React.useMemo(() => {

@@ -50,6 +50,7 @@ export function FeaturedPropertiesCarousel({
   if (properties.length === 0) return null
 
   const property = properties[currentIndex]
+  const heroSrc = property.imageUrl || "/placeholder.svg"
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -62,12 +63,13 @@ export function FeaturedPropertiesCarousel({
         <div className="relative aspect-[16/9] w-full overflow-hidden">
           <Link href={`/properties/${property.id}`}>
             <Image
-              src={property.imageUrl || "/placeholder.jpg"}
+              src={heroSrc}
               alt={property.title}
               fill
               className="object-cover transition-transform duration-500 hover:scale-105"
               sizes="(max-width: 768px) 100vw, 50vw"
               priority
+              unoptimized={heroSrc.endsWith(".svg")}
             />
           </Link>
           
@@ -165,11 +167,12 @@ export function FeaturedPropertiesCarousel({
                 )}
               >
                 <Image
-                  src={prop.imageUrl || "/placeholder.jpg"}
+                  src={prop.imageUrl || "/placeholder.svg"}
                   alt={prop.title}
                   fill
                   className="object-cover"
                   sizes="96px"
+                  unoptimized={(prop.imageUrl || "/placeholder.svg").endsWith(".svg")}
                 />
               </button>
             ))}
@@ -211,15 +214,18 @@ export function PropertyImageCard({
   className?: string
   showDetails?: boolean
 }) {
+  const imageSrc = property.imageUrl || "/placeholder.svg"
+
   return (
     <Link href={`/properties/${property.id}`} className={cn("group block", className)}>
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
         <Image
-          src={property.imageUrl || "/placeholder.jpg"}
+          src={imageSrc}
           alt={property.title}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-110"
           sizes="(max-width: 768px) 50vw, 300px"
+          unoptimized={imageSrc.endsWith(".svg")}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
         

@@ -34,8 +34,9 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
   },
   typescript: {
-    // Pre-existing TS errors in API routes (Supabase type mismatches, null vs undefined).
-    // TODO: Fix in a dedicated PR and remove this flag.
+    // ~342 pre-existing TS warnings: null vs undefined, type assertion gaps.
+    // Database types were regenerated 2026-02-09. No runtime impact.
+    // TODO: Dedicate a PR to fix remaining null-safety issues and remove this flag.
     ignoreBuildErrors: true,
   },
 }

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -25,7 +26,8 @@ interface InvestorSidebarProps {
 
 // Investor-specific navigation items
 const investorNavItems = [
-  { label: "Dashboard", href: "/investor", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
+  { label: "Investments", href: "/investor/investments", icon: Briefcase },
   { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
   { label: "Analytics", href: "/investor/analytics", icon: BarChart3 },
   { label: "Memos", href: "/investor/memos", icon: FileText },
@@ -39,8 +41,8 @@ export function InvestorSidebar({ collapsed, onToggle }: InvestorSidebarProps) {
   const renderNavItem = (item: (typeof investorNavItems)[0]) => {
     // For dashboard, exact match; for others, startsWith
     const isActive =
-      item.href === "/investor"
-        ? pathname === "/investor"
+      item.href === "/investor/dashboard"
+        ? pathname === "/investor/dashboard" || pathname === "/investor"
         : pathname.startsWith(item.href)
     const Icon = item.icon
 
@@ -85,7 +87,7 @@ export function InvestorSidebar({ collapsed, onToggle }: InvestorSidebarProps) {
         {/* Logo / Branding */}
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
           {!collapsed && (
-            <Link href="/investor" className="flex items-center gap-3">
+            <Link href="/investor/dashboard" className="flex items-center gap-3">
               <VantageIcon size={36} />
               <div className="flex flex-col">
                 <span className="font-semibold text-gray-900 leading-tight">
@@ -98,7 +100,7 @@ export function InvestorSidebar({ collapsed, onToggle }: InvestorSidebarProps) {
             </Link>
           )}
           {collapsed && (
-            <Link href="/investor" className="mx-auto">
+            <Link href="/investor/dashboard" className="mx-auto">
               <VantageIcon size={36} />
             </Link>
           )}

@@ -34,7 +34,6 @@ const featureRouteMap: Record<string, string> = {
   "/market-compare": "NEXT_PUBLIC_FF_MARKET_COMPARE",
   "/realtor": "NEXT_PUBLIC_FF_REALTOR_OPS",
   "/real-estate": "NEXT_PUBLIC_FF_REAL_ESTATE",
-  "/tasks": "NEXT_PUBLIC_FF_TASKS",
   "/team": "NEXT_PUBLIC_FF_ADMIN_PANEL",
   "/audit-log": "NEXT_PUBLIC_FF_ADMIN_PANEL",
 }
@@ -44,7 +43,6 @@ const featureApiRouteMap: Record<string, string> = {
   "/api/deal-rooms": "NEXT_PUBLIC_FF_DEAL_ROOM",
   "/api/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
   "/api/market-signals": "NEXT_PUBLIC_FF_MARKET_SIGNALS",
-  "/api/tasks": "NEXT_PUBLIC_FF_TASKS",
   "/api/jobs": "NEXT_PUBLIC_FF_DATA_INGESTION",
 }
 
@@ -94,13 +92,18 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          // First update the request cookies (for downstream middleware/routes)
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value)
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            })
+          })
+          // Create ONE new response with the updated request headers
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          // Set ALL cookies on the single response
+          cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options)
           })
         },

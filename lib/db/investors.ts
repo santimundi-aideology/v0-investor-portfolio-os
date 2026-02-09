@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { InvestorRecord } from "@/lib/data/store"
+import type { InvestorRecord } from "@/lib/data/types"
 
 export async function listInvestorsByAgent(tenantId: string, agentId: string) {
   const supabase = getSupabaseAdminClient()

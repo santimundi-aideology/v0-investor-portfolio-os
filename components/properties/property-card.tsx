@@ -81,10 +81,15 @@ export function PropertyCard({
   onShare,
 }: PropertyCardProps) {
   const [favorited, setFavorited] = useState(isFavorited)
+  const [imageSrc, setImageSrc] = useState<string>(property.imageUrl || "/placeholder.svg")
 
   useEffect(() => {
     setFavorited(isFavorited)
   }, [isFavorited])
+
+  useEffect(() => {
+    setImageSrc(property.imageUrl || "/placeholder.svg")
+  }, [property.imageUrl])
 
   const priceLabel = useMemo(() => {
     if (!property.price) return "Price on request"
@@ -126,12 +131,14 @@ export function PropertyCard({
       <div className={cn("property-card group", featured && "ring-2 ring-green-500/30")}>
         <div className="property-card__image-container">
           <Image
-            src={property.imageUrl || "/placeholder.svg"}
+            src={imageSrc}
             alt={property.title}
             fill
             className="property-card__image"
             sizes="(max-width: 768px) 100vw, 400px"
             priority={featured}
+            unoptimized={imageSrc.endsWith(".svg")}
+            onError={() => setImageSrc("/placeholder.svg")}
           />
           <div className="property-card__image-overlay" />
 

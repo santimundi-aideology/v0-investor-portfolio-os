@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addDecision, getInvestor, getMemo, saveMemo } from "@/lib/data/store"
+import { addDecision, getMemo, saveMemo } from "@/lib/db/memo-ops"
+import { getInvestorById } from "@/lib/db/investors"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
@@ -9,9 +10,9 @@ import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuthContext(req)
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    const investor = getInvestor(memo.investorId)
+    const investor = await getInvestorById(memo.investorId)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
@@ -33,7 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new AccessError("conditionText required for approved_conditional")
     }
 
-    const decision = addDecision({
+    const decision = await addDecision({
       memoId: memo.id,
       investorId: memo.investorId,
       decisionType,
@@ -45,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const nextState = memo.state === "opened" ? "decided" : "decided"
     const next = transitionMemo(memo.state === "sent" ? transitionMemo(memo, "opened") : memo, nextState)
-    saveMemo(next)
+    await saveMemo(next)
 
     const write = createAuditEventWriter()
     await write(

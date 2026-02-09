@@ -12,13 +12,14 @@ import { AppProvider, useApp } from "@/components/providers/app-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { DemoBannerWrapper } from "@/components/demo/demo-banner"
 import { AIWidgetProvider } from "@/components/ai/ai-widget-provider"
+import { InsightProvider, InsightAnnotator, InsightToggle } from "@/components/insights"
 import { isDemoMode } from "@/lib/demo-mode"
 
 function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [aiPanelOpen, setAIPanelOpen] = useState(false)
-  const { user, scopedInvestorId } = useApp()
+  const { user, scopedInvestorId, platformRole, availableInvestors, setScopedInvestorId } = useApp()
 
   const handleMobileMenuClose = useCallback(() => {
     setMobileMenuOpen(false)
@@ -35,9 +36,17 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   // Count unread notifications for the badge
   const unreadCount = ([] as { unread?: boolean }[]).filter((n) => n.unread).length
 
-  // Get investor display info - for demo purposes using user info
-  const investorName = user?.name ?? "Investor"
-  const companyName = "Investment Portfolio"
+  // Determine if this is a super_admin previewing the investor portal
+  const isSuperAdmin = platformRole === "super_admin"
+
+  // For super_admins, find the selected investor from the available list
+  const selectedInvestor = isSuperAdmin && scopedInvestorId
+    ? availableInvestors.find((inv) => inv.id === scopedInvestorId)
+    : undefined
+
+  // Get investor display info - use selected investor's data for super_admins
+  const investorName = selectedInvestor?.name ?? user?.name ?? "Investor"
+  const companyName = selectedInvestor?.company ?? "Investment Portfolio"
   const investorAvatar = user?.avatar
 
   return (
@@ -47,57 +56,67 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
       showLiveAlerts={true}
       alertDelaySeconds={45}
     >
-      <div className="flex h-screen overflow-hidden bg-white">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:flex">
-          <InvestorSidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
-        </div>
-
-        {/* Mobile Sidebar */}
-        <InvestorMobileSidebar open={mobileMenuOpen} onClose={handleMobileMenuClose} />
-
-        {/* Main Content */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <InvestorTopbar
-            onMenuClick={() => setMobileMenuOpen(true)}
-            investorName={investorName}
-            companyName={companyName}
-            investorAvatar={investorAvatar}
-          />
-
-          <main className="flex-1 overflow-y-auto bg-gray-50">
-            {/* Add bottom padding on mobile for action bar */}
-            <div className="mx-auto w-full max-w-7xl p-4 lg:p-6 pb-20 lg:pb-6">
-              {children}
-            </div>
-          </main>
-        </div>
-
-        {/* Mobile Action Bar - Fixed bottom navigation */}
-        <MobileActionBar
-          notificationCount={unreadCount}
-          onAIClick={handleAIClick}
-          isAIPanelOpen={aiPanelOpen}
-        />
-
-        {/* Mobile AI Panel - controlled from action bar */}
-        {aiPanelOpen && (
-          <div className="lg:hidden">
-            <InvestorAIPanel
-              investorId={scopedInvestorId ?? undefined}
-              defaultExpanded={true}
-              className="!fixed !bottom-0 !right-0 !left-0 !w-full !rounded-b-none !rounded-t-2xl max-h-[85vh]"
-              onClose={handleAIPanelClose}
+      <InsightProvider>
+        <div className="flex h-screen overflow-hidden bg-white">
+          {/* Desktop Sidebar */}
+          <div className="hidden lg:flex">
+            <InvestorSidebar
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
           </div>
-        )}
 
-        {/* Demo Mode Banner */}
-        <DemoBannerWrapper />
-      </div>
+          {/* Mobile Sidebar */}
+          <InvestorMobileSidebar open={mobileMenuOpen} onClose={handleMobileMenuClose} />
+
+          {/* Main Content */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <InvestorTopbar
+              onMenuClick={() => setMobileMenuOpen(true)}
+              investorName={investorName}
+              companyName={companyName}
+              investorAvatar={investorAvatar}
+              isSuperAdmin={isSuperAdmin}
+              availableInvestors={availableInvestors}
+              selectedInvestorId={scopedInvestorId}
+              onInvestorChange={setScopedInvestorId}
+            />
+
+            <main className="flex-1 overflow-y-auto bg-gray-50">
+              {/* Add bottom padding on mobile for action bar */}
+              <div className="mx-auto w-full max-w-7xl p-4 lg:p-6 pb-20 lg:pb-6">
+                {children}
+              </div>
+            </main>
+          </div>
+
+          {/* Mobile Action Bar - Fixed bottom navigation */}
+          <MobileActionBar
+            notificationCount={unreadCount}
+            onAIClick={handleAIClick}
+            isAIPanelOpen={aiPanelOpen}
+          />
+
+          {/* Mobile AI Panel - controlled from action bar */}
+          {aiPanelOpen && (
+            <div className="lg:hidden">
+              <InvestorAIPanel
+                investorId={scopedInvestorId ?? undefined}
+                defaultExpanded={true}
+                className="!fixed !bottom-0 !right-0 !left-0 !w-full !rounded-b-none !rounded-t-2xl max-h-[85vh]"
+                onClose={handleAIPanelClose}
+              />
+            </div>
+          )}
+
+          {/* Demo Mode Banner */}
+          <DemoBannerWrapper />
+
+          {/* Insight Annotations System */}
+          <InsightAnnotator />
+          <InsightToggle />
+        </div>
+      </InsightProvider>
     </AIWidgetProvider>
   )
 }

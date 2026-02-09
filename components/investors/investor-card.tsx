@@ -47,11 +47,12 @@ export function InvestorCard({ investor }: InvestorCardProps) {
                 style={{ clipPath: i === 0 ? undefined : "polygon(10% 0, 100% 0, 100% 100%, 0% 100%)" }}
               >
                 <Image
-                  src={prop.imageUrl || "/placeholder.jpg"}
+                  src={prop.imageUrl || "/placeholder.svg"}
                   alt={prop.title}
                   fill
                   className="object-cover"
                   sizes="33vw"
+                  unoptimized={(prop.imageUrl || "/placeholder.svg").endsWith(".svg")}
                   onError={(e) => { e.currentTarget.style.display = "none" }}
                 />
               </div>

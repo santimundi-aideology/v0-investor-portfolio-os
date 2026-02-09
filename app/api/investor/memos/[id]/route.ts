@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createAuditEventWriter } from "@/lib/audit"
-import { getMemo, saveMemo } from "@/lib/data/store"
+import { getMemo, saveMemo } from "@/lib/db/memo-ops"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (memo.investorId !== ctx.investorId) throw new AccessError("Forbidden")
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // idempotent sent->opened
     if (memo.state === "sent") {
       const next = transitionMemo(memo, "opened")
-      saveMemo(next)
+      await saveMemo(next)
       const write = createAuditEventWriter()
       await write({
         eventType: "memo.opened_by_investor",

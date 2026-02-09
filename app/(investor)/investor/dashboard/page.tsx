@@ -138,15 +138,43 @@ export default function InvestorDashboardPage() {
   const { data: apiMemos } = useAPI<Memo[]>("/api/investor/memos")
 
   // Fetch notifications
-  const { data: apiNotifications } = useAPI<NotificationItem[]>("/api/notifications")
+  const { data: notificationsResponse } = useAPI<{ notifications: Array<{ id: string; title: string; read_at: string | null; created_at: string; metadata?: Record<string, unknown> }> }>("/api/notifications")
+  const apiNotifications = React.useMemo(() => {
+    const notifications = notificationsResponse?.notifications ?? []
+    return notifications.map((n) => ({
+      id: n.id,
+      title: n.title,
+      unread: n.read_at === null,
+      href: (n.metadata?.link as string) || undefined,
+      createdAt: new Date(n.created_at).toLocaleDateString(),
+    }))
+  }, [notificationsResponse])
 
   // Fetch market signals
-  const { data: apiSignals } = useAPI<MarketSignalItem[]>("/api/market-signals")
+  const { data: signalsResponse } = useAPI<{ signals: MarketSignalItem[] }>("/api/market-signals")
+  const apiSignals = React.useMemo(() => signalsResponse?.signals ?? [], [signalsResponse])
+
+  // Fetch portfolio forecast for real chart data
+  const { data: forecastData } = useAPI<{
+    historicalPortfolioValue: { date: string; totalValue: number; totalRent: number }[]
+    scenarios: { name: string; value: { monthly: { month: string; value: number }[] }; income: { monthly: { month: string; netIncome: number }[] } }[]
+    currentMetrics: { totalMonthlyIncome: number }
+  }>(scopedInvestorId ? "/api/investor/forecast/portfolio" : null)
 
   const isLoading = investorLoading || portfolioLoading
 
-  // Value sparkline data
+  // Value sparkline data - use real historical snapshots when available
   const valueSeries = React.useMemo(() => {
+    const historical = forecastData?.historicalPortfolioValue
+    if (historical && historical.length >= 3) {
+      // Use last 6 data points from real history
+      const recent = historical.slice(-6)
+      return recent.map((h) => ({
+        m: new Date(h.date + "-01").toLocaleDateString("en-US", { month: "short" }),
+        v: Math.round(h.totalValue),
+      }))
+    }
+    // Fallback: simple interpolation
     const base = summary.totalCost || summary.totalValue
     const now = summary.totalValue
     return [
@@ -155,19 +183,27 @@ export default function InvestorDashboardPage() {
       { m: "May", v: Math.round(base * 1.01) },
       { m: "Jul", v: Math.round(base * 1.03) },
       { m: "Sep", v: Math.round(base * 1.04) },
-      { m: "Nov", v: Math.round(now) },
+      { m: "Now", v: Math.round(now) },
     ]
-  }, [summary.totalCost, summary.totalValue])
+  }, [summary.totalCost, summary.totalValue, forecastData])
 
-  // Income sparkline data (simplified without holdings forecast)
+  // Income sparkline data - use base scenario forecast when available
   const incomeSeries = React.useMemo(() => {
+    const baseScenario = forecastData?.scenarios?.find((s) => s.name === "base")
+    if (baseScenario?.income?.monthly?.length) {
+      return baseScenario.income.monthly.slice(0, 6).map((m) => ({
+        m: new Date(m.month + "-01").toLocaleDateString("en-US", { month: "short" }),
+        n: Math.round(m.netIncome),
+      }))
+    }
+    // Fallback
     const monthly = summary.totalMonthlyIncome
-    const months = ["01", "02", "03", "04", "05", "06"]
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
     return months.map((m) => ({
       m,
-      n: Math.round(monthly * (0.95 + Math.random() * 0.1)),
+      n: Math.round(monthly),
     }))
-  }, [summary.totalMonthlyIncome])
+  }, [summary.totalMonthlyIncome, forecastData])
 
   // Allocation data for pie chart
   const allocation = React.useMemo(() => {

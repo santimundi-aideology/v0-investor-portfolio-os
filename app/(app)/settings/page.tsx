@@ -19,8 +19,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { User, Bell, Shield, Palette, Camera, Eye, EyeOff, Building2, Plus, Pencil, Trash2 } from "lucide-react"
+import { User, Bell, Shield, Palette, Camera, Eye, EyeOff, Building2, Plus, Pencil, Trash2, CreditCard } from "lucide-react"
 import { useApp } from "@/components/providers/app-provider"
+import { PlanComparison } from "@/components/plans/plan-comparison"
+import { UsageIndicator } from "@/components/plans/usage-indicator"
+import { PlanBadge } from "@/components/plans/plan-badge"
+import type { PlanTier } from "@/lib/plans/config"
 
 export default function SettingsPage() {
   return (
@@ -260,6 +264,10 @@ function SettingsPageInner() {
       <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="billing">
+            <CreditCard className="mr-1.5 h-4 w-4" />
+            Billing & Plan
+          </TabsTrigger>
           {isSuperAdmin && (
             <TabsTrigger value="companies">
               <Building2 className="mr-1.5 h-4 w-4" />
@@ -366,7 +374,7 @@ function SettingsPageInner() {
                 <Separator />
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Plan</span>
-                  <span className="font-medium capitalize">{currentOrg.plan}</span>
+                  <PlanBadge plan={currentOrg.plan as PlanTier} />
                 </div>
               </CardContent>
             </Card>
@@ -478,6 +486,11 @@ function SettingsPageInner() {
           </div>
         </TabsContent>
 
+        {/* ===================== BILLING TAB ===================== */}
+        <TabsContent value="billing" className="space-y-6">
+          <BillingSection currentPlan={currentOrg.plan as PlanTier} />
+        </TabsContent>
+
         {/* ===================== COMPANIES TAB (super_admin only) ===================== */}
         {isSuperAdmin && (
           <TabsContent value="companies">
@@ -546,6 +559,218 @@ function SettingsPageInner() {
               {isChangingPassword ? "Updating..." : "Update Password"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ===========================================================================
+// Billing Section - Plan & Usage
+// ===========================================================================
+
+interface UsageData {
+  plan: PlanTier
+  planConfig: {
+    displayName: string
+    description: string
+    limits: {
+      maxProperties: number
+      maxInvestors: number
+      maxUsers: number
+      maxMemos: number
+      maxAIEvaluations: number
+    }
+  }
+  usage: {
+    properties: number
+    investors: number
+    users: number
+    memosThisMonth: number
+    aiEvaluationsThisMonth: number
+  }
+  limits: {
+    maxProperties: number
+    maxInvestors: number
+    maxUsers: number
+    maxMemos: number
+    maxAIEvaluations: number
+  }
+  warnings: string[]
+  approaching: string[]
+  needsAttention: boolean
+}
+
+function BillingSection({ currentPlan }: { currentPlan: PlanTier }) {
+  const [usageData, setUsageData] = useState<UsageData | null>(null)
+  const [isLoadingUsage, setIsLoadingUsage] = useState(true)
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false)
+
+  React.useEffect(() => {
+    async function loadUsage() {
+      try {
+        const res = await fetch("/api/plans/usage")
+        if (res.ok) {
+          const data = await res.json()
+          setUsageData(data)
+        }
+      } catch (err) {
+        console.error("Failed to load usage:", err)
+      } finally {
+        setIsLoadingUsage(false)
+      }
+    }
+    loadUsage()
+  }, [])
+
+  const handleUpgrade = () => {
+    setUpgradeDialogOpen(true)
+  }
+
+  const handleSelectPlan = async (plan: PlanTier) => {
+    toast.success("Plan selection", {
+      description: `You selected ${plan}. Contact sales@yourdomain.com to complete the upgrade.`,
+    })
+    setUpgradeDialogOpen(false)
+  }
+
+  const isUnlimited = (limit: number) => limit === -1
+
+  return (
+    <div className="space-y-6">
+      {/* Current Plan Overview */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-gray-500" />
+                <CardTitle>Current Plan</CardTitle>
+              </div>
+              <CardDescription className="mt-1">
+                Your subscription and usage overview
+              </CardDescription>
+            </div>
+            {currentPlan !== "enterprise" && (
+              <Button onClick={handleUpgrade}>
+                Upgrade Plan
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoadingUsage ? (
+            <div className="text-sm text-muted-foreground">Loading usage data...</div>
+          ) : usageData ? (
+            <>
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <div className="text-2xl font-bold">{usageData.planConfig.displayName}</div>
+                  <p className="text-sm text-muted-foreground">{usageData.planConfig.description}</p>
+                </div>
+                <PlanBadge plan={currentPlan} />
+              </div>
+
+              {/* Warnings */}
+              {usageData.needsAttention && (
+                <div className="space-y-2">
+                  {usageData.warnings.map((warning, idx) => (
+                    <Alert key={idx} variant="destructive">
+                      <AlertDescription>{warning}</AlertDescription>
+                    </Alert>
+                  ))}
+                  {usageData.approaching.map((approaching, idx) => (
+                    <Alert key={idx}>
+                      <AlertDescription>{approaching}</AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              )}
+
+              {/* Usage Indicators */}
+              <div className="space-y-4 pt-4">
+                <h4 className="text-sm font-semibold">Usage This Month</h4>
+                <UsageIndicator
+                  label="Properties"
+                  current={usageData.usage.properties}
+                  limit={usageData.limits.maxProperties}
+                  isUnlimited={isUnlimited(usageData.limits.maxProperties)}
+                  showUpgrade={!isUnlimited(usageData.limits.maxProperties)}
+                  onUpgrade={handleUpgrade}
+                />
+                <UsageIndicator
+                  label="Investors"
+                  current={usageData.usage.investors}
+                  limit={usageData.limits.maxInvestors}
+                  isUnlimited={isUnlimited(usageData.limits.maxInvestors)}
+                  showUpgrade={!isUnlimited(usageData.limits.maxInvestors)}
+                  onUpgrade={handleUpgrade}
+                />
+                <UsageIndicator
+                  label="Team Members"
+                  current={usageData.usage.users}
+                  limit={usageData.limits.maxUsers}
+                  isUnlimited={isUnlimited(usageData.limits.maxUsers)}
+                  showUpgrade={!isUnlimited(usageData.limits.maxUsers)}
+                  onUpgrade={handleUpgrade}
+                />
+                <UsageIndicator
+                  label="IC Memos"
+                  current={usageData.usage.memosThisMonth}
+                  limit={usageData.limits.maxMemos}
+                  isUnlimited={isUnlimited(usageData.limits.maxMemos)}
+                  showUpgrade={!isUnlimited(usageData.limits.maxMemos)}
+                  onUpgrade={handleUpgrade}
+                />
+                <UsageIndicator
+                  label="AI Evaluations"
+                  current={usageData.usage.aiEvaluationsThisMonth}
+                  limit={usageData.limits.maxAIEvaluations}
+                  isUnlimited={isUnlimited(usageData.limits.maxAIEvaluations)}
+                  showUpgrade={!isUnlimited(usageData.limits.maxAIEvaluations)}
+                  onUpgrade={handleUpgrade}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-red-600">Failed to load usage data</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Plan Comparison */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Available Plans</CardTitle>
+          <CardDescription>
+            Choose the plan that best fits your needs
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PlanComparison
+            currentPlan={currentPlan}
+            onSelectPlan={handleSelectPlan}
+            showCurrentBadge
+          />
+        </CardContent>
+      </Card>
+
+      {/* Upgrade Dialog */}
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upgrade Your Plan</DialogTitle>
+            <DialogDescription>
+              Select a plan that better fits your needs
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <PlanComparison
+              currentPlan={currentPlan}
+              onSelectPlan={handleSelectPlan}
+              showCurrentBadge
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

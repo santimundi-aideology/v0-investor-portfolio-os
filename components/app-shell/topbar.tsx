@@ -26,9 +26,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useApp, usePersonas } from "@/components/providers/app-provider"
+import { useAuth } from "@/components/providers/auth-provider"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import type { Notification } from "@/lib/types"
 import { KeyboardShortcutsModal } from "@/components/layout/keyboard-shortcuts-modal"
+import { PlanBadge } from "@/components/plans/plan-badge"
+import type { PlanTier } from "@/lib/plans/config"
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -36,6 +39,7 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const router = useRouter()
+  const { signOut } = useAuth()
   const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId, platformRole, tenantsLoading, refreshTenants } = useApp()
   const personas = usePersonas()
   const [notificationItems, setNotificationItems] = useState<Notification[]>([])
@@ -155,12 +159,16 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
 
-  const handleLogout = () => {
-    toast.success("Logged out successfully", {
-      description: "You have been signed out. Redirecting to login...",
-    })
-    // In a real app, this would clear auth tokens and redirect
-    setTimeout(() => router.push("/login"), 1000)
+  const handleLogout = async () => {
+    try {
+      await signOut()
+      toast.success("Logged out successfully", {
+        description: "You have been signed out.",
+      })
+    } catch (err) {
+      console.error("Sign out error:", err)
+      toast.error("Failed to sign out. Please try again.")
+    }
   }
 
   const handleContactSupport = () => {
@@ -208,9 +216,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                 </Badge>
               )}
               {!tenantsLoading && platformRole !== "super_admin" && (
-                <Badge variant="secondary" className="hidden sm:inline-flex">
-                  {currentOrg.plan}
-                </Badge>
+                <div className="hidden sm:inline-flex">
+                  <PlanBadge plan={currentOrg.plan as PlanTier} />
+                </div>
               )}
             </Button>
           </DropdownMenuTrigger>
@@ -237,7 +245,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{org.name}</div>
-                        <div className="text-muted-foreground text-xs capitalize">{org.plan}</div>
+                        <PlanBadge plan={org.plan as PlanTier} showIcon={false} className="text-xs" />
                       </div>
                       {org.id === currentOrg.id && (
                         <Check className="h-4 w-4 shrink-0 text-green-600" />
@@ -333,9 +341,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <DropdownMenuTrigger asChild>
             <Button id="user-menu-trigger" variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name || "User"} />
                 <AvatarFallback>
-                  {user.name
+                  {(user.name || "U")
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
@@ -350,8 +358,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                   <User2 className="size-4 text-gray-500" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900">{user.name}</p>
-                  <p className="truncate text-xs text-gray-500">{user.email}</p>
+                  <p className="truncate text-sm font-medium text-gray-900">{user.name || "Loading..."}</p>
+                  <p className="truncate text-xs text-gray-500">{user.email || ""}</p>
                 </div>
               </div>
             </DropdownMenuLabel>

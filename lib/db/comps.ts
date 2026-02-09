@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { UnderwritingCompRecord } from "@/lib/data/store"
+import type { UnderwritingCompRecord } from "@/lib/data/types"
 
 function mapRow(row: Record<string, unknown>): UnderwritingCompRecord {
   const asNumber = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined)

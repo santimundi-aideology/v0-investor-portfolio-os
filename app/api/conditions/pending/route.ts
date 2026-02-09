@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
-import { getInvestor, store } from "@/lib/data/store"
+import { getSupabaseAdminClient } from "@/lib/db/client"
+import { getInvestorById } from "@/lib/db/investors"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 
@@ -11,27 +12,45 @@ export async function GET(req: Request) {
 
     if (ctx.role === "investor") throw new AccessError("Forbidden")
 
-    const items = store.decisions
-      .filter((d) => d.decisionType === "approved_conditional" && d.resolvedStatus === "pending" && d.tenantId === tenantId)
-      .map((d) => {
-        const memo = store.memos.find((m) => m.id === d.memoId)
-        const investor = memo ? getInvestor(memo.investorId) : undefined
-        return { decision: d, memo, investor }
+    const supabase = getSupabaseAdminClient()
+    const { data: decisions, error } = await supabase
+      .from("decisions")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("decision_type", "approved_conditional")
+      .eq("resolved_status", "pending")
+    if (error) throw error
+
+    const items: {
+      memoId: string
+      investorId: string
+      listingId: string | null
+      conditionText: string | null
+      deadline: string | null
+      decidedAt: string
+    }[] = []
+
+    for (const d of decisions ?? []) {
+      const { data: memo } = await supabase
+        .from("memos")
+        .select("*")
+        .eq("id", d.memo_id)
+        .maybeSingle()
+      if (!memo) continue
+      const investor = await getInvestorById(memo.investor_id)
+      if (!investor) continue
+
+      if (ctx.role === "agent" && investor.assignedAgentId !== ctx.userId) continue
+
+      items.push({
+        memoId: memo.id,
+        investorId: investor.id,
+        listingId: memo.listing_id,
+        conditionText: d.condition_text,
+        deadline: d.deadline,
+        decidedAt: d.created_at,
       })
-      .filter(({ memo, investor }) => memo && investor)
-      .filter(({ investor }) => {
-        if (ctx.role === "manager" || ctx.role === "super_admin") return true
-        if (ctx.role === "agent") return investor!.assignedAgentId === ctx.userId
-        return false
-      })
-      .map(({ decision, memo, investor }) => ({
-        memoId: memo!.id,
-        investorId: investor!.id,
-        listingId: memo!.listingId,
-        conditionText: decision.conditionText,
-        deadline: decision.deadline,
-        decidedAt: decision.createdAt,
-      }))
+    }
 
     return NextResponse.json(items)
   } catch (err) {

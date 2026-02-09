@@ -49,7 +49,7 @@ export const navSections: NavSection[] = [
       { label: "Realtor Ops", href: "/realtor", icon: ClipboardList, rolesAllowed: INTERNAL_ROLES, featureFlag: "realtorOps" },
       { label: "Investors", href: "/investors", icon: Users, rolesAllowed: INTERNAL_ROLES },
       { label: "Properties", href: "/properties", icon: Building2, rolesAllowed: INTERNAL_ROLES },
-      { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES, featureFlag: "tasks" },
+      { label: "Tasks", href: "/tasks", icon: CheckSquare, rolesAllowed: INTERNAL_ROLES },
       { label: "Deal Pipeline", href: "/deal-room", icon: FolderKanban, rolesAllowed: [...INTERNAL_ROLES, ...INVESTOR_ROLES], featureFlag: "dealRoom" },
     ],
   },

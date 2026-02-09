@@ -3,7 +3,7 @@ import "server-only"
 import { getInvestorById } from "@/lib/db/investors"
 import { getListingById } from "@/lib/db/listings"
 import { getTrustRecord } from "@/lib/db/trust"
-import type { InvestorRecord, ListingRecord, TrustRecord } from "@/lib/data/store"
+import type { InvestorRecord, ListingRecord, TrustRecord } from "@/lib/data/types"
 
 export type MemoContent = {
   execSummary?: string

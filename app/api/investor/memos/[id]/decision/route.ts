@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addDecision, getMemo, saveMemo, store } from "@/lib/data/store"
+import { addDecision, getMemo, saveMemo } from "@/lib/db/memo-ops"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
     const { id } = await params
-    const memo = getMemo(id)
+    const memo = await getMemo(id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (memo.investorId !== ctx.investorId) throw new AccessError("Forbidden")
     if (!["sent", "opened"].includes(memo.state)) throw new AccessError("Memo not open for decision")
@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!Array.isArray(body.reasonTags) || body.reasonTags.length === 0) throw new AccessError("reasonTags required")
     if (decisionType === "approved_conditional" && !body.conditionText) throw new AccessError("conditionText required")
 
-    const decision = addDecision({
+    const decision = await addDecision({
       memoId: memo.id,
       investorId: memo.investorId,
       decisionType,
@@ -35,12 +35,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const openedMemo = memo.state === "sent" ? transitionMemo(memo, "opened") : memo
     const decided = transitionMemo(openedMemo, "decided")
-    saveMemo(decided)
+    await saveMemo(decided)
 
     const write = createAuditEventWriter()
     await write(
       AuditEvents.memoDecided({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         memoId: memo.id,

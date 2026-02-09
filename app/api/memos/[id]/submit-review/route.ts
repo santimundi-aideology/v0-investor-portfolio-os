@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { getInvestor, getMemo, saveMemo } from "@/lib/data/store"
+import { getMemo, saveMemo } from "@/lib/db/memo-ops"
+import { getInvestorById } from "@/lib/db/investors"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
@@ -9,15 +10,15 @@ import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuthContext(req)
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    const investor = getInvestor(memo.investorId)
+    const investor = await getInvestorById(memo.investorId)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
     if (ctx.role !== "agent" && ctx.role !== "super_admin") throw new AccessError("Only agents can submit for review")
     const next = transitionMemo(memo, "pending_review")
-    saveMemo(next)
+    await saveMemo(next)
 
     const write = createAuditEventWriter()
     await write(

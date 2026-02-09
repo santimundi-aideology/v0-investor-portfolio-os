@@ -10,19 +10,11 @@ async function getSignalsPipeline() {
 const JOB_SECRET = process.env.JOB_SECRET
 
 function isAuthorized(req: Request): boolean {
-  const secret = req.headers.get("x-job-secret")
-  
-  // In production, require JOB_SECRET
-  if (JOB_SECRET) {
-    return secret === JOB_SECRET
+  if (!JOB_SECRET) {
+    console.error("[run-signals] JOB_SECRET is not configured. Rejecting request.")
+    return false
   }
-  
-  // In dev mode without JOB_SECRET, allow super_admin role or any request
-  if (process.env.NODE_ENV !== "production") {
-    return true
-  }
-  
-  return false
+  return req.headers.get("x-job-secret") === JOB_SECRET
 }
 
 async function resolveTenantId(providedId?: string): Promise<string | null> {

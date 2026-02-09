@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
+  Briefcase,
   FileText,
   FolderKanban,
   LayoutDashboard,
@@ -25,7 +26,8 @@ interface InvestorMobileSidebarProps {
 
 // Investor-specific navigation items
 const investorNavItems = [
-  { label: "Dashboard", href: "/investor", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
+  { label: "Investments", href: "/investor/investments", icon: Briefcase },
   { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
   { label: "Analytics", href: "/investor/analytics", icon: BarChart3 },
   { label: "Memos", href: "/investor/memos", icon: FileText },
@@ -64,8 +66,8 @@ export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarPr
               </div>
               {investorNavItems.map((item) => {
                 const isActive =
-                  item.href === "/investor"
-                    ? pathname === "/investor"
+                  item.href === "/investor/dashboard"
+                    ? pathname === "/investor/dashboard" || pathname === "/investor"
                     : pathname.startsWith(item.href)
                 const Icon = item.icon
                 return (

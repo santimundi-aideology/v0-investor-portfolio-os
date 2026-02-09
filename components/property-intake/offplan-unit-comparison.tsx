@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { calculateUnitMetrics as calculateUnitMetricsUtil } from "@/lib/utils/financial-calculations"
 import type { OffPlanUnit, OffPlanPaymentPlan, OffPlanProject } from "@/lib/types"
 
 interface OffPlanUnitComparisonProps {

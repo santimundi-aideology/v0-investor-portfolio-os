@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { UnderwritingRecord } from "@/lib/data/store"
+import type { UnderwritingRecord } from "@/lib/data/types"
 
 function mapRow(row: Record<string, unknown>): UnderwritingRecord {
   return {

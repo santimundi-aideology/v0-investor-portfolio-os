@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { TrustRecord } from "@/lib/data/store"
+import type { TrustRecord } from "@/lib/data/types"
 
 function mapRow(row: Record<string, unknown>): TrustRecord {
   return {

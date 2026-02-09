@@ -22,16 +22,11 @@ import { getSupabaseAdminClient } from "@/lib/db/client"
 const JOB_SECRET = process.env.JOB_SECRET
 
 function isAuthorized(req: Request): boolean {
-  const secret = req.headers.get("x-job-secret")
-  
-  // In production, require JOB_SECRET
-  if (JOB_SECRET) {
-    return secret === JOB_SECRET
+  if (!JOB_SECRET) {
+    console.error("[ingest-ejari] JOB_SECRET is not configured. Rejecting request.")
+    return false
   }
-  
-  // In dev mode without JOB_SECRET, allow super_admin role
-  const role = req.headers.get("x-role")
-  return role === "super_admin"
+  return req.headers.get("x-job-secret") === JOB_SECRET
 }
 
 async function resolveTenantId(providedId?: string): Promise<string | null> {

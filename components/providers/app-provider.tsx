@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 
 import type { UserRole, PlatformRole } from "@/lib/types"
 import type { PersonaId } from "@/lib/personas"
@@ -58,6 +59,9 @@ type AppContextValue = {
   setUseRealAuth: (value: boolean) => void
   
   scopedInvestorId?: string
+  setScopedInvestorId: (id: string) => void
+  /** List of investors available for the current tenant (for super_admin investor selector) */
+  availableInvestors: { id: string; name: string; company?: string; email?: string; status?: string }[]
   orgs: AppOrg[]
   currentOrg: AppOrg
   setCurrentOrgId: (orgId: string) => void
@@ -205,40 +209,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const persona = React.useMemo(() => getPersonaById(personaId), [personaId])
 
-  // Build user object from auth or persona
-  const user = React.useMemo(() => {
-    if (shouldUseRealAuth && auth.user) {
-      return {
-        id: auth.user.id,
-        name: auth.user.name,
-        email: auth.user.email,
-        role: mapPlatformRole(auth.user.role),
-        avatar: auth.user.avatarUrl,
-      }
-    }
-    return persona.user
-  }, [shouldUseRealAuth, auth.user, persona.user])
-
-  const role = React.useMemo(() => {
-    if (shouldUseRealAuth && auth.user) {
-      return mapPlatformRole(auth.user.role)
-    }
-    return persona.role
-  }, [shouldUseRealAuth, auth.user, persona.role])
-
-  const platformRole = React.useMemo(() => {
-    if (shouldUseRealAuth && auth.user) {
-      return auth.user.role
-    }
-    // Map persona role to platform role
+  // Map from persona role (UserRole) to PlatformRole
+  const personaToPlatformRole = React.useCallback((r: UserRole): PlatformRole => {
     const mapping: Record<UserRole, PlatformRole> = {
       owner: "super_admin",
       admin: "manager",
       realtor: "agent",
       investor: "investor",
     }
-    return mapping[persona.role] || "agent"
-  }, [shouldUseRealAuth, auth.user, persona.role])
+    return mapping[r] || "agent"
+  }, [])
+
+  // Super admins can use the persona switcher to preview different role views
+  // while keeping their real identity (name, email, avatar).
+  // Note: we check auth.user directly (not shouldUseRealAuth) to avoid the race
+  // where shouldUseRealAuth is false during initial async auth resolution.
+  const isSuperAdminPreview = auth.user?.role === "super_admin"
+
+  // Build user object from auth or persona.
+  // CRITICAL: When a real user is authenticated, their identity (name, email,
+  // avatar) must ALWAYS come from auth — never from persona. The persona only
+  // controls the effective role and scoped IDs. During auth loading
+  // (auth.isLoading=true), we show a neutral placeholder instead of persona data.
+  const user = React.useMemo(() => {
+    if (auth.user) {
+      // Authenticated: always use real identity, persona only overrides role
+      const effectiveRole = isSuperAdminPreview
+        ? persona.role
+        : mapPlatformRole(auth.user.role)
+      return {
+        id: auth.user.id,
+        name: auth.user.name,
+        email: auth.user.email,
+        role: effectiveRole,
+        avatar: auth.user.avatarUrl,
+      }
+    }
+    // Auth still loading — return placeholder to avoid flashing persona identity
+    if (auth.isLoading) {
+      return {
+        id: "",
+        name: "",
+        email: "",
+        role: persona.role,
+        avatar: undefined as string | undefined,
+      }
+    }
+    // Not authenticated (demo mode) — use persona
+    return persona.user
+  }, [auth.user, auth.isLoading, persona, isSuperAdminPreview])
+
+  const role = React.useMemo(() => {
+    if (auth.user) {
+      return isSuperAdminPreview ? persona.role : mapPlatformRole(auth.user.role)
+    }
+    return persona.role
+  }, [auth.user, persona.role, isSuperAdminPreview])
+
+  const platformRole = React.useMemo(() => {
+    if (auth.user) {
+      return isSuperAdminPreview ? personaToPlatformRole(persona.role) : auth.user.role
+    }
+    return personaToPlatformRole(persona.role)
+  }, [auth.user, persona.role, isSuperAdminPreview, personaToPlatformRole])
+
+  // Detect if we're on an investor route
+  const pathname = usePathname()
+  const isOnInvestorRoute = pathname?.startsWith("/investor") ?? false
 
   // Resolve investor ID for real authenticated investor-role users
   const [resolvedInvestorId, setResolvedInvestorId] = React.useState<string | undefined>(undefined)
@@ -271,12 +308,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true }
   }, [shouldUseRealAuth, auth.user?.role])
 
+  // For super_admins on investor routes: auto-resolve an investor from the tenant
+  const [superAdminInvestorId, setSuperAdminInvestorId] = React.useState<string | undefined>(undefined)
+  const [availableInvestors, setAvailableInvestors] = React.useState<{ id: string; name: string; company?: string; email?: string; status?: string }[]>([])
+  const [investorsFetched, setInvestorsFetched] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!shouldUseRealAuth || auth.user?.role !== "super_admin" || !isOnInvestorRoute) {
+      return
+    }
+    // Already fetched investors — skip
+    if (investorsFetched) return
+
+    let cancelled = false
+    async function fetchInvestors() {
+      try {
+        const res = await fetch("/api/investors")
+        if (res.ok) {
+          const data = await res.json()
+          const investors = Array.isArray(data) ? data : (data.investors ?? [])
+          if (!cancelled && investors.length > 0) {
+            setAvailableInvestors(investors.map((inv: Record<string, unknown>) => ({
+              id: inv.id as string,
+              name: inv.name as string,
+              company: inv.company as string | undefined,
+              email: inv.email as string | undefined,
+              status: inv.status as string | undefined,
+            })))
+            // Auto-select first investor if none selected yet
+            if (!superAdminInvestorId) {
+              setSuperAdminInvestorId(investors[0].id as string)
+            }
+          }
+          if (!cancelled) setInvestorsFetched(true)
+        }
+      } catch (err) {
+        console.error("Failed to fetch investors for super_admin preview:", err)
+        if (!cancelled) setInvestorsFetched(true)
+      }
+    }
+    fetchInvestors()
+    return () => { cancelled = true }
+  }, [shouldUseRealAuth, auth.user?.role, isOnInvestorRoute, investorsFetched, superAdminInvestorId])
+
+  // Exposed setter so the investor selector dropdown can change the previewed investor
+  const setScopedInvestorIdManual = React.useCallback((id: string) => {
+    setSuperAdminInvestorId(id)
+  }, [])
+
   const scopedInvestorId = React.useMemo(() => {
+    // Real investor users: use their resolved ID
     if (shouldUseRealAuth && auth.user?.role === "investor") {
       return resolvedInvestorId
     }
+    // Super admins on investor routes: use auto-resolved or manually selected investor
+    if (shouldUseRealAuth && auth.user?.role === "super_admin" && isOnInvestorRoute && superAdminInvestorId) {
+      return superAdminInvestorId
+    }
+    // Super admins previewing investor persona get the persona's scoped investor ID
+    if (isSuperAdminPreview && persona.scopedInvestorId) {
+      return persona.scopedInvestorId
+    }
     return persona.scopedInvestorId
-  }, [shouldUseRealAuth, auth.user, persona.scopedInvestorId, resolvedInvestorId])
+  }, [shouldUseRealAuth, auth.user, persona.scopedInvestorId, resolvedInvestorId, isSuperAdminPreview, isOnInvestorRoute, superAdminInvestorId])
 
   const value = React.useMemo<AppContextValue>(
     () => ({
@@ -292,6 +386,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       useRealAuth,
       setUseRealAuth,
       scopedInvestorId,
+      setScopedInvestorId: setScopedInvestorIdManual,
+      availableInvestors,
       orgs: availableOrgs,
       currentOrg,
       setCurrentOrgId: setOrgId,
@@ -304,7 +400,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       breadcrumbsOverride,
       setBreadcrumbsOverride,
     }),
-    [user, role, platformRole, auth.user, auth.isAuthenticated, auth.isLoading, tenantId, personaId, useRealAuth, scopedInvestorId, availableOrgs, currentOrg, setOrgId, tenantsLoading, fetchTenants, needsTenantSelection, commandOpen, breadcrumbsOverride],
+    [user, role, platformRole, auth.user, auth.isAuthenticated, auth.isLoading, tenantId, personaId, useRealAuth, scopedInvestorId, setScopedInvestorIdManual, availableInvestors, availableOrgs, currentOrg, setOrgId, tenantsLoading, fetchTenants, needsTenantSelection, commandOpen, breadcrumbsOverride],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

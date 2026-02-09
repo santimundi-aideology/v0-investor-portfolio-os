@@ -3,6 +3,9 @@ import OpenAI from "openai"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { propertyEvaluationSchema } from "@/lib/validation/schemas"
 import { validateRequest } from "@/lib/validation/helpers"
+import { requireAuthContext } from "@/lib/auth/server"
+import { canRunAIEvaluation } from "@/lib/plans/usage"
+import type { PlanTier } from "@/lib/plans/config"
 
 /**
  * Evaluate property viability and generate IC memo content
@@ -164,139 +167,8 @@ interface AreaMarketData {
   profile: "core" | "core_plus" | "value_add" | "opportunistic"
 }
 
-const DUBAI_MARKET_DATA: Record<string, AreaMarketData> = {
-  // Premium Areas (Grade A)
-  "Palm Jumeirah": { 
-    median: 2800, yield: 4.5, trend: "stable", grade: "A",
-    liquidity: 7, tenantDemand: "high", volatility: "medium",
-    newSupply: 2500, occupancy: 92, appreciation: 5.2, rentalGrowth: 3.5,
-    daysOnMarket: 60, profile: "core"
-  },
-  "Downtown Dubai": { 
-    median: 2200, yield: 5.2, trend: "rising", grade: "A",
-    liquidity: 9, tenantDemand: "high", volatility: "low",
-    newSupply: 3000, occupancy: 94, appreciation: 6.5, rentalGrowth: 4.2,
-    daysOnMarket: 35, profile: "core"
-  },
-  "DIFC": { 
-    median: 2400, yield: 5.0, trend: "stable", grade: "A",
-    liquidity: 8, tenantDemand: "high", volatility: "low",
-    newSupply: 800, occupancy: 91, appreciation: 4.8, rentalGrowth: 3.8,
-    daysOnMarket: 45, profile: "core"
-  },
-  "Emirates Hills": {
-    median: 1800, yield: 3.5, trend: "stable", grade: "A",
-    liquidity: 5, tenantDemand: "medium", volatility: "low",
-    newSupply: 200, occupancy: 88, appreciation: 4.0, rentalGrowth: 2.5,
-    daysOnMarket: 90, profile: "core"
-  },
-
-  // Established Areas (Grade B+)
-  "Dubai Marina": { 
-    median: 1600, yield: 5.8, trend: "stable", grade: "B",
-    liquidity: 9, tenantDemand: "high", volatility: "medium",
-    newSupply: 1500, occupancy: 93, appreciation: 4.5, rentalGrowth: 3.8,
-    daysOnMarket: 30, profile: "core_plus"
-  },
-  "JBR": { 
-    median: 1800, yield: 5.5, trend: "stable", grade: "B",
-    liquidity: 8, tenantDemand: "high", volatility: "medium",
-    newSupply: 500, occupancy: 94, appreciation: 4.2, rentalGrowth: 3.5,
-    daysOnMarket: 35, profile: "core_plus"
-  },
-  "Business Bay": { 
-    median: 1400, yield: 6.2, trend: "rising", grade: "B",
-    liquidity: 8, tenantDemand: "high", volatility: "medium",
-    newSupply: 4000, occupancy: 89, appreciation: 5.8, rentalGrowth: 4.5,
-    daysOnMarket: 40, profile: "core_plus"
-  },
-  "Dubai Hills": { 
-    median: 1350, yield: 5.5, trend: "rising", grade: "B",
-    liquidity: 7, tenantDemand: "high", volatility: "low",
-    newSupply: 3500, occupancy: 91, appreciation: 6.2, rentalGrowth: 4.0,
-    daysOnMarket: 45, profile: "core_plus"
-  },
-
-  // Growth Areas (Grade B-)
-  "Arabian Ranches": { 
-    median: 1100, yield: 5.0, trend: "rising", grade: "B",
-    liquidity: 6, tenantDemand: "high", volatility: "low",
-    newSupply: 2000, occupancy: 92, appreciation: 5.5, rentalGrowth: 3.2,
-    daysOnMarket: 55, profile: "core_plus"
-  },
-  "Jumeirah Village Circle": { 
-    median: 850, yield: 7.5, trend: "stable", grade: "B",
-    liquidity: 8, tenantDemand: "high", volatility: "medium",
-    newSupply: 5000, occupancy: 90, appreciation: 4.0, rentalGrowth: 4.8,
-    daysOnMarket: 28, profile: "value_add"
-  },
-  "JVC": { 
-    median: 850, yield: 7.5, trend: "stable", grade: "B",
-    liquidity: 8, tenantDemand: "high", volatility: "medium",
-    newSupply: 5000, occupancy: 90, appreciation: 4.0, rentalGrowth: 4.8,
-    daysOnMarket: 28, profile: "value_add"
-  },
-
-  // Value Areas (Grade C+)
-  "Motor City": { 
-    median: 750, yield: 7.0, trend: "stable", grade: "C",
-    liquidity: 6, tenantDemand: "medium", volatility: "medium",
-    newSupply: 1000, occupancy: 88, appreciation: 3.5, rentalGrowth: 3.0,
-    daysOnMarket: 45, profile: "value_add"
-  },
-  "Sports City": {
-    median: 700, yield: 7.2, trend: "stable", grade: "C",
-    liquidity: 6, tenantDemand: "medium", volatility: "medium",
-    newSupply: 800, occupancy: 87, appreciation: 3.2, rentalGrowth: 2.8,
-    daysOnMarket: 50, profile: "value_add"
-  },
-  "Dubai Silicon Oasis": {
-    median: 750, yield: 7.0, trend: "stable", grade: "C",
-    liquidity: 6, tenantDemand: "medium", volatility: "low",
-    newSupply: 1500, occupancy: 89, appreciation: 3.0, rentalGrowth: 3.5,
-    daysOnMarket: 40, profile: "value_add"
-  },
-  "International City": {
-    median: 500, yield: 8.5, trend: "stable", grade: "C",
-    liquidity: 7, tenantDemand: "high", volatility: "medium",
-    newSupply: 2000, occupancy: 92, appreciation: 2.5, rentalGrowth: 3.0,
-    daysOnMarket: 25, profile: "opportunistic"
-  },
-
-  // Emerging Areas (Grade C)
-  "Dubai South": {
-    median: 650, yield: 6.5, trend: "rising", grade: "C",
-    liquidity: 4, tenantDemand: "low", volatility: "high",
-    newSupply: 8000, occupancy: 75, appreciation: 3.5, rentalGrowth: 2.0,
-    daysOnMarket: 75, profile: "opportunistic"
-  },
-  "Jumeirah Lake Towers": {
-    median: 1000, yield: 6.8, trend: "stable", grade: "B",
-    liquidity: 7, tenantDemand: "high", volatility: "medium",
-    newSupply: 500, occupancy: 90, appreciation: 3.8, rentalGrowth: 4.0,
-    daysOnMarket: 35, profile: "value_add"
-  },
-  "JLT": {
-    median: 1000, yield: 6.8, trend: "stable", grade: "B",
-    liquidity: 7, tenantDemand: "high", volatility: "medium",
-    newSupply: 500, occupancy: 90, appreciation: 3.8, rentalGrowth: 4.0,
-    daysOnMarket: 35, profile: "value_add"
-  },
-  "Al Barsha": {
-    median: 900, yield: 6.5, trend: "stable", grade: "B",
-    liquidity: 6, tenantDemand: "medium", volatility: "low",
-    newSupply: 400, occupancy: 91, appreciation: 3.5, rentalGrowth: 3.0,
-    daysOnMarket: 45, profile: "value_add"
-  },
-  "Mirdif": {
-    median: 850, yield: 5.8, trend: "stable", grade: "B",
-    liquidity: 5, tenantDemand: "medium", volatility: "low",
-    newSupply: 300, occupancy: 93, appreciation: 3.0, rentalGrowth: 2.5,
-    daysOnMarket: 55, profile: "core_plus"
-  },
-}
-
-// Default market data for unknown areas
+// Generic fallback market data when DLD database query returns insufficient data.
+// This does NOT represent any specific area -- it signals that real data is unavailable.
 const DEFAULT_MARKET_DATA: AreaMarketData = {
   median: 1200, yield: 6.0, trend: "stable", grade: "C",
   liquidity: 5, tenantDemand: "medium", volatility: "medium",
@@ -306,8 +178,7 @@ const DEFAULT_MARKET_DATA: AreaMarketData = {
 
 /**
  * Get market context for an area by querying real DLD transaction data.
- * Falls back to the hardcoded DUBAI_MARKET_DATA lookup when DB data is
- * unavailable or the query fails (e.g. missing views/tables).
+ * Falls back to generic defaults when DB data is unavailable.
  */
 async function getMarketContext(area: string, propertyType: string, bedrooms: number): Promise<MarketContext> {
   // Try querying real DLD data from the database first
@@ -403,49 +274,23 @@ async function getMarketContext(area: string, propertyType: string, bedrooms: nu
       }
     }
   } catch (err) {
-    console.warn("[evaluate] DLD query failed, falling back to hardcoded data:", err)
+    console.warn("[evaluate] DLD query failed, using generic fallback:", err)
   }
 
-  // Fallback to hardcoded data when DB is not available
-  return getMarketContextFromLookup(area, propertyType, bedrooms)
-}
-
-/**
- * Fallback: get market context from the hardcoded lookup table.
- * Used when DLD database queries are unavailable.
- */
-function getMarketContextFromLookup(area: string, propertyType: string, bedrooms: number): MarketContext {
-  // Try to find exact match first, then partial match
-  let data: AreaMarketData | undefined = DUBAI_MARKET_DATA[area]
-  
-  if (!data) {
-    // Try partial matching for variations like "Dubai Marina Tower 1" -> "Dubai Marina"
-    const normalizedArea = area.toLowerCase()
-    for (const [key, value] of Object.entries(DUBAI_MARKET_DATA)) {
-      if (normalizedArea.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedArea)) {
-        data = value
-        break
-      }
-    }
-  }
-
-  if (!data) {
-    data = DEFAULT_MARKET_DATA
-  }
-
-  // Adjust yield based on property type and bedrooms
+  // Fallback: return generic market context when DB is unavailable
+  console.warn(`[evaluate] No real DLD data for "${area}" - using generic defaults`)
+  const data = DEFAULT_MARKET_DATA
   let adjustedYield = data.yield
   if (propertyType.toLowerCase().includes("studio")) adjustedYield += 0.5
   if (bedrooms >= 3) adjustedYield -= 0.3
   if (propertyType.toLowerCase().includes("villa") || propertyType.toLowerCase().includes("townhouse")) {
     adjustedYield -= 0.8
   }
-
   return {
     areaMedianPrice: data.median * 1000,
     areaMedianPricePerSqft: data.median,
     areaAverageYield: Math.round(adjustedYield * 10) / 10,
-    priceVsMarket: 0, // Will be calculated
+    priceVsMarket: 0,
     marketTrend: data.trend,
     demandLevel: data.tenantDemand,
     supplyLevel: data.newSupply > 3000 ? "high" : data.newSupply > 1000 ? "medium" : "low",
@@ -850,6 +695,41 @@ function createFallbackEvaluation(
 
 export async function POST(req: Request) {
   try {
+    // Check authentication and get context
+    const ctx = await requireAuthContext(req)
+    
+    if (!ctx.tenantId) {
+      return NextResponse.json({ error: "No tenant found" }, { status: 400 })
+    }
+    
+    // Get tenant's plan and check AI evaluation limit
+    const supabase = getSupabaseAdminClient()
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("plan")
+      .eq("id", ctx.tenantId)
+      .single()
+    
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
+    }
+    
+    const plan = tenant.plan as PlanTier
+    const canEvaluate = await canRunAIEvaluation(ctx.tenantId, plan)
+    
+    if (!canEvaluate.allowed) {
+      return NextResponse.json(
+        { 
+          error: "AI evaluation limit reached", 
+          limitReached: true,
+          current: canEvaluate.current,
+          limit: canEvaluate.limit,
+          plan,
+        },
+        { status: 429 }
+      )
+    }
+    
     const validation = await validateRequest(req, propertyEvaluationSchema)
     if (!validation.success) {
       return validation.error
@@ -873,6 +753,24 @@ export async function POST(req: Request) {
 
     // Evaluate with AI (or fallback)
     const evaluation = await evaluateWithAI(property, marketContext)
+    
+    // Log the AI evaluation for usage tracking
+    try {
+      await supabase.rpc("log_property_intake_action", {
+        p_tenant_id: ctx.tenantId,
+        p_user_id: ctx.userId,
+        p_listing_id: property.listingId || null,
+        p_action: "ai_evaluation",
+        p_details: {
+          property_title: property.title,
+          area: property.area,
+          price: property.price,
+        },
+      })
+    } catch (logError) {
+      console.error("Failed to log AI evaluation:", logError)
+      // Don't fail the request if logging fails
+    }
 
     return NextResponse.json({
       success: true,

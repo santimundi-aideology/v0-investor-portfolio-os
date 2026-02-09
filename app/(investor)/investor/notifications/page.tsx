@@ -61,15 +61,29 @@ const typeColors = {
 }
 
 export default function InvestorNotificationsPage() {
-  const { data: apiNotifications, isLoading: notificationsLoading } = useAPI<InvestorNotification[]>("/api/notifications")
+  const { data: notificationsResponse, isLoading: notificationsLoading } = useAPI<{ notifications: Array<{ id: string; title: string; body: string; read_at: string | null; created_at: string; entity_type?: string; metadata?: Record<string, unknown> }> }>("/api/notifications")
   const [notifications, setNotifications] = React.useState<InvestorNotification[]>([])
 
   // Sync API data into local state for selection/read management
   React.useEffect(() => {
-    if (apiNotifications) {
-      setNotifications(apiNotifications)
+    if (notificationsResponse?.notifications) {
+      const transformed = notificationsResponse.notifications.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        createdAt: new Date(n.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        unread: n.read_at === null,
+        href: (n.metadata?.link as string) || undefined,
+        type: (n.entity_type as InvestorNotification["type"]) || "system",
+        priority: (n.metadata?.priority as InvestorNotification["priority"]) || "normal",
+      }))
+      setNotifications(transformed)
     }
-  }, [apiNotifications])
+  }, [notificationsResponse])
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [filter, setFilter] = React.useState<"all" | "unread">("all")
 

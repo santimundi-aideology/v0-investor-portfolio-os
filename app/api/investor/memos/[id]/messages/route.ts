@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addMessage, getMemo, getMessagesByMemo, store } from "@/lib/data/store"
+import { addMessage, getMemo, getMessagesByMemo } from "@/lib/db/memo-ops"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 
@@ -11,12 +11,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (memo.investorId !== ctx.investorId) throw new AccessError("Forbidden")
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
 
-    const msgs = getMessagesByMemo(memo.id)
+    const msgs = await getMessagesByMemo(memo.id)
     return NextResponse.json(msgs)
   } catch (err) {
     return handleError(err)
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (ctx.role !== "investor") throw new AccessError("Investor access only")
     if (!ctx.investorId) throw new AccessError("Missing investor scope")
 
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
     if (memo.investorId !== ctx.investorId) throw new AccessError("Forbidden")
     if (!["sent", "opened", "decided"].includes(memo.state)) throw new AccessError("Memo not shared")
@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const body = await req.json()
     if (!body.body) throw new AccessError("Message body required")
 
-    const msg = addMessage({
+    const msg = await addMessage({
       memoId: memo.id,
       body: body.body,
       versionContext: body.versionContext ?? memo.currentVersion,
@@ -47,7 +47,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const write = createAuditEventWriter()
     await write(
       AuditEvents.qnaMessagePosted({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         memoId: memo.id,

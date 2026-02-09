@@ -111,7 +111,14 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
             <div className="rounded-2xl border bg-muted/20 p-4">
               <div className="flex flex-col gap-4 sm:flex-row">
                 <div className="relative h-32 w-full overflow-hidden rounded-xl sm:w-40">
-                  <Image src={property.imageUrl || "/placeholder.svg"} alt={property.title} fill className="object-cover" sizes="160px" />
+                  <Image
+                    src={property.imageUrl || "/placeholder.svg"}
+                    alt={property.title}
+                    fill
+                    className="object-cover"
+                    sizes="160px"
+                    unoptimized={(property.imageUrl || "/placeholder.svg").endsWith(".svg")}
+                  />
                 </div>
                 <div className="flex-1 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">

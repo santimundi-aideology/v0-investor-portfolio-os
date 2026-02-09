@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { addMessage, getInvestor, getMemo, getMessagesByMemo, store } from "@/lib/data/store"
+import { addMessage, getMemo, getMessagesByMemo } from "@/lib/db/memo-ops"
+import { getInvestorById } from "@/lib/db/investors"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuthContext(req)
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    const investor = getInvestor(memo.investorId)
+    const investor = await getInvestorById(memo.investorId)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
-    return NextResponse.json(getMessagesByMemo(memo.id))
+    return NextResponse.json(await getMessagesByMemo(memo.id))
   } catch (err) {
     return handleError(err)
   }
@@ -23,16 +24,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuthContext(req)
-    const memo = getMemo((await params).id)
+    const memo = await getMemo((await params).id)
     if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    const investor = getInvestor(memo.investorId)
+    const investor = await getInvestorById(memo.investorId)
     if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
     assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
 
     const body = await req.json()
     if (!body.body) throw new AccessError("Message body required")
 
-    const record = addMessage({
+    const record = await addMessage({
       memoId: memo.id,
       body: body.body,
       versionContext: body.versionContext ?? memo.currentVersion,
@@ -42,7 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const write = createAuditEventWriter()
     await write(
       AuditEvents.qnaMessagePosted({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         memoId: memo.id,

@@ -11,7 +11,7 @@ import { scoreOpportunitiesForInvestor, quickScoreOpportunities } from "../scori
 import { getExternalDataForProperty } from "../external/external-data-context"
 import { getFullNewsContext, getNewsForArea } from "../external/news-fetcher"
 import { compressInvestorContext } from "../compression/compress-context"
-import { HOT_OPPORTUNITIES } from "@/lib/demo/hot-opportunities"
+// Hot opportunities are now fetched from real listings in Supabase
 import type {
   SearchOpportunitiesInput,
   GetAreaMarketDataInput,
@@ -175,45 +175,52 @@ async function executeSearchOpportunities(
 }
 
 /**
- * Filter hot opportunities based on search criteria
+ * Fetch and filter opportunities from real listings in Supabase
  */
-function getFilteredHotOpportunities(
+async function getFilteredHotOpportunities(
   args: SearchOpportunitiesInput,
   investor: Investor
 ) {
-  return HOT_OPPORTUNITIES.filter(h => {
-    // Filter by area if specified
-    if (args.areas && args.areas.length > 0) {
-      const matchesArea = args.areas.some(a => 
-        h.area.toLowerCase().includes(a.toLowerCase()) ||
-        a.toLowerCase().includes(h.area.toLowerCase())
-      )
-      if (!matchesArea) return false
-    }
-    
-    // Filter by price range
-    if (args.minPrice && h.price < args.minPrice) return false
-    if (args.maxPrice && h.price > args.maxPrice) return false
-    
-    // Filter by yield
-    if (args.minYield && h.yield < args.minYield) return false
-    
-    // Filter by property type
-    if (args.propertyTypes && args.propertyTypes.length > 0) {
-      const matchesType = args.propertyTypes.some(t => 
-        h.type.toLowerCase().includes(t.toLowerCase())
-      )
-      if (!matchesType) return false
-    }
-    
-    // Check against investor mandate if available
-    if (investor.mandate) {
-      if (investor.mandate.minInvestment && h.price < investor.mandate.minInvestment) return false
-      if (investor.mandate.maxInvestment && h.price > investor.mandate.maxInvestment) return false
-    }
-    
-    return true
-  }).sort((a, b) => b.score - a.score)
+  const supabase = getSupabaseAdminClient()
+  let query = supabase
+    .from("listings")
+    .select("*")
+    .eq("status", "available")
+    .order("created_at", { ascending: false })
+    .limit(20)
+
+  if (args.areas && args.areas.length > 0) {
+    query = query.or(args.areas.map(a => `area.ilike.%${a}%`).join(","))
+  }
+  if (args.minPrice) {
+    query = query.gte("price", args.minPrice)
+  }
+  if (args.maxPrice) {
+    query = query.lte("price", args.maxPrice)
+  }
+
+  const { data, error } = await query
+  if (error || !data) return []
+
+  return data.map((l: Record<string, unknown>) => ({
+    id: l.id as string,
+    title: l.title as string,
+    area: (l.area as string) ?? "Unknown",
+    type: (l.type as string) ?? "residential",
+    price: (l.price as number) ?? 0,
+    priceFormatted: `AED ${((l.price as number) / 1_000_000).toFixed(1)}M`,
+    yield: 0,
+    size: (l.size as number) ?? 0,
+    bedrooms: l.bedrooms as number | undefined,
+    headline: l.title as string,
+    story: "",
+    whyNow: "",
+    vsMarket: "",
+    score: 70,
+    keyStrengths: [] as string[],
+    tag: "📈 Rising Area" as const,
+    tagColor: "bg-blue-500",
+  }))
 }
 
 async function executeGetAreaMarketData(

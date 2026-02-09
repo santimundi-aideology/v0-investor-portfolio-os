@@ -444,6 +444,120 @@ export type Database = {
           },
         ]
       }
+      deal_rooms: {
+        Row: {
+          assigned_agent_id: string | null
+          checklist: Json
+          created_at: string
+          id: string
+          investor_id: string | null
+          investor_name: string | null
+          metadata: Json | null
+          next_step: string | null
+          notes: string | null
+          offer_price_aed: number | null
+          parties: Json
+          priority: Database["public"]["Enums"]["deal_priority"]
+          probability: number | null
+          property_id: string | null
+          property_title: string | null
+          status: Database["public"]["Enums"]["deal_stage"]
+          summary: string | null
+          target_close_date: string | null
+          tenant_id: string
+          ticket_size_aed: number | null
+          timeline: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          checklist?: Json
+          created_at?: string
+          id?: string
+          investor_id?: string | null
+          investor_name?: string | null
+          metadata?: Json | null
+          next_step?: string | null
+          notes?: string | null
+          offer_price_aed?: number | null
+          parties?: Json
+          priority?: Database["public"]["Enums"]["deal_priority"]
+          probability?: number | null
+          property_id?: string | null
+          property_title?: string | null
+          status?: Database["public"]["Enums"]["deal_stage"]
+          summary?: string | null
+          target_close_date?: string | null
+          tenant_id: string
+          ticket_size_aed?: number | null
+          timeline?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          checklist?: Json
+          created_at?: string
+          id?: string
+          investor_id?: string | null
+          investor_name?: string | null
+          metadata?: Json | null
+          next_step?: string | null
+          notes?: string | null
+          offer_price_aed?: number | null
+          parties?: Json
+          priority?: Database["public"]["Enums"]["deal_priority"]
+          probability?: number | null
+          property_id?: string | null
+          property_title?: string | null
+          status?: Database["public"]["Enums"]["deal_stage"]
+          summary?: string | null
+          target_close_date?: string | null
+          tenant_id?: string
+          ticket_size_aed?: number | null
+          timeline?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_rooms_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_rooms_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_rooms_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_rooms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decisions: {
         Row: {
           condition_text: string | null
@@ -521,113 +635,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      deal_rooms: {
-        Row: {
-          id: string
-          tenant_id: string
-          title: string
-          property_id: string | null
-          investor_id: string | null
-          investor_name: string | null
-          property_title: string | null
-          status: string
-          ticket_size_aed: number | null
-          offer_price_aed: number | null
-          target_close_date: string | null
-          probability: number | null
-          priority: string
-          next_step: string | null
-          summary: string | null
-          assigned_agent_id: string | null
-          parties: Json
-          checklist: Json
-          timeline: Json
-          notes: string | null
-          metadata: Json | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          tenant_id: string
-          title: string
-          property_id?: string | null
-          investor_id?: string | null
-          investor_name?: string | null
-          property_title?: string | null
-          status?: string
-          ticket_size_aed?: number | null
-          offer_price_aed?: number | null
-          target_close_date?: string | null
-          probability?: number | null
-          priority?: string
-          next_step?: string | null
-          summary?: string | null
-          assigned_agent_id?: string | null
-          parties?: Json
-          checklist?: Json
-          timeline?: Json
-          notes?: string | null
-          metadata?: Json | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          tenant_id?: string
-          title?: string
-          property_id?: string | null
-          investor_id?: string | null
-          investor_name?: string | null
-          property_title?: string | null
-          status?: string
-          ticket_size_aed?: number | null
-          offer_price_aed?: number | null
-          target_close_date?: string | null
-          probability?: number | null
-          priority?: string
-          next_step?: string | null
-          summary?: string | null
-          assigned_agent_id?: string | null
-          parties?: Json
-          checklist?: Json
-          timeline?: Json
-          notes?: string | null
-          metadata?: Json | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "deal_rooms_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "deal_rooms_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "listings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "deal_rooms_investor_id_fkey"
-            columns: ["investor_id"]
-            isOneToOne: false
-            referencedRelation: "investors"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "deal_rooms_assigned_agent_id_fkey"
-            columns: ["assigned_agent_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -2006,6 +2013,67 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio_snapshots: {
+        Row: {
+          area_median_price: number | null
+          created_at: string | null
+          holding_id: string
+          id: string
+          investor_id: string
+          market_value: number
+          monthly_rent: number | null
+          occupancy_rate: number | null
+          snapshot_date: string
+          tenant_id: string
+        }
+        Insert: {
+          area_median_price?: number | null
+          created_at?: string | null
+          holding_id: string
+          id?: string
+          investor_id: string
+          market_value: number
+          monthly_rent?: number | null
+          occupancy_rate?: number | null
+          snapshot_date: string
+          tenant_id: string
+        }
+        Update: {
+          area_median_price?: number | null
+          created_at?: string | null
+          holding_id?: string
+          id?: string
+          investor_id?: string
+          market_value?: number
+          monthly_rent?: number | null
+          occupancy_rate?: number | null
+          snapshot_date?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_snapshots_holding_id_fkey"
+            columns: ["holding_id"]
+            isOneToOne: false
+            referencedRelation: "holdings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_snapshots_investor_id_fkey"
+            columns: ["investor_id"]
+            isOneToOne: false
+            referencedRelation: "investors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       raw_dld_transactions: {
         Row: {
           area_sqft: number | null
@@ -2320,6 +2388,39 @@ export type Database = {
           },
         ]
       }
+      superadmin_domains: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          domain: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          domain: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "superadmin_domains_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "superadmin_domains_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_id: string | null
@@ -2420,68 +2521,52 @@ export type Database = {
       }
       tenants: {
         Row: {
+          contact_email: string | null
           created_at: string
+          created_by: string | null
+          domain: string | null
           id: string
+          is_active: boolean
+          logo_url: string | null
           name: string
           plan: string
+          type: string
         }
         Insert: {
+          contact_email?: string | null
           created_at?: string
+          created_by?: string | null
+          domain?: string | null
           id?: string
+          is_active?: boolean
+          logo_url?: string | null
           name: string
           plan?: string
+          type?: string
         }
         Update: {
+          contact_email?: string | null
           created_at?: string
+          created_by?: string | null
+          domain?: string | null
           id?: string
+          is_active?: boolean
+          logo_url?: string | null
           name?: string
           plan?: string
-        }
-        Relationships: []
-      }
-      user_tenant_access: {
-        Row: {
-          id: string
-          user_id: string
-          tenant_id: string
-          role: string
-          granted_at: string
-          granted_by: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          tenant_id: string
-          role?: string
-          granted_at?: string
-          granted_by?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          tenant_id?: string
-          role?: string
-          granted_at?: string
-          granted_by?: string | null
+          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_tenant_access_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "tenants_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_tenant_access_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_tenant_access_granted_by_fkey"
-            columns: ["granted_by"]
+            foreignKeyName: "tenants_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -2692,6 +2777,151 @@ export type Database = {
           },
         ]
       }
+      user_insights: {
+        Row: {
+          body: string | null
+          category: Database["public"]["Enums"]["insight_category"]
+          created_at: string
+          element_rect: Json | null
+          element_selector: string | null
+          element_text: string | null
+          id: string
+          metadata: Json | null
+          page_path: string
+          screenshot_url: string | null
+          status: Database["public"]["Enums"]["insight_status"]
+          tenant_id: string | null
+          title: string
+          updated_at: string
+          user_email: string | null
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          body?: string | null
+          category?: Database["public"]["Enums"]["insight_category"]
+          created_at?: string
+          element_rect?: Json | null
+          element_selector?: string | null
+          element_text?: string | null
+          id?: string
+          metadata?: Json | null
+          page_path: string
+          screenshot_url?: string | null
+          status?: Database["public"]["Enums"]["insight_status"]
+          tenant_id?: string | null
+          title: string
+          updated_at?: string
+          user_email?: string | null
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          body?: string | null
+          category?: Database["public"]["Enums"]["insight_category"]
+          created_at?: string
+          element_rect?: Json | null
+          element_selector?: string | null
+          element_text?: string | null
+          id?: string
+          metadata?: Json | null
+          page_path?: string
+          screenshot_url?: string | null
+          status?: Database["public"]["Enums"]["insight_status"]
+          tenant_id?: string | null
+          title?: string
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_tenant_access: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          role?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          role?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tenant_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tenant_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tenant_access_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tenant_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tenant_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           auth_user_id: string | null
@@ -2704,6 +2934,7 @@ export type Database = {
           last_sign_in_at: string | null
           name: string
           phone: string | null
+          preferences: Json | null
           role: Database["public"]["Enums"]["platform_role"]
           tenant_id: string | null
           updated_at: string
@@ -2720,6 +2951,7 @@ export type Database = {
           last_sign_in_at?: string | null
           name: string
           phone?: string | null
+          preferences?: Json | null
           role: Database["public"]["Enums"]["platform_role"]
           tenant_id?: string | null
           updated_at?: string
@@ -2736,6 +2968,7 @@ export type Database = {
           last_sign_in_at?: string | null
           name?: string
           phone?: string | null
+          preferences?: Json | null
           role?: Database["public"]["Enums"]["platform_role"]
           tenant_id?: string | null
           updated_at?: string
@@ -3025,7 +3258,9 @@ export type Database = {
           phone: string | null
           role: Database["public"]["Enums"]["platform_role"] | null
           tenant_id: string | null
+          tenant_is_active: boolean | null
           tenant_name: string | null
+          tenant_type: string | null
           updated_at: string | null
           whatsapp: string | null
         }
@@ -3057,6 +3292,7 @@ export type Database = {
           price_discount_pct: number
         }[]
       }
+      exec_sql_readonly: { Args: { sql_query: string }; Returns: Json }
       find_best_comparables: {
         Args: {
           p_area_name: string
@@ -3094,11 +3330,35 @@ export type Database = {
           whatsapp: string
         }[]
       }
+      get_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["platform_role"]
+      }
       get_user_tenant_id: { Args: never; Returns: string }
       is_admin_or_manager: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       refresh_dld_area_medians: { Args: never; Returns: undefined }
     }
     Enums: {
+      deal_priority: "low" | "medium" | "high" | "urgent"
+      deal_stage:
+        | "preparation"
+        | "due-diligence"
+        | "negotiation"
+        | "closing"
+        | "completed"
+      insight_category:
+        | "suggestion"
+        | "correction"
+        | "question"
+        | "praise"
+        | "bug_report"
+      insight_status:
+        | "open"
+        | "acknowledged"
+        | "in_progress"
+        | "resolved"
+        | "dismissed"
       investor_status: "active" | "pending" | "inactive"
       memo_state:
         | "draft"
@@ -3240,6 +3500,28 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      deal_priority: ["low", "medium", "high", "urgent"],
+      deal_stage: [
+        "preparation",
+        "due-diligence",
+        "negotiation",
+        "closing",
+        "completed",
+      ],
+      insight_category: [
+        "suggestion",
+        "correction",
+        "question",
+        "praise",
+        "bug_report",
+      ],
+      insight_status: [
+        "open",
+        "acknowledged",
+        "in_progress",
+        "resolved",
+        "dismissed",
+      ],
       investor_status: ["active", "pending", "inactive"],
       memo_state: [
         "draft",

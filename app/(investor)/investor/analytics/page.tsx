@@ -42,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RentalIncomeChart } from "@/components/charts/rental-income-chart"
 import { PropertyComparisonChart } from "@/components/charts/property-comparison-chart"
 import { ValueAppreciationChart } from "@/components/charts/value-appreciation-chart"
+import { PortfolioForecastSection } from "@/components/investor/portfolio-forecast-section"
 import { cn } from "@/lib/utils"
 import {
   calcAppreciationPct,
@@ -468,6 +469,7 @@ export default function InvestorAnalyticsPage() {
           <TabsTrigger value="value">Value Appreciation</TabsTrigger>
           <TabsTrigger value="rental">Rental Income</TabsTrigger>
           <TabsTrigger value="comparison">Property Comparison</TabsTrigger>
+          <TabsTrigger value="forecast">Forecast</TabsTrigger>
         </TabsList>
 
         <TabsContent value="value" className="space-y-4">
@@ -724,6 +726,10 @@ export default function InvestorAnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="forecast" className="space-y-4">
+          <PortfolioForecastSection />
         </TabsContent>
       </Tabs>
     </div>

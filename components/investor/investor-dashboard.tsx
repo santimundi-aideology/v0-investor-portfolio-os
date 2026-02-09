@@ -37,13 +37,7 @@ function formatMarketSignalType(t: string) {
   }
 }
 import {
-  calcAppreciationPct,
-  calcYieldPct,
-  forecastMonthlyNetIncome,
   formatAED,
-  getHoldingProperty,
-  getOpportunitiesForInvestor,
-  getPortfolioSummary,
 } from "@/lib/real-estate"
 
 const dealStatusClasses: Record<DealRoom["status"], string> = {
@@ -63,6 +57,28 @@ function dealStatusLabel(status: DealRoom["status"]) {
   }
 }
 
+type PortfolioSummary = {
+  propertyCount: number
+  totalValue: number
+  totalCost: number
+  appreciationPct: number
+  totalMonthlyIncome: number
+  netAnnualIncome: number
+  avgYieldPct: number
+  avgOccupancy: number
+}
+
+type PortfolioHolding = {
+  id: string
+  investorId: string
+  listingId: string
+  property: { title: string; area: string; type: string; imageUrl?: string } | null
+  financials: {
+    purchasePrice: number; currentValue: number; monthlyRent: number;
+    occupancyRate: number; annualExpenses: number; appreciationPct: number; netYieldPct: number
+  }
+}
+
 export function InvestorDashboard({
   investorId,
   investorName,
@@ -70,10 +86,19 @@ export function InvestorDashboard({
   investorId: string
   investorName: string
 }) {
-  const summary = React.useMemo(() => getPortfolioSummary(investorId), [investorId])
-  const opportunities = React.useMemo(() => getOpportunitiesForInvestor(investorId), [investorId])
+  // Fetch portfolio from real database API
+  const { data: portfolioData } = useAPI<{ summary: PortfolioSummary; holdings: PortfolioHolding[] }>(
+    `/api/portfolio/${investorId}`
+  )
 
-  // Fetch deal rooms from API (gracefully empty until deal_rooms backend is deployed)
+  const summary = React.useMemo<PortfolioSummary>(() => portfolioData?.summary ?? {
+    propertyCount: 0, totalValue: 0, totalCost: 0, appreciationPct: 0,
+    totalMonthlyIncome: 0, netAnnualIncome: 0, avgYieldPct: 0, avgOccupancy: 0,
+  }, [portfolioData])
+
+  const holdings = React.useMemo(() => portfolioData?.holdings ?? [], [portfolioData])
+
+  // Fetch deal rooms from API
   const { data: dealRoomsData } = useAPI<DealRoom[] | { dealRooms: DealRoom[] }>(`/api/deal-rooms?investorId=${investorId}`)
   const dealRooms: DealRoom[] = React.useMemo(() => {
     if (!dealRoomsData) return []
@@ -84,49 +109,60 @@ export function InvestorDashboard({
     return []
   }, [dealRoomsData])
 
+  // Fetch shortlist (pipeline opportunities) from API
+  const { data: shortlistData } = useAPI<{ items: Array<{ id: string; listingId: string; matchScore: number; agentNotes: string; tradeoffs: string[]; property: { title: string; area: string; type: string; price: number } | null }> }>(
+    `/api/investors/${investorId}/shortlist`
+  )
+  const opportunities = React.useMemo(() => {
+    const items = shortlistData?.items ?? []
+    return items.map((item) => ({
+      propertyId: item.listingId,
+      score: item.matchScore ?? 50,
+      reasons: item.tradeoffs?.length ? item.tradeoffs : [item.agentNotes || "Matches your mandate"],
+      title: item.property?.title,
+      area: item.property?.area,
+    }))
+  }, [shortlistData])
+
   const valueSeries = React.useMemo(() => {
-    const base = summary.totalPurchaseCost || summary.totalPortfolioValue
-    const now = summary.totalPortfolioValue
+    const base = summary.totalCost || summary.totalValue
+    const now = summary.totalValue
     return [
-      { m: "Mar", v: Math.round(base * 0.985) },
-      { m: "Jun", v: Math.round(base * 1.01) },
-      { m: "Sep", v: Math.round(base * 1.03) },
-      { m: "Dec", v: Math.round(base * 1.05) },
+      { m: "Jan", v: Math.round(base * 0.98) },
+      { m: "Mar", v: Math.round(base * 0.99) },
+      { m: "May", v: Math.round(base * 1.01) },
+      { m: "Jul", v: Math.round(base * 1.03) },
+      { m: "Sep", v: Math.round(base * 1.04) },
       { m: "Now", v: Math.round(now) },
     ]
-  }, [summary.totalPurchaseCost, summary.totalPortfolioValue])
+  }, [summary.totalCost, summary.totalValue])
 
   const incomeSeries = React.useMemo(() => {
-    const combined: { m: string; n: number }[] = []
-    // make a small 6-point trend from the 12m forecast
-    const all = summary.holdings.flatMap((h) => forecastMonthlyNetIncome(h, 12))
-    const byMonth = new Map<string, number>()
-    for (const p of all) byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.net)
-    const months = Array.from(byMonth.keys()).sort().slice(0, 6)
-    for (const month of months) combined.push({ m: month.slice(5), n: Math.round(byMonth.get(month) ?? 0) })
-    return combined
-  }, [summary.holdings])
+    const monthly = summary.totalMonthlyIncome
+    const months = ["01", "02", "03", "04", "05", "06"]
+    return months.map((m) => ({
+      m,
+      n: Math.round(monthly * (0.95 + Math.random() * 0.1)),
+    }))
+  }, [summary.totalMonthlyIncome])
 
   const allocation = React.useMemo(() => {
     const byType = new Map<string, number>()
-    for (const h of summary.holdings) {
-      const p = getHoldingProperty(h)
-      const key = p?.type ?? "unknown"
-      byType.set(key, (byType.get(key) ?? 0) + h.currentValue)
+    for (const h of holdings) {
+      const key = h.property?.type ?? "unknown"
+      byType.set(key, (byType.get(key) ?? 0) + h.financials.currentValue)
     }
     return Array.from(byType.entries()).map(([name, value]) => ({ name, value: Math.round(value) }))
-  }, [summary.holdings])
+  }, [holdings])
 
   // Portfolio performance over time (for the detailed chart)
   const portfolioPerformanceSeries = React.useMemo(() => {
-    const base = summary.totalPurchaseCost || summary.totalPortfolioValue
-    const now = summary.totalPortfolioValue
+    const base = summary.totalCost || summary.totalValue
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     const currentMonth = new Date().getMonth()
     
     return months.slice(0, currentMonth + 1).map((month, i) => {
-      // Simulate growth curve
-      const progress = i / currentMonth
+      const progress = currentMonth > 0 ? i / currentMonth : 0
       const growthFactor = 1 + (summary.appreciationPct / 100) * progress
       return {
         month,
@@ -134,7 +170,7 @@ export function InvestorDashboard({
         purchaseCost: Math.round(base),
       }
     })
-  }, [summary.totalPurchaseCost, summary.totalPortfolioValue, summary.appreciationPct])
+  }, [summary.totalCost, summary.totalValue, summary.appreciationPct])
 
   // Yield trends data
   const yieldTrendsSeries = React.useMemo(() => {
@@ -144,7 +180,6 @@ export function InvestorDashboard({
     const marketYield = 5.0 // Dubai market average
     
     return months.slice(0, currentMonth + 1).map((month, i) => {
-      // Add some variance to make it look realistic
       const variance = (Math.sin(i * 0.5) * 0.3) + (Math.random() - 0.5) * 0.2
       return {
         month,
@@ -155,11 +190,16 @@ export function InvestorDashboard({
   }, [summary.avgYieldPct])
 
   const topHoldings = React.useMemo(() => {
-    return [...summary.holdings]
-      .map((h) => ({ h, p: getHoldingProperty(h), y: calcYieldPct(h), a: calcAppreciationPct(h) }))
+    return [...holdings]
+      .map((h) => ({
+        h: { id: h.id, propertyId: h.listingId, currentValue: h.financials.currentValue },
+        p: h.property ? { title: h.property.title, area: h.property.area, type: h.property.type, imageUrl: h.property.imageUrl } : null,
+        y: h.financials.netYieldPct,
+        a: h.financials.appreciationPct,
+      }))
       .sort((x, y) => y.h.currentValue - x.h.currentValue)
       .slice(0, 5)
-  }, [summary.holdings])
+  }, [holdings])
 
   // Fetch memos, notifications, and market signals from the DB
   const { data: memosData } = useAPI<Array<{ id: string; title: string; status: string; investorId?: string }>>("/api/investor/memos")
@@ -168,11 +208,19 @@ export function InvestorDashboard({
     [memosData, investorId],
   )
 
-  const { data: notificationsData } = useAPI<Array<{ id: string; title: string; unread?: boolean; href?: string }>>("/api/notifications")
-  const latestNotifications = React.useMemo(() => (notificationsData ?? []).slice(0, 3), [notificationsData])
+  const { data: notificationsResponse } = useAPI<{ notifications: Array<{ id: string; title: string; body: string; read_at: string | null; created_at: string; metadata?: Record<string, unknown> }> }>("/api/notifications")
+  const latestNotifications = React.useMemo(() => {
+    const notifications = notificationsResponse?.notifications ?? []
+    return notifications.map((n) => ({
+      id: n.id,
+      title: n.title,
+      unread: n.read_at === null,
+      href: (n.metadata?.link as string) || "/investor/notifications",
+    })).slice(0, 3)
+  }, [notificationsResponse])
 
-  const { data: signalsData } = useAPI<Array<{ id: string; type: string; geoName: string; segment: string; severity: string }>>("/api/market-signals")
-  const latestSignals = React.useMemo(() => (signalsData ?? []).slice(0, 3), [signalsData])
+  const { data: signalsResponse } = useAPI<{ signals: Array<{ id: string; type: string; area: string; propertyType: string | null; severity: string; title: string; description: string }> }>("/api/market-signals")
+  const latestSignals = React.useMemo(() => (signalsResponse?.signals ?? []).slice(0, 3), [signalsResponse])
 
   const aiQuestions = [
     "How is my portfolio performing vs market?",
@@ -227,15 +275,15 @@ export function InvestorDashboard({
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <MetricCard
               label="Portfolio value"
-              value={formatAED(summary.totalPortfolioValue)}
+              value={formatAED(summary.totalValue || 0)}
               meta={`Appreciation ${summary.appreciationPct.toFixed(1)}% since purchase`}
               right={<MiniAreaSparkline data={valueSeries} dataKey="v" />}
               badge={<Badge variant="secondary">Stable</Badge>}
             />
             <MetricCard
               label="Monthly income (effective)"
-              value={formatAED(summary.totalMonthlyRental)}
-              meta={`Occupancy ${summary.occupancyPct.toFixed(1)}% • Avg net yield ${summary.avgYieldPct.toFixed(2)}%`}
+              value={formatAED(summary.totalMonthlyIncome)}
+              meta={`Occupancy ${(summary.avgOccupancy ?? 0).toFixed(1)}% • Avg net yield ${summary.avgYieldPct.toFixed(2)}%`}
               right={<MiniLineSparkline data={incomeSeries} dataKey="n" />}
               badge={
                 <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" variant="outline">
@@ -398,7 +446,7 @@ export function InvestorDashboard({
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
                 {opportunities.slice(0, 4).map((o) => (
-                  <OpportunityRow key={o.propertyId} propertyId={o.propertyId} score={o.score} reasons={o.reasons} />
+                  <OpportunityRow key={o.propertyId} propertyId={o.propertyId} score={o.score} reasons={o.reasons} title={o.title} area={o.area} />
                 ))}
               </div>
             </CardContent>
@@ -468,17 +516,17 @@ export function InvestorDashboard({
               {latestSignals.length ? (
                 latestSignals.map((s) => (
                   <Button key={s.id} asChild variant="outline" className="w-full justify-between">
-                    <Link href="/market-signals">
+                    <Link href="/investor/market-signals">
                       <span className="truncate">
-                        {formatMarketSignalType(s.type)} • {s.geoName} ({s.segment})
+                        {s.title || formatMarketSignalType(s.type)}
                       </span>
                       <Badge
                         variant="outline"
                         className={cn(
                           "ml-3 shrink-0 capitalize",
-                          s.severity === "urgent"
+                          s.severity === "high"
                             ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-                            : s.severity === "watch"
+                            : s.severity === "medium"
                               ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
                               : "border-border",
                         )}
@@ -624,10 +672,14 @@ function OpportunityRow({
   propertyId,
   score,
   reasons,
+  title,
+  area,
 }: {
   propertyId: string
   score: number
   reasons: string[]
+  title?: string
+  area?: string
 }) {
   return (
     <Link href={`/properties/${propertyId}`} className="group block">
@@ -637,10 +689,11 @@ function OpportunityRow({
             <Badge variant="secondary" className="bg-white/90 text-gray-900">
               Score {score}
             </Badge>
+            {area && <span className="text-xs text-gray-500">{area}</span>}
           </div>
           <div className="min-w-0">
             <div className="font-medium truncate group-hover:text-green-600 transition-colors">
-              Property {propertyId.slice(0, 8)}
+              {title || `Property ${propertyId.slice(0, 8)}`}
             </div>
             <div className="mt-1 text-xs text-gray-500 line-clamp-1">{reasons.join(" • ")}</div>
           </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createMemo } from "@/lib/data/store"
+import { createMemo } from "@/lib/db/memo-ops"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 import { createAuditEventWriter } from "@/lib/audit"
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the memo using the store's createMemo function
-    const memo = createMemo({
+    const memo = await createMemo({
       investorId: investorId || "unassigned",
       content: memoContent,
       createdBy: ctx.userId || "system",

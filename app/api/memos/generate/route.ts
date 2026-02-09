@@ -2,7 +2,10 @@ import { createHash } from "crypto"
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { getInvestor, getUnderwriting, store, createMemo } from "@/lib/data/store"
+import { createMemo } from "@/lib/db/memo-ops"
+import { getInvestorById } from "@/lib/db/investors"
+import { getUnderwritingById } from "@/lib/db/underwritings"
+import { getSupabaseAdminClient } from "@/lib/db/client"
 import { computeConfidence, evidenceWarnings } from "@/lib/domain/underwriting"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertInvestorAccess } from "@/lib/security/rbac"
@@ -16,18 +19,28 @@ export async function POST(req: Request) {
     const { investorId, listingId, underwritingId } = body
     if (!investorId || !listingId || !underwritingId) throw new AccessError("investorId, listingId, underwritingId are required")
 
-    const investor = getInvestor(investorId)
+    const investor = await getInvestorById(investorId)
     if (!investor) throw new AccessError("Investor not found")
     assertInvestorAccess(investor, ctx)
 
-    const uw = getUnderwriting(underwritingId)
+    const uw = await getUnderwritingById(underwritingId)
     if (!uw) throw new AccessError("Underwriting not found")
     if (uw.listingId !== listingId) throw new AccessError("Underwriting must be linked to listing")
 
-    const comps = store.underwritingComps.filter((c) => c.underwritingId === uw.id)
-    const trust = store.trust.find((t) => t.listingId === listingId)
+    const supabase = getSupabaseAdminClient()
+    const { data: compsData } = await supabase
+      .from("underwriting_comps")
+      .select("*")
+      .eq("underwriting_id", uw.id)
+    const comps = compsData ?? []
+    const { data: trustRow } = await supabase
+      .from("trust")
+      .select("*")
+      .eq("listing_id", listingId)
+      .maybeSingle()
+    const trust = trustRow
     const warnings = evidenceWarnings(comps)
-    const confidence = computeConfidence(comps.map((c) => ({ observedDate: c.observedDate })), uw.inputs)
+    const confidence = computeConfidence(comps.map((c: Record<string, unknown>) => ({ observedDate: c.observed_date as string })), uw.inputs as Record<string, unknown>)
 
     const content = buildMemoContent({
       uw,
@@ -42,10 +55,11 @@ export async function POST(req: Request) {
       .update(JSON.stringify({ investorId, listingId, underwritingId }))
       .digest("hex")
 
+    const tenantId = investor.tenantId
     const write = createAuditEventWriter()
     await write(
       AuditEvents.aiGenerationRequested({
-        tenantId: store.tenantId,
+        tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         feature: "memo.generate",
@@ -53,7 +67,7 @@ export async function POST(req: Request) {
       }),
     )
 
-    const memo = createMemo({
+    const memo = await createMemo({
       investorId,
       listingId,
       underwritingId,
@@ -63,7 +77,7 @@ export async function POST(req: Request) {
 
     await write(
       AuditEvents.memoCreated({
-        tenantId: store.tenantId,
+        tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         memoId: memo.id,
@@ -71,7 +85,7 @@ export async function POST(req: Request) {
     )
     await write(
       AuditEvents.aiOutputAccepted({
-        tenantId: store.tenantId,
+        tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         feature: "memo.generate",

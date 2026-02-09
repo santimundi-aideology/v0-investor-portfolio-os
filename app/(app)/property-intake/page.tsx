@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react"
 
+import { RoleRedirect } from "@/components/security/role-redirect"
 import { PageHeader } from "@/components/layout/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,131 +45,26 @@ import { UnitSelectionTable } from "@/components/property-intake/unit-selection-
 import { OffPlanUnitComparison } from "@/components/property-intake/offplan-unit-comparison"
 import { OffPlanMemoDisplay } from "@/components/property-intake/offplan-memo-display"
 import { AIScoreReveal } from "@/components/property-intake/ai-score-reveal"
-import type {
-  OffPlanProject,
-  OffPlanUnit,
-  OffPlanPaymentPlan,
-  OffPlanEvaluationResult,
-  OffPlanExtractionResult,
-} from "@/lib/types"
 
-interface ExtractedProperty {
-  source: string
-  listingId: string | null
-  title: string
-  price: number
-  pricePerSqft: number | null
-  size: number | null
-  bedrooms: number
-  bathrooms: number
-  propertyType: string
-  area: string
-  subArea: string | null
-  address: string | null
-  furnished: boolean
-  parking: number | null
-  amenities: string[]
-  description: string | null
-  images: string[]
-  agentName: string | null
-  agencyName: string | null
-  listingUrl: string
-  listedDate: string | null
-  coordinates: { lat: number; lng: number } | null
-}
-
-interface EvaluationAnalysis {
-  summary: string
-  keyPoints: string[]
-  neighborhood: {
-    name: string
-    grade: string
-    profile: string
-    highlights: string[]
-    metrics: { label: string; value: string; trend?: string }[]
-  }
-  property: {
-    description: string
-    condition: string
-    specs: { label: string; value: string }[]
-    highlights: string[]
-  }
-  market: {
-    overview: string
-    drivers: string[]
-    supply: string
-    demand: string
-    absorption: string
-  }
-  pricing: {
-    askingPrice: number
-    pricePerSqft: number | null
-    marketAvgPricePerSqft: number
-    recommendedOffer: number
-    stabilizedValue: number
-    valueAddBudget: number
-    rentCurrent: number
-    rentPotential: number
-    irr: number
-    equityMultiple: number
-  }
-  comparables: {
-    name: string
-    distance: string
-    size: string
-    closingDate: string
-    price: number
-    pricePerSqft: number
-    note?: string
-  }[]
-  strategy: {
-    plan: string
-    holdPeriod: string
-    exit: string
-    focusPoints: string[]
-  }
-  investmentThesis: string
-  financialAnalysis: {
-    noi: number
-    capRate: number
-    targetIrr: number
-    holdPeriod: string
-  }
-  risks: { risk: string; mitigation: string }[]
-  finalRecommendation: {
-    decision: "PROCEED" | "CONDITIONAL" | "PASS"
-    condition?: string
-  }
-}
-
-interface EvaluationResult {
-  overallScore: number
-  factors: {
-    mandateFit: number
-    marketTiming: number
-    portfolioFit: number
-    riskAlignment: number
-  }
-  headline: string
-  reasoning: string
-  keyStrengths: string[]
-  considerations: string[]
-  recommendation: "strong_buy" | "buy" | "hold" | "pass"
-  analysis: EvaluationAnalysis
-}
-
-interface MarketContext {
-  areaMedianPrice: number
-  areaMedianPricePerSqft: number
-  areaAverageYield: number
-  priceVsMarket: number
-  marketTrend: "rising" | "stable" | "declining"
-}
-
-type Step = "input" | "extracting" | "extracted" | "evaluating" | "evaluated" | "saving" | "saved"
-
-// Off-Plan flow steps
-type OffPlanStep = "upload" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
+// Persistent store — state survives navigation
+import {
+  useIntakeStore,
+  setActiveTab,
+  setUrl,
+  setNotes,
+  setScoreRevealComplete,
+  setSelectedOffplanUnits,
+  setPortalError,
+  setOffplanError,
+  extractProperty,
+  evaluateProperty,
+  saveMemo,
+  resetPortal,
+  handlePdfExtracted,
+  evaluateOffplan,
+  saveOffplanMemo,
+  resetOffplan,
+} from "@/lib/property-intake-store"
 
 const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
@@ -197,222 +93,54 @@ function formatPercent(value?: number) {
 }
 
 export default function PropertyIntakePage() {
+  return (
+    <>
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <PropertyIntakeContent />
+    </>
+  )
+}
+
+function PropertyIntakeContent() {
   // Fetch investors for matching panel
   const { data: investorsData } = useAPI<Investor[]>("/api/investors")
   const investors = investorsData ?? []
 
-  // Tab state
-  const [activeTab, setActiveTab] = React.useState<"portal" | "offplan">("portal")
-
-  // Portal URL flow state
-  const [step, setStep] = React.useState<Step>("input")
-  const [url, setUrl] = React.useState("")
-  const [error, setError] = React.useState<string | null>(null)
-  const [property, setProperty] = React.useState<ExtractedProperty | null>(null)
-  const [evaluation, setEvaluation] = React.useState<EvaluationResult | null>(null)
-  const [marketContext, setMarketContext] = React.useState<MarketContext | null>(null)
-  const [notes, setNotes] = React.useState("")
-  const [savedMemoId, setSavedMemoId] = React.useState<string | null>(null)
-  const [scoreRevealComplete, setScoreRevealComplete] = React.useState(false)
-
-  // Off-Plan flow state
-  const [offplanStep, setOffplanStep] = React.useState<OffPlanStep>("upload")
-  const [offplanError, setOffplanError] = React.useState<string | null>(null)
-  const [offplanProject, setOffplanProject] = React.useState<OffPlanProject | null>(null)
-  const [offplanUnits, setOffplanUnits] = React.useState<OffPlanUnit[]>([])
-  const [offplanPaymentPlan, setOffplanPaymentPlan] = React.useState<OffPlanPaymentPlan | null>(null)
-  const [offplanStats, setOffplanStats] = React.useState<OffPlanExtractionResult["stats"] | null>(null)
-  const [selectedOffplanUnits, setSelectedOffplanUnits] = React.useState<OffPlanUnit[]>([])
-  const [offplanEvaluation, setOffplanEvaluation] = React.useState<OffPlanEvaluationResult | null>(null)
-  const [offplanSavedMemoId, setOffplanSavedMemoId] = React.useState<string | null>(null)
-
-  // Off-Plan handlers
-  const handlePdfExtracted = (result: {
-    project: unknown
-    units: unknown[]
-    paymentPlan: unknown
-    stats: unknown
-    confidence: string
-    model: string
-  }) => {
-    setOffplanError(null)
-    
-    // Data already extracted by Claude Opus directly from the PDF
-    setOffplanProject(result.project as OffPlanProject)
-    setOffplanUnits(result.units as OffPlanUnit[])
-    setOffplanPaymentPlan(result.paymentPlan as OffPlanPaymentPlan)
-    setOffplanStats(result.stats as OffPlanExtractionResult["stats"])
-    setOffplanStep("extracted")
-    
-    console.log(`Data extracted using ${result.model} with ${result.confidence} confidence`)
-  }
-
-  const handleOffplanEvaluate = async () => {
-    if (!offplanProject || !offplanPaymentPlan || selectedOffplanUnits.length === 0) {
-      setOffplanError("Please select a unit to evaluate")
-      return
-    }
-
-    setOffplanError(null)
-    setOffplanStep("evaluating")
-
-    try {
-      const res = await fetch("/api/property-intake/evaluate-offplan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project: offplanProject,
-          selectedUnit: selectedOffplanUnits[0],
-          paymentPlan: offplanPaymentPlan,
-          allUnits: offplanUnits,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to evaluate off-plan property")
-
-      setOffplanEvaluation(data)
-      setOffplanStep("evaluated")
-    } catch (err) {
-      setOffplanError(err instanceof Error ? err.message : "Failed to evaluate off-plan property")
-      setOffplanStep("selecting")
-    }
-  }
-
-  const handleOffplanSave = async (notes: string) => {
-    if (!offplanProject || !offplanPaymentPlan || !offplanEvaluation || selectedOffplanUnits.length === 0) {
-      return
-    }
-
-    setOffplanStep("saving")
-    setOffplanError(null)
-
-    try {
-      const res = await fetch("/api/property-intake/save-offplan-memo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project: offplanProject,
-          selectedUnit: selectedOffplanUnits[0],
-          paymentPlan: offplanPaymentPlan,
-          evaluation: offplanEvaluation,
-          notes,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to save off-plan memo")
-
-      setOffplanSavedMemoId(data.memo.id)
-      setOffplanStep("saved")
-    } catch (err) {
-      setOffplanError(err instanceof Error ? err.message : "Failed to save off-plan memo")
-      setOffplanStep("evaluated")
-    }
-  }
-
-  const handleOffplanReset = () => {
-    setOffplanStep("upload")
-    setOffplanError(null)
-    setOffplanProject(null)
-    setOffplanUnits([])
-    setOffplanPaymentPlan(null)
-    setOffplanStats(null)
-    setSelectedOffplanUnits([])
-    setOffplanEvaluation(null)
-    setOffplanSavedMemoId(null)
-  }
-
-  const handleExtract = async (pageContent?: string) => {
-    if (!url.trim()) {
-      setError("Please enter a property URL")
-      return
-    }
-    setError(null)
-    setStep("extracting")
-
-    try {
-      const res = await fetch("/api/property-intake/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, pageContent }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to extract property")
-      setProperty(data.property)
-      setStep("extracted")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to extract property")
-      setStep("input")
-    }
-  }
+  // All state comes from the persistent store
+  const {
+    activeTab,
+    step,
+    url,
+    error,
+    property,
+    evaluation,
+    marketContext,
+    notes,
+    savedMemoId,
+    scoreRevealComplete,
+    offplanStep,
+    offplanError,
+    offplanProject,
+    offplanUnits,
+    offplanPaymentPlan,
+    offplanStats,
+    selectedOffplanUnits,
+    offplanEvaluation,
+    offplanSavedMemoId,
+  } = useIntakeStore()
 
   // Handle paste event for extracting page content
   const handlePasteContent = async () => {
     try {
       const text = await navigator.clipboard.readText()
       if (text && text.length > 500) {
-        handleExtract(text)
+        extractProperty(url, text)
       } else {
-        setError("Please copy the page content first (Ctrl+A, Ctrl+C on the Bayut page)")
+        setPortalError("Please copy the page content first (Ctrl+A, Ctrl+C on the Bayut page)")
       }
     } catch {
-      setError("Could not read clipboard. Please allow clipboard access or paste content manually.")
+      setPortalError("Could not read clipboard. Please allow clipboard access or paste content manually.")
     }
-  }
-
-  const handleEvaluate = async () => {
-    if (!property) return
-    setStep("evaluating")
-    setError(null)
-    setScoreRevealComplete(false)
-
-    try {
-      const res = await fetch("/api/property-intake/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ property }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to evaluate property")
-      setEvaluation(data.evaluation)
-      setMarketContext(data.marketContext)
-      setStep("evaluated")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to evaluate property")
-      setStep("extracted")
-    }
-  }
-
-  const handleSaveMemo = async () => {
-    if (!property || !evaluation) return
-    setStep("saving")
-    setError(null)
-
-    try {
-      const res = await fetch("/api/property-intake/save-memo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ property, evaluation, notes }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to save memo")
-      setSavedMemoId(data.memo.id)
-      setStep("saved")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save memo")
-      setStep("evaluated")
-    }
-  }
-
-  const handleReset = () => {
-    setStep("input")
-    setUrl("")
-    setError(null)
-    setProperty(null)
-    setEvaluation(null)
-    setMarketContext(null)
-    setNotes("")
-    setSavedMemoId(null)
-    setScoreRevealComplete(false)
   }
 
   const getRecommendationBadge = (rec: string) => {
@@ -442,14 +170,14 @@ export default function PropertyIntakePage() {
               {(step === "evaluated" || step === "saving") && property && (
                 <MemoPdfExport title={property.title} />
               )}
-              <Button variant="outline" onClick={handleReset}>Start Over</Button>
+              <Button variant="outline" onClick={resetPortal}>Start Over</Button>
             </div>
           ) : (activeTab === "offplan" && showOffplanReset) ? (
             <div className="flex items-center gap-2">
               {(offplanStep === "evaluated" || offplanStep === "saving") && offplanProject && selectedOffplanUnits[0] && (
                 <MemoPdfExport title={`${offplanProject.projectName} - ${selectedOffplanUnits[0].unitNumber}`} />
               )}
-              <Button variant="outline" onClick={handleOffplanReset}>Start Over</Button>
+              <Button variant="outline" onClick={resetOffplan}>Start Over</Button>
             </div>
           ) : undefined
         }
@@ -514,7 +242,7 @@ export default function PropertyIntakePage() {
                 disabled={step === "extracting"}
               />
             </div>
-            <Button onClick={() => handleExtract()} disabled={step === "extracting" || !url.trim()} className="w-full">
+            <Button onClick={() => extractProperty(url)} disabled={step === "extracting" || !url.trim()} className="w-full">
               {step === "extracting" ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Extracting with AI...</>
               ) : (
@@ -621,7 +349,7 @@ export default function PropertyIntakePage() {
                       <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy, Risks & Recommendation</span></li>
                     </ul>
                   </div>
-                  <Button onClick={handleEvaluate} disabled={step === "evaluating"} className="w-full" size="lg">
+                  <Button onClick={evaluateProperty} disabled={step === "evaluating"} className="w-full" size="lg">
                     {step === "evaluating" ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
                     ) : (
@@ -955,7 +683,7 @@ export default function PropertyIntakePage() {
                       <Label htmlFor="notes">Notes (optional)</Label>
                       <Textarea id="notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={step === "saving"} />
                     </div>
-                    <Button onClick={handleSaveMemo} disabled={step === "saving"} className="w-full">
+                    <Button onClick={saveMemo} disabled={step === "saving"} className="w-full">
                       {step === "saving" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Save to IC Memos</>}
                     </Button>
                   </CardContent>
@@ -972,7 +700,7 @@ export default function PropertyIntakePage() {
                     </div>
                     <div className="flex flex-col gap-2">
                       <Button asChild><Link href={`/memos/${savedMemoId}`}>View Memo</Link></Button>
-                      <Button variant="outline" onClick={handleReset}>Evaluate Another</Button>
+                      <Button variant="outline" onClick={resetPortal}>Evaluate Another</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1087,11 +815,11 @@ export default function PropertyIntakePage() {
 
               {/* Evaluate Button */}
               <div className="flex justify-end gap-4">
-                <Button variant="outline" onClick={handleOffplanReset} disabled={offplanStep === "evaluating"}>
+                <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"}>
                   Start Over
                 </Button>
                 <Button
-                  onClick={handleOffplanEvaluate}
+                  onClick={evaluateOffplan}
                   disabled={selectedOffplanUnits.length === 0 || offplanStep === "evaluating"}
                   size="lg"
                 >
@@ -1121,8 +849,8 @@ export default function PropertyIntakePage() {
               selectedUnit={selectedOffplanUnits[0]}
               paymentPlan={offplanPaymentPlan}
               evaluation={offplanEvaluation}
-              onSave={handleOffplanSave}
-              onReset={handleOffplanReset}
+              onSave={saveOffplanMemo}
+              onReset={resetOffplan}
               isSaving={offplanStep === "saving"}
               savedMemoId={offplanSavedMemoId}
             />

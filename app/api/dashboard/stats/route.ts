@@ -48,7 +48,7 @@ export async function GET(req: Request) {
       .from("listings")
       .select("*", { count: "exact", head: true })
       .eq("tenant_id", ctx.tenantId)
-      .eq("readiness_status", "NEEDS_VERIFICATION")
+      .eq("readiness", "NEEDS_VERIFICATION")
 
     return NextResponse.json({
       activeInvestors: activeInvestors || 0,

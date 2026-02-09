@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { ListingRecord } from "@/lib/data/store"
+import type { ListingRecord } from "@/lib/data/types"
 
 function mapListingRow(row: Record<string, unknown>): ListingRecord {
   return {
@@ -19,6 +19,7 @@ function mapListingRow(row: Record<string, unknown>): ListingRecord {
     expectedRent: row.expected_rent ?? undefined,
     currency: row.currency ?? undefined,
     handoverDate: row.handover_date ?? undefined,
+    imageUrl: row.image_url ?? undefined,
     createdAt: row.created_at,
   }
 }

@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { HoldingDetailCard } from "@/components/investor/holding-detail-card"
 import { HoldingPerformanceChart } from "@/components/investor/holding-performance-chart"
+import { HoldingForecastChart } from "@/components/investor/holding-forecast-chart"
 import { cn } from "@/lib/utils"
 import { formatMarketSignalType } from "@/lib/types"
 import { Loader2 } from "lucide-react"
@@ -174,7 +175,7 @@ export default function HoldingDetailPage() {
   }>(investorId ? `/api/portfolio/${investorId}` : null)
 
   // Fetch market signals
-  const { data: signalsData } = useAPI<MarketSignalItem[]>("/api/market-signals")
+  const { data: signalsResponse } = useAPI<{ signals: Array<{ id: string; type: string; title: string; description: string; area: string; propertyType: string | null; severity: string; sourceType: string; status: string; detectedAt: string }> }>("/api/market-signals")
 
   // Find the specific holding
   const holding: PropertyHolding | null = React.useMemo(() => {
@@ -219,11 +220,38 @@ export default function HoldingDetailPage() {
   const comparables: { id: string; title: string; area: string; price: number; size: number; roi?: number; pricePerSqft: number }[] = []
 
   const marketSignals = React.useMemo(() => {
-    if (!signalsData || !property) return []
-    return signalsData
-      .filter((s) => s.geoName === property.area || s.segment === property.type)
+    const signals = signalsResponse?.signals ?? []
+    if (!property) return []
+    // Transform and filter signals
+    return signals
+      .filter((s) => s.area === property.area || s.propertyType === property.type)
+      .map((s) => ({
+        id: s.id,
+        type: s.type as MarketSignalItem["type"],
+        sourceType: "official" as const,
+        source: "DLD",
+        timeframe: "QoQ" as const,
+        severity: (s.severity === "high" ? "urgent" : s.severity === "medium" ? "watch" : "info") as MarketSignalItem["severity"],
+        status: "new" as const,
+        geoType: "community" as const,
+        geoId: s.area,
+        geoName: s.area,
+        segment: s.propertyType || "all",
+        metric: "median_price_psf" as const,
+        metricLabel: s.title,
+        currentValue: 0,
+        currentValueLabel: s.title,
+        prevValue: null,
+        prevValueLabel: null,
+        deltaPct: null,
+        confidenceScore: 0.8,
+        createdAt: s.detectedAt,
+        investorMatches: 0,
+        propertyTitle: null,
+        metadata: {},
+      }))
       .slice(0, 4)
-  }, [signalsData, property])
+  }, [signalsResponse, property])
 
   const incomeData = React.useMemo(
     () => (holding ? calcIncomeToDate(holding) : { net: 0, months: 0 }),
@@ -235,9 +263,22 @@ export default function HoldingDetailPage() {
     [holding]
   )
 
-  // Projected value trend based on purchase price → current value. Will be replaced
-  // with actual historical data from DLD transaction records once available.
+  // Fetch real historical snapshots from portfolio_snapshots table
+  const { data: snapshotsData } = useAPI<{ date: string; value: number; rent: number | null }[]>(
+    holding ? `/api/investor/forecast/${holdingId}` : null
+  )
+
   const valueHistory = React.useMemo(() => {
+    // Try to use real snapshot data from the forecast API response
+    const snapshots = (snapshotsData as unknown as { historicalSnapshots?: { date: string; value: number }[] })?.historicalSnapshots
+    if (snapshots && snapshots.length > 0) {
+      return snapshots.map(s => ({
+        month: s.date,
+        value: Math.round(s.value),
+      }))
+    }
+
+    // Fallback: interpolate from purchase to current value
     if (!holding) return []
     const months = 12
     const startValue = holding.purchasePrice
@@ -249,10 +290,10 @@ export default function HoldingDetailPage() {
       date.setMonth(date.getMonth() - (months - i - 1))
       return {
         month: date.toISOString().slice(0, 7),
-        value: Math.round(startValue + increment * (i + 1) + (Math.random() - 0.5) * 100000),
+        value: Math.round(startValue + increment * (i + 1)),
       }
     })
-  }, [holding])
+  }, [holding, snapshotsData])
 
   if (portfolioLoading) {
     return (
@@ -333,9 +374,10 @@ export default function HoldingDetailPage() {
 
           {/* Performance Charts - Full width on mobile */}
           <Tabs defaultValue="value" className="w-full">
-            <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
+            <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
               <TabsTrigger value="value" className="min-h-[44px] sm:min-h-0">Value</TabsTrigger>
               <TabsTrigger value="income" className="min-h-[44px] sm:min-h-0">Income</TabsTrigger>
+              <TabsTrigger value="forecast" className="min-h-[44px] sm:min-h-0">Forecast</TabsTrigger>
             </TabsList>
             <TabsContent value="value">
               <Card>
@@ -369,6 +411,9 @@ export default function HoldingDetailPage() {
                   />
                 </CardContent>
               </Card>
+            </TabsContent>
+            <TabsContent value="forecast">
+              <HoldingForecastChart holdingId={holdingId} />
             </TabsContent>
           </Tabs>
 

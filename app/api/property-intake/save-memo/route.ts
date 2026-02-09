@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { createMemo, store } from "@/lib/data/store"
+import { createMemo } from "@/lib/db/memo-ops"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
 
     // Create the memo
     // Note: If no investorId provided, we create a "general" memo that can be assigned later
-    const memo = createMemo({
+    const memo = await createMemo({
       investorId: investorId || "unassigned",
       listingId: property.listingId || undefined,
       underwritingId: undefined,
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     const write = createAuditEventWriter()
     await write(
       AuditEvents.memoCreated({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         memoId: memo.id,
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
 
     await write(
       AuditEvents.aiGenerationRequested({
-        tenantId: store.tenantId,
+        tenantId: memo.tenantId,
         actorId: ctx.userId,
         role: ctx.role,
         feature: "property-intake.evaluate",

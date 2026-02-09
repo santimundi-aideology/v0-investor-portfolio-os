@@ -4,7 +4,7 @@ import { getInvestorById } from "@/lib/db/investors"
 import { listListings, getListingById } from "@/lib/db/listings"
 import { getHoldingsByInvestor, getPortfolioSummary } from "@/lib/db/holdings"
 import { getSupabaseAdminClient } from "@/lib/db/client"
-import type { InvestorRecord, ListingRecord } from "@/lib/data/store"
+import type { InvestorRecord, ListingRecord } from "@/lib/data/types"
 import { buildSummaryContext, hasSummaryData, truncateContextText } from "./summary-context"
 
 /**
