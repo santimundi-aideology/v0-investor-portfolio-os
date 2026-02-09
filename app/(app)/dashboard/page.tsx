@@ -166,7 +166,7 @@ function InternalDashboard() {
               <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
                 <ClipboardCheck className="size-5" />
               </span>
-              <span>Good morning, {user.name}</span>
+              <span>Good morning, {user.name || "there"}</span>
             </span>
           }
           subtitle="Your daily command center for investors, deals, and inventory."
