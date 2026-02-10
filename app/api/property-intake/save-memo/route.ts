@@ -178,11 +178,16 @@ export async function POST(req: Request) {
       generatedAt: new Date().toISOString(),
     }
 
-    // Create the memo
-    // If no investorId provided, create an unassigned memo that can be assigned later
+    // listing_id must be a valid UUID referencing listings.id — portal extraction returns
+    // external IDs (e.g. Bayut "12345") that are not UUIDs; only pass when valid
+    const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const listingId = property.listingId && uuidLike.test(property.listingId)
+      ? property.listingId
+      : undefined
+
     const memo = await createMemo({
       investorId: investorId || null,
-      listingId: property.listingId || undefined,
+      listingId,
       underwritingId: undefined,
       content: memoContent,
       createdBy: ctx.userId,
