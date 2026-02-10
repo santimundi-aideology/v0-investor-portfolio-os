@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from("users")
-      .select("id, tenant_id, name, email, role, phone, whatsapp, avatar_url, is_active, created_at, updated_at, auth_user_id, last_sign_in_at, email_verified")
+      .select("id, tenant_id, name, email, role, phone, whatsapp, avatar_url, is_active, is_demo, created_at, updated_at, auth_user_id, last_sign_in_at, email_verified")
       .order("created_at", { ascending: false })
 
     // Scope by tenant
@@ -79,10 +79,43 @@ export async function GET(req: Request) {
       }
     }
 
-    const enrichedUsers = (users ?? []).map((u) => ({
-      ...u,
-      tenantName: u.tenant_id ? tenantMap[u.tenant_id] ?? "Unknown" : "No Company",
-    }))
+    // Enrich with invitation status from auth.users
+    const authUserIds = (users ?? []).map((u) => u.auth_user_id).filter(Boolean)
+    let authUserMap: Record<string, { invited_at: string | null; email_confirmed_at: string | null; last_sign_in_at: string | null }> = {}
+    if (authUserIds.length > 0) {
+      // Fetch auth user data in batches (admin API)
+      for (const authId of authUserIds) {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.admin.getUserById(authId)
+          if (authUser) {
+            authUserMap[authId] = {
+              invited_at: authUser.invited_at ?? null,
+              email_confirmed_at: authUser.email_confirmed_at ?? null,
+              last_sign_in_at: authUser.last_sign_in_at ?? null,
+            }
+          }
+        } catch {
+          // Skip if auth user not found
+        }
+      }
+    }
+
+    const enrichedUsers = (users ?? []).map((u) => {
+      const authInfo = u.auth_user_id ? authUserMap[u.auth_user_id] : null
+      // Derive invitation status
+      let inviteStatus: "pending_invite" | "active" | "inactive" = u.is_active ? "active" : "inactive"
+      if (authInfo?.invited_at && !authInfo?.email_confirmed_at) {
+        inviteStatus = "pending_invite"
+      }
+      return {
+        ...u,
+        tenantName: u.tenant_id ? tenantMap[u.tenant_id] ?? "Unknown" : "No Company",
+        invited_at: authInfo?.invited_at ?? null,
+        email_confirmed_at: authInfo?.email_confirmed_at ?? null,
+        auth_last_sign_in_at: authInfo?.last_sign_in_at ?? null,
+        invite_status: inviteStatus,
+      }
+    })
 
     return NextResponse.json({ users: enrichedUsers })
   } catch (err) {

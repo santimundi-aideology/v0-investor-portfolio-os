@@ -86,7 +86,70 @@ export async function POST(req: Request) {
       : propertyType?.toLowerCase().includes("land") ? "Land"
       : "Unit"
 
-    // 1. Run tiered comparable analysis
+    // ---------- Resolve Bayut community name to DLD area name ----------
+    // Bayut uses marketing/community names (e.g. "Majan", "Dubai Marina")
+    // while DLD uses official area names (e.g. "Wadi Al Safa 3", "Marsa Dubai").
+    // The master_project_en column in dld_transactions contains the community names.
+    let resolvedAreaName = area
+    try {
+      // First check if the area name directly exists in dld_area_stats
+      const { data: directMatch } = await supabase
+        .from("dld_area_stats")
+        .select("area_name_en")
+        .eq("area_name_en", area)
+        .limit(1)
+
+      if (!directMatch || directMatch.length === 0) {
+        // No direct match — try resolving via master_project_en
+        const { data: resolved } = await supabase.rpc("resolve_area_name", {
+          p_community_name: area,
+        }).maybeSingle()
+
+        if (resolved && resolved.dld_area_name) {
+          console.log(`[cma] Resolved "${area}" → "${resolved.dld_area_name}" (${resolved.transaction_count} txns)`)
+          resolvedAreaName = resolved.dld_area_name
+        } else {
+          // Fallback: direct SQL query on dld_transactions
+          const { data: fallback } = await supabase
+            .from("dld_transactions")
+            .select("area_name_en")
+            .ilike("master_project_en", area)
+            .eq("trans_group_en", "Sales")
+            .limit(1)
+
+          if (fallback && fallback.length > 0) {
+            resolvedAreaName = fallback[0].area_name_en
+            console.log(`[cma] Resolved "${area}" → "${resolvedAreaName}" via fallback`)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[cma] Area resolution failed, using original:", err)
+    }
+
+    // 1. Area stats (fetched first because used by later sections)
+    let areaStats: CMAResult["areaStats"] = null
+    try {
+      const { data: stats } = await supabase
+        .from("dld_area_stats")
+        .select("*")
+        .eq("area_name_en", resolvedAreaName)
+        .eq("property_type_en", dldPropertyType)
+        .maybeSingle()
+
+      if (stats) {
+        areaStats = {
+          totalTransactions: Number(stats.transaction_count),
+          avgPrice: Number(stats.avg_price),
+          avgPricePerSqm: Number(stats.avg_price_per_sqm),
+          latestTransaction: stats.latest_transaction as string | null,
+        }
+      }
+    } catch (err) {
+      console.warn("[cma] Area stats not available:", err)
+    }
+
+    // 2. Run tiered comparable analysis
     let tieredAnalysis: CMAResult["tieredAnalysis"] = []
     try {
       const { data: tiers } = await supabase.rpc("find_best_comparables", {
@@ -111,7 +174,7 @@ export async function POST(req: Request) {
       console.warn("[cma] Tiered analysis not available:", err)
     }
 
-    // 2. Run simple comparison
+    // 3. Run simple comparison
     let comparisonResult: {
       comparableCount: number
       dldMedianPrice: number | null
@@ -151,13 +214,12 @@ export async function POST(req: Request) {
       console.warn("[cma] Comparison not available:", err)
     }
 
-    // 3. Use pre-computed area stats view (already in use elsewhere, guaranteed to work)
+    // 4. Use pre-computed area stats view
     let comparables: DLDComparable[] = []
     let precomputedMedianPrice: number | null = null
     let precomputedMedianPsm: number | null = null
     let precomputedPriceRange: { min: number; max: number } | null = null
     
-    // Already fetched areaStats earlier - use that if available
     if (areaStats) {
       const avgPrice = areaStats.avgPrice
       const avgPsm = areaStats.avgPricePerSqm
@@ -186,13 +248,13 @@ export async function POST(req: Request) {
       precomputedMedianPsm = avgPsm
     }
 
-    // 4. Monthly trends for the area
+    // 5. Monthly trends for the area
     let monthlyTrends: CMAResult["monthlyTrends"] = []
     try {
       const { data: trends } = await supabase
         .from("dld_monthly_trends")
         .select("month, avg_price, avg_price_per_sqm, transaction_count")
-        .eq("area_name_en", area)
+        .eq("area_name_en", resolvedAreaName)
         .order("month", { ascending: false })
         .limit(12)
 
@@ -206,28 +268,6 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.warn("[cma] Trends not available:", err)
-    }
-
-    // 5. Area stats
-    let areaStats: CMAResult["areaStats"] = null
-    try {
-      const { data: stats } = await supabase
-        .from("dld_area_stats")
-        .select("*")
-        .eq("area_name_en", area)
-        .eq("property_type_en", dldPropertyType)
-        .maybeSingle()
-
-      if (stats) {
-        areaStats = {
-          totalTransactions: Number(stats.transaction_count),
-          avgPrice: Number(stats.avg_price),
-          avgPricePerSqm: Number(stats.avg_price_per_sqm),
-          latestTransaction: stats.latest_transaction as string | null,
-        }
-      }
-    } catch (err) {
-      console.warn("[cma] Area stats not available:", err)
     }
 
     // Use pre-computed data if available, otherwise fall back to comparison result

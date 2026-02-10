@@ -6,7 +6,6 @@ import { Check, Send, Sparkles, User, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -240,9 +239,9 @@ export function InvestorMatchingPanel({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-green-600" />
               AI Investor Matching
@@ -251,25 +250,26 @@ export function InvestorMatchingPanel({
               Recommended investors based on mandate alignment
             </CardDescription>
           </div>
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs shrink-0">
             {highMatches.length} high matches
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Quick actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={selectTopMatches}
             disabled={highMatches.length === 0}
+            className="w-full sm:w-auto"
           >
             <Users className="mr-1 h-3 w-3" />
             Select top matches ({highMatches.length})
           </Button>
           {selectedInvestors.size > 0 && (
-            <Badge variant="secondary">{selectedInvestors.size} selected</Badge>
+            <Badge variant="secondary" className="shrink-0">{selectedInvestors.size} selected</Badge>
           )}
         </div>
 
@@ -289,26 +289,37 @@ export function InvestorMatchingPanel({
               onClick={() => toggleInvestor(match.investor.id)}
             >
               <div className="flex items-start gap-3">
-                <Checkbox
-                  checked={selectedInvestors.has(match.investor.id)}
-                  onCheckedChange={() => toggleInvestor(match.investor.id)}
-                  className="mt-1"
-                />
+                <button
+                  type="button"
+                  aria-label={`Toggle ${match.investor.name}`}
+                  className={cn(
+                    "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors",
+                    selectedInvestors.has(match.investor.id)
+                      ? "border-green-500 bg-green-500 text-white"
+                      : "border-gray-300 bg-white text-transparent hover:border-gray-400"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleInvestor(match.investor.id)
+                  }}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                         <User className="h-4 w-4 text-gray-500" />
                       </div>
-                      <div>
-                        <div className="font-medium text-sm">{match.investor.name}</div>
-                        <div className="text-xs text-gray-500">{match.investor.company}</div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm leading-tight truncate">{match.investor.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{match.investor.company}</div>
                       </div>
                     </div>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className={cn("text-lg font-bold", getScoreColor(match.matchScore))}>
+                          <div className={cn("text-lg font-bold leading-none shrink-0 tabular-nums", getScoreColor(match.matchScore))}>
                             {match.matchScore}%
                           </div>
                         </TooltipTrigger>
@@ -389,7 +400,9 @@ export function InvestorMatchingPanel({
           ) : (
             <>
               <Send className="mr-2 h-4 w-4" />
-              Share IC Memo with {selectedInvestors.size || "Selected"} Investor{selectedInvestors.size !== 1 ? "s" : ""}
+              <span className="truncate">
+                Share IC Memo with {selectedInvestors.size || "Selected"} Investor{selectedInvestors.size !== 1 ? "s" : ""}
+              </span>
             </>
           )}
         </Button>

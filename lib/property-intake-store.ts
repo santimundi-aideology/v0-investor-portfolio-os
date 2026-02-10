@@ -36,6 +36,30 @@ export interface ExtractedProperty {
   listingUrl: string
   listedDate: string | null
   coordinates: { lat: number; lng: number } | null
+  // Extended fields from Bayut API
+  completionStatus?: "ready" | "off_plan" | "under_construction" | "unknown"
+  developer?: string | null
+  handoverDate?: string | null
+  serviceCharge?: number | null
+  rentalPotential?: number | null
+  referenceNumber?: string | null
+  permitNumber?: string | null
+  purpose?: "for-sale" | "for-rent" | null
+  buildingName?: string | null
+  buildingFloors?: number | null
+  totalParkingSpaces?: number | null
+  elevators?: number | null
+  floorPlanImages?: string[]
+  paymentPlan?: {
+    downPaymentPercent?: number | null
+    preHandoverPercent?: number | null
+    handoverPercent?: number | null
+    postHandoverPercent?: number | null
+  } | null
+  verified?: boolean
+  verifiedDate?: string | null
+  plotSize?: number | null
+  coverImageUrl?: string | null
 }
 
 export interface EvaluationAnalysis {
@@ -61,10 +85,22 @@ export interface EvaluationAnalysis {
     demand: string
     absorption: string
   }
+  growth?: {
+    narrative: string
+    neighborhoodTrend: string
+    annualGrowthBase: number
+    annualGrowthConservative: number
+    annualGrowthUpside: number
+    projectedValue1Y: number
+    projectedValue3Y: number
+    projectedValue5Y: number
+    drivers: string[]
+    sensitivities: string[]
+  }
   pricing: {
     askingPrice: number
     pricePerSqft: number | null
-    marketAvgPricePerSqft: number
+    marketAvgPricePerSqft: number | null
     recommendedOffer: number
     stabilizedValue: number
     valueAddBudget: number
@@ -94,6 +130,25 @@ export interface EvaluationAnalysis {
     capRate: number
     targetIrr: number
     holdPeriod: string
+    returnBridge?: {
+      purchasePrice: number
+      dldRatePct: number
+      dldFee: number
+      brokerFeePct: number
+      brokerFee: number
+      renovation: number
+      totalProjectCost: number
+      mortgageLtvPct: number
+      mortgageAmount: number
+      equityInvested: number
+      annualInterestRatePct: number
+      annualInterest: number
+      resalePrice: number
+      netSaleProceedsAfterMortgage: number
+      netProfitAfterInterest: number
+      roiOnEquityPct: number
+      assumptions: string
+    }
   }
   risks: { risk: string; mitigation: string }[]
   finalRecommendation: {

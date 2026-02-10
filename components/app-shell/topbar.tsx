@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Bell, BookOpen, Building2, Check, CircleHelp, Keyboard, LifeBuoy, Loader2, LogOut, Menu, Plus, Search, Shield, User2 } from "lucide-react"
+import { Bell, BookOpen, Building2, Check, CircleHelp, Eye, Keyboard, LifeBuoy, Loader2, LogOut, Menu, Plus, Search, Shield, User2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useApp, usePersonas } from "@/components/providers/app-provider"
+import { useApp } from "@/components/providers/app-provider"
 import { useAuth } from "@/components/providers/auth-provider"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import type { Notification } from "@/lib/types"
@@ -37,11 +37,21 @@ interface TopbarProps {
   onMenuClick: () => void
 }
 
+function getAvatarInitials(name: unknown): string {
+  if (typeof name !== "string" || name.trim().length === 0) return "U"
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
+
 export function Topbar({ onMenuClick }: TopbarProps) {
   const router = useRouter()
   const { signOut } = useAuth()
-  const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, personaId, setPersonaId, platformRole, tenantsLoading, refreshTenants } = useApp()
-  const personas = usePersonas()
+  const { user, orgs, currentOrg, setCurrentOrgId, setCommandOpen, platformRole, tenantsLoading, refreshTenants, demoModeActive, setDemoModeActive } = useApp()
   const [notificationItems, setNotificationItems] = useState<Notification[]>([])
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
@@ -159,16 +169,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
 
-  const handleLogout = async () => {
-    try {
-      await signOut()
-      toast.success("Logged out successfully", {
-        description: "You have been signed out.",
-      })
-    } catch (err) {
-      console.error("Sign out error:", err)
-      toast.error("Failed to sign out. Please try again.")
-    }
+  const handleLogout = () => {
+    signOut()
   }
 
   const handleContactSupport = () => {
@@ -343,10 +345,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               <Avatar className="h-9 w-9">
                 <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name || "User"} />
                 <AvatarFallback>
-                  {(user.name || "U")
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                  {getAvatarInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -373,15 +372,30 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <DropdownMenuItem asChild>
               <Link href="/settings">Settings</Link>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-gray-500">Persona</DropdownMenuLabel>
-            {personas.map((p) => (
-              <DropdownMenuItem key={p.id} onSelect={() => setPersonaId(p.id)} className="gap-2">
-                <span className="capitalize">{p.role}</span>
-                <span className="text-gray-500 truncate text-xs">{p.label}</span>
-                {p.id === personaId ? <span className="ml-auto text-xs text-green-600">✓</span> : null}
-              </DropdownMenuItem>
-            ))}
+            {platformRole === "super_admin" && !demoModeActive && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => setDemoModeActive(true)}
+                  className="gap-2 text-amber-700"
+                >
+                  <Eye className="h-4 w-4" />
+                  Enter Demo Mode
+                </DropdownMenuItem>
+              </>
+            )}
+            {demoModeActive && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => setDemoModeActive(false)}
+                  className="gap-2 text-amber-700"
+                >
+                  <Eye className="h-4 w-4" />
+                  Exit Demo Mode
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:text-red-600">
               <LogOut className="h-4 w-4 mr-2" />

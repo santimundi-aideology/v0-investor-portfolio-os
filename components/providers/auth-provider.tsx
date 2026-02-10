@@ -161,30 +161,9 @@ export function AuthProvider({
   }, [supabase, fetchUserProfile, pathname, router])
 
   const signOut = React.useCallback(async () => {
-    if (!supabase) return
-
-    try {
-      const { error } = await supabase.auth.signOut({ scope: 'local' })
-      if (error) {
-        console.warn("Sign out API error (proceeding with local cleanup):", error.message)
-      }
-    } catch (err) {
-      console.warn("Sign out threw (proceeding with local cleanup):", err)
-    }
-
-    // Safety net: manually clear any remaining Supabase auth cookies
-    // in case the client library failed to remove them
-    document.cookie.split(";").forEach((c) => {
-      const name = c.trim().split("=")[0]
-      if (name.startsWith("sb-")) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
-      }
-    })
-
-    // Use hard redirect instead of router.push to bypass Next.js client-side cache
-    // This ensures a full page load with cleared cookies hitting the middleware fresh
-    window.location.href = "/login"
-  }, [supabase])
+    // Navigate to server-side signout route which properly clears auth cookies
+    window.location.href = "/auth/signout"
+  }, [])
 
   const refreshUser = React.useCallback(async () => {
     if (!supabase) return

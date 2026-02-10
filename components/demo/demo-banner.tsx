@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { ChevronDown, ChevronUp, RotateCcw, Eye, User, Building2, Shield, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronUp, RotateCcw, Eye, LogOut, User, Building2, Shield, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -57,7 +57,12 @@ export function DemoBanner() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const router = useRouter()
-  const { personaId, setPersonaId } = useApp()
+  const { personaId, setPersonaId, setDemoModeActive } = useApp()
+
+  const handleExitDemo = useCallback(() => {
+    setDemoModeActive(false)
+    router.push("/dashboard")
+  }, [setDemoModeActive, router])
 
   const currentPersona = DEMO_PERSONAS.find((p) => p.id === personaId) ?? DEMO_PERSONAS[0]
 
@@ -193,6 +198,17 @@ export function DemoBanner() {
           <span className="text-xs">Reset</span>
         </Button>
 
+        {/* Exit Demo Mode Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleExitDemo}
+          className="gap-1.5 text-amber-900 hover:bg-red-100/50 hover:text-red-700 h-8 px-2"
+        >
+          <LogOut className="size-3.5" />
+          <span className="text-xs">Exit</span>
+        </Button>
+
         {/* Minimize Button */}
         <Button
           variant="ghost"
@@ -208,14 +224,16 @@ export function DemoBanner() {
 }
 
 /**
- * Wrapper component that only renders DemoBanner when demo mode is enabled
- * This reads from the environment variable at build/render time
+ * Wrapper component that renders DemoBanner when demo mode is active.
+ * Shows based on either:
+ * 1. Environment variable NEXT_PUBLIC_DEMO_MODE=true (static demo deployments)
+ * 2. Runtime demoModeActive state (super_admin toggled demo mode)
  */
 export function DemoBannerWrapper() {
-  // Check if demo mode is enabled via environment variable
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+  const { demoModeActive } = useApp()
+  const isEnvDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
   
-  if (!isDemoMode) {
+  if (!isEnvDemo && !demoModeActive) {
     return null
   }
   

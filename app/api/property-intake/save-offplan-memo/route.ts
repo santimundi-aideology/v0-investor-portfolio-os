@@ -117,11 +117,12 @@ export async function POST(req: NextRequest) {
       generatedAt: new Date().toISOString(),
     }
 
-    // Create the memo using the store's createMemo function
+    // Create the memo — if no investor assigned, leave it unassigned
     const memo = await createMemo({
-      investorId: investorId || "unassigned",
+      investorId: investorId || null,
       content: memoContent,
       createdBy: ctx.userId || "system",
+      tenantId: ctx.tenantId ?? undefined,
     })
 
     // Create audit events
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
         id: memo.id,
         title: memoTitle,
         status: "draft",
-        investorId: investorId || "unassigned",
+        investorId: investorId || null,
         createdAt: memo.createdAt,
       },
       message: "Off-plan IC memo saved successfully",

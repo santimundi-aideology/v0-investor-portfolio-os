@@ -10,6 +10,7 @@ import { ArrowLeft, Calendar, User, Building2, Send } from "lucide-react"
 import Link from "next/link"
 import { MemoActions } from "@/components/memos/memo-actions"
 import { getListingById } from "@/lib/db/listings"
+import { getInvestorById } from "@/lib/db/investors"
 import { mapListingToProperty } from "@/lib/utils/map-listing"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
 import type { Memo } from "@/lib/types"
@@ -59,9 +60,18 @@ function formatPercent(value?: number) {
   return percentFormatter.format(value)
 }
 
-function renderMemoContent(content: string) {
+function renderMemoContent(content: unknown) {
   // Simple markdown-like rendering
-  const lines = content.split("\n")
+  const safeContent =
+    typeof content === "string" ? content : content == null ? "" : String(content)
+  if (!safeContent.trim()) {
+    return [
+      <p key="empty-memo" className="text-sm text-gray-500">
+        No memo narrative is available yet for this record.
+      </p>,
+    ]
+  }
+  const lines = safeContent.split("\n")
   return lines.map((line, index) => {
     // Images
     const imageMatch = line.match(/^!\[(.*?)\]\((.*?)\)/)
@@ -134,6 +144,77 @@ function renderMemoContent(content: string) {
   })
 }
 
+function normalizeStatus(rawStatus: unknown, rawState: unknown): Memo["status"] {
+  if (rawStatus === "draft" || rawStatus === "review" || rawStatus === "approved" || rawStatus === "sent") {
+    return rawStatus
+  }
+
+  switch (rawState) {
+    case "draft":
+      return "draft"
+    case "pending_review":
+      return "review"
+    case "ready":
+      return "approved"
+    case "sent":
+    case "opened":
+    case "decided":
+      return "sent"
+    default:
+      return "draft"
+  }
+}
+
+function readLatestContent(rawMemo: Record<string, unknown>): unknown {
+  if (typeof rawMemo.content === "string") return rawMemo.content
+  if (typeof rawMemo.content === "object" && rawMemo.content !== null) return rawMemo.content
+
+  if (Array.isArray(rawMemo.versions) && rawMemo.versions.length > 0) {
+    const latest = rawMemo.versions[rawMemo.versions.length - 1] as Record<string, unknown>
+    return latest?.content
+  }
+
+  return ""
+}
+
+function toNarrative(content: unknown): string {
+  if (typeof content === "string") return content
+  if (!content || typeof content !== "object") return ""
+
+  const obj = content as Record<string, unknown>
+  const lines: string[] = []
+
+  if (typeof obj.execSummary === "string") {
+    lines.push("## Executive Summary", obj.execSummary, "")
+  }
+  if (typeof obj.mandateFit === "string") {
+    lines.push("## Mandate Fit", obj.mandateFit, "")
+  }
+  if (Array.isArray(obj.assumptions) && obj.assumptions.length > 0) {
+    lines.push("## Assumptions")
+    for (const item of obj.assumptions) {
+      if (typeof item === "string") lines.push(`- ${item}`)
+    }
+    lines.push("")
+  }
+  if (Array.isArray(obj.risks) && obj.risks.length > 0) {
+    lines.push("## Risks")
+    for (const item of obj.risks) {
+      if (typeof item === "string") lines.push(`- ${item}`)
+    }
+    lines.push("")
+  }
+  if (typeof obj.recommendation === "string") {
+    lines.push("## Recommendation", obj.recommendation, "")
+  }
+
+  if (lines.length === 0) {
+    return JSON.stringify(obj, null, 2)
+  }
+
+  return lines.join("\n").trim()
+}
+
 export default async function MemoPage({ params }: MemoPageProps) {
   const { id } = await params
 
@@ -151,13 +232,85 @@ export default async function MemoPage({ params }: MemoPageProps) {
     notFound()
   }
 
-  const memo = (await memoRes.json()) as Memo
+  const rawMemo = (await memoRes.json()) as Record<string, unknown>
+
+  const investorId =
+    (typeof rawMemo.investorId === "string" && rawMemo.investorId) ||
+    (typeof rawMemo.investor_id === "string" && rawMemo.investor_id) ||
+    ""
+
+  const propertyId =
+    (typeof rawMemo.propertyId === "string" && rawMemo.propertyId) ||
+    (typeof rawMemo.listingId === "string" && rawMemo.listingId) ||
+    (typeof rawMemo.listing_id === "string" && rawMemo.listing_id) ||
+    ""
 
   // Fetch property from DB via listing
-  const listing = memo.propertyId ? await getListingById(memo.propertyId) : null
+  const [listing, investor] = await Promise.all([
+    propertyId ? getListingById(propertyId) : Promise.resolve(null),
+    investorId ? getInvestorById(investorId) : Promise.resolve(null),
+  ])
   const property = listing ? mapListingToProperty(listing as Record<string, unknown>) : undefined
+  const normalizedContent = toNarrative(readLatestContent(rawMemo))
+
+  const memo: Memo = {
+    id: (rawMemo.id as string) ?? id,
+    title:
+      (typeof rawMemo.title === "string" && rawMemo.title.trim()) ||
+      (property?.title ? `IC Memo: ${property.title}` : "Investment Committee Memo"),
+    investorId,
+    investorName:
+      (typeof rawMemo.investorName === "string" && rawMemo.investorName) ||
+      investor?.name ||
+      "Investor",
+    propertyId,
+    propertyTitle:
+      (typeof rawMemo.propertyTitle === "string" && rawMemo.propertyTitle) ||
+      property?.title ||
+      "Property",
+    status: normalizeStatus(rawMemo.status, rawMemo.state),
+    content: normalizedContent,
+    analysis: (rawMemo.analysis as Memo["analysis"]) ?? undefined,
+    createdAt: (rawMemo.createdAt as string) || (rawMemo.created_at as string) || new Date().toISOString(),
+    updatedAt: (rawMemo.updatedAt as string) || (rawMemo.updated_at as string) || new Date().toISOString(),
+  }
+
+  // Extract structured content for direct rendering (if available)
+  const rawContent = readLatestContent(rawMemo)
+  const structuredContent =
+    rawContent && typeof rawContent === "object" && !Array.isArray(rawContent)
+      ? (rawContent as Record<string, unknown>)
+      : null
 
   const analysis = memo.analysis
+  const returnBridge = (analysis as any)?.financialAnalysis?.returnBridge as
+    | {
+      purchasePrice: number
+      dldRatePct: number
+      dldFee: number
+      brokerFeePct: number
+      brokerFee: number
+      renovation: number
+      totalProjectCost: number
+      mortgageLtvPct: number
+      mortgageAmount: number
+      equityInvested: number
+      annualInterestRatePct: number
+      annualInterest: number
+      resalePrice: number
+      netSaleProceedsAfterMortgage: number
+      netProfitAfterInterest: number
+      roiOnEquityPct: number
+      assumptions?: string
+    }
+    | undefined
+  const memoState =
+    (typeof rawMemo.state === "string" && rawMemo.state) ||
+    (memo.status === "review"
+      ? "pending_review"
+      : memo.status === "approved"
+        ? "ready"
+        : memo.status)
 
   return (
     <div className="space-y-6">
@@ -229,7 +382,6 @@ export default async function MemoPage({ params }: MemoPageProps) {
                             className="object-cover"
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                             unoptimized
-                            onError={(e) => { e.currentTarget.style.display = "none" }}
                           />
                           <div className="px-3 py-2 text-xs text-gray-500 line-clamp-2">
                             {description || category || property.title}
@@ -354,7 +506,6 @@ export default async function MemoPage({ params }: MemoPageProps) {
                   </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <StatTile label="Price / sq ft" value={formatPerSqft(analysis.pricing.pricePerSqft)} hint="Subject" />
-                    <StatTile label="Market avg / sq ft" value={formatPerSqft(analysis.pricing.marketAvgPricePerSqft)} hint="Recent trades" />
                     <StatTile label="Value-add budget" value={formatCurrency(analysis.pricing.valueAddBudget)} />
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -368,6 +519,37 @@ export default async function MemoPage({ params }: MemoPageProps) {
                       <p className="text-xl font-semibold">{formatPercent(analysis.pricing.irr)}</p>
                       <p className="text-sm text-gray-500">Equity multiple: {analysis.pricing.equityMultiple?.toFixed(2) ?? "—"}x</p>
                     </div>
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {returnBridge ? (
+                <AnalysisSection title="ROI on Equity Bridge" description="Levered return stack">
+                  <div className="space-y-2">
+                    {[
+                      { label: "Purchase price", value: formatCurrency(returnBridge.purchasePrice) },
+                      { label: "DLD fee", value: formatCurrency(returnBridge.dldFee) },
+                      { label: "DLD fee rate", value: `${(returnBridge.dldRatePct ?? 4).toFixed(1)}%` },
+                      { label: "Broker fee", value: formatCurrency(returnBridge.brokerFee) },
+                      { label: "Broker fee rate", value: `${(returnBridge.brokerFeePct ?? 2).toFixed(1)}%` },
+                      { label: "Renovation", value: formatCurrency(returnBridge.renovation) },
+                      { label: "Total project cost", value: formatCurrency(returnBridge.totalProjectCost) },
+                      { label: "Mortgage amount", value: formatCurrency(returnBridge.mortgageAmount) },
+                      { label: "Mortgage LTV", value: `${(returnBridge.mortgageLtvPct ?? 70).toFixed(1)}%` },
+                      { label: "Equity invested", value: formatCurrency(returnBridge.equityInvested) },
+                      { label: "Annual interest", value: formatCurrency(returnBridge.annualInterest) },
+                      { label: "Interest rate", value: `${(returnBridge.annualInterestRatePct ?? 3.5).toFixed(1)}%` },
+                      { label: "Resale price", value: formatCurrency(returnBridge.resalePrice) },
+                      { label: "Net sale proceeds after mortgage repayment", value: formatCurrency(returnBridge.netSaleProceedsAfterMortgage) },
+                      { label: "Net profit (after interest)", value: formatCurrency(returnBridge.netProfitAfterInterest) },
+                      { label: "ROI on equity", value: `${returnBridge.roiOnEquityPct.toFixed(1)}%` },
+                    ].map((row) => (
+                      <div key={row.label} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-md border bg-gray-50 px-3 py-2">
+                        <p className="text-sm text-gray-600">{row.label}</p>
+                        <p className="text-sm font-semibold text-gray-900">{row.value}</p>
+                      </div>
+                    ))}
+                    {returnBridge.assumptions ? <p className="text-xs text-gray-500">{returnBridge.assumptions}</p> : null}
                   </div>
                 </AnalysisSection>
               ) : null}
@@ -425,6 +607,94 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 <CardContent className="prose prose-sm max-w-none prose-gray">{renderMemoContent(memo.content)}</CardContent>
               </Card>
             </>
+          ) : structuredContent && typeof structuredContent.execSummary === "string" ? (
+            <>
+              <AnalysisSection title="Executive Summary" description="Investment thesis overview">
+                <p className="text-gray-600 leading-relaxed">{structuredContent.execSummary as string}</p>
+              </AnalysisSection>
+
+              {typeof structuredContent.mandateFit === "string" ? (
+                <AnalysisSection title="Mandate Fit" description="How this property meets the investor's mandate">
+                  <p className="text-gray-600 leading-relaxed">{structuredContent.mandateFit as string}</p>
+                </AnalysisSection>
+              ) : null}
+
+              {structuredContent.financials &&
+               typeof structuredContent.financials === "object" &&
+               !Array.isArray(structuredContent.financials) ? (
+                <AnalysisSection title="Financial Overview" description="Key financial metrics">
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {Object.entries(structuredContent.financials as Record<string, unknown>).map(
+                      ([key, val]) => {
+                        const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                        const display =
+                          typeof val === "number"
+                            ? key.toLowerCase().includes("rate")
+                              ? `${val}%`
+                              : formatCurrency(val)
+                            : String(val ?? "—")
+                        return <StatTile key={key} label={label} value={display} />
+                      }
+                    )}
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {Array.isArray(structuredContent.assumptions) && structuredContent.assumptions.length > 0 ? (
+                <AnalysisSection title="Key Assumptions" description="Underwriting parameters">
+                  <ul className="space-y-2 text-sm leading-6 text-gray-900">
+                    {(structuredContent.assumptions as string[]).map((item, idx) => (
+                      <li key={`assumption-${idx}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AnalysisSection>
+              ) : null}
+
+              {Array.isArray(structuredContent.risks) && structuredContent.risks.length > 0 ? (
+                <AnalysisSection title="Risk Factors" description="Key risks and mitigants">
+                  <ul className="space-y-2 text-sm leading-6 text-gray-900">
+                    {(structuredContent.risks as string[]).map((item, idx) => (
+                      <li key={`risk-${idx}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AnalysisSection>
+              ) : null}
+
+              {Array.isArray(structuredContent.risk_factors) && structuredContent.risk_factors.length > 0 ? (
+                <AnalysisSection title="Risk Factors" description="Key risks and mitigants">
+                  <ul className="space-y-2 text-sm leading-6 text-gray-900">
+                    {(structuredContent.risk_factors as string[]).map((item, idx) => (
+                      <li key={`risk-factor-${idx}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </AnalysisSection>
+              ) : null}
+
+              {typeof structuredContent.recommendation === "string" ? (
+                <AnalysisSection title="Recommendation" description="IC recommendation">
+                  <div className="rounded-lg border-l-4 border-green-500 bg-green-50 p-4">
+                    <p className="text-sm font-medium text-green-900 leading-relaxed">
+                      {structuredContent.recommendation as string}
+                    </p>
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {typeof structuredContent.agent_notes === "string" ? (
+                <AnalysisSection title="Agent Notes" description="Internal notes">
+                  <p className="text-sm text-gray-500 italic">{structuredContent.agent_notes as string}</p>
+                </AnalysisSection>
+              ) : null}
+            </>
           ) : (
             <Card>
               <CardHeader>
@@ -432,7 +702,7 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 <CardDescription>Full memo text</CardDescription>
               </CardHeader>
               <CardContent className="prose prose-sm max-w-none prose-gray">{renderMemoContent(memo.content)}</CardContent>
-        </Card>
+            </Card>
           )}
         </div>
 
@@ -482,12 +752,12 @@ export default async function MemoPage({ params }: MemoPageProps) {
               <CardDescription>Move memo through approval process</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {memo.status === "draft" && (
+              {memoState === "draft" && (
                 <Button className="w-full bg-transparent" variant="outline">
                   Submit for Review
                 </Button>
               )}
-              {memo.status === "review" && (
+              {memoState === "pending_review" && (
                 <>
                   <Button className="w-full">Approve</Button>
                   <Button className="w-full bg-transparent" variant="outline">
@@ -495,14 +765,17 @@ export default async function MemoPage({ params }: MemoPageProps) {
                   </Button>
                 </>
               )}
-              {memo.status === "approved" && (
+              {memoState === "ready" && (
                 <Button className="w-full">
                   <Send className="mr-2 h-4 w-4" />
                   Send to Investor
                 </Button>
               )}
-              {memo.status === "sent" && (
+              {(memoState === "sent" || memoState === "opened") && (
                 <p className="py-2 text-center text-sm text-gray-500">Memo has been sent to investor</p>
+              )}
+              {memoState === "decided" && (
+                <p className="py-2 text-center text-sm text-gray-500">Investor decision has been recorded for this memo</p>
               )}
             </CardContent>
           </Card>

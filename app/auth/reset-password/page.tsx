@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react"
-import { updatePassword } from "@/lib/auth/actions"
+import { updatePassword, resolveUserRedirect } from "@/lib/auth/actions"
 import { VantageIcon } from "@/components/brand/logo"
 
 function ResetPasswordForm() {
@@ -34,8 +34,10 @@ function ResetPasswordForm() {
 
     if (result.success) {
       setSuccess(true)
+      // Resolve role-based redirect
+      const redirectPath = await resolveUserRedirect()
       setTimeout(() => {
-        router.push("/dashboard")
+        router.push(redirectPath)
       }, 2000)
     } else {
       setError(result.error || "Failed to update password")
@@ -59,8 +61,8 @@ function ResetPasswordForm() {
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {isInvite
-                    ? "Your account is ready. Redirecting to dashboard..."
-                    : "Your password has been updated successfully. Redirecting to dashboard..."}
+                    ? "Your account is ready. Redirecting..."
+                    : "Your password has been updated successfully. Redirecting..."}
                 </p>
               </div>
             </div>

@@ -8,6 +8,7 @@ const publicRoutes = [
   "/forgot-password",
   "/auth/callback",
   "/auth/reset-password",
+  "/auth/signout",
   "/api/health",
   "/api/bayut",
   "/api/dld",
@@ -22,6 +23,19 @@ const roleRoutes: Record<string, string[]> = {
   "/team": ["super_admin", "manager"],
   "/audit-log": ["super_admin", "manager"],
 }
+
+// Routes that super_admins should NOT access (realtor CRM + investor portal)
+// They should use the /admin portal instead. Demos use separate demo accounts.
+const superAdminBlockedRoutes = [
+  "/dashboard",
+  "/properties",
+  "/investors",
+  "/tasks",
+  "/settings",
+  "/memos",
+  "/property-intake",
+  "/investor",
+]
 
 // Page routes gated by feature flags (disabled → redirect to /dashboard)
 const featureRouteMap: Record<string, string> = {
@@ -124,11 +138,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // If session exists and on login/signup page, redirect to dashboard
-  if (session && (pathname === "/login" || pathname === "/signup")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
   // Check role-based access (requires fetching user data from database)
   if (session) {
     // Fetch user from database to get current role and tenant (not stale metadata)
@@ -163,13 +172,36 @@ export async function middleware(request: NextRequest) {
       await supabase.auth.signOut()
       return NextResponse.redirect(new URL("/login?error=account_disabled", request.url))
     }
+
+    // If on login/signup page while authenticated, redirect to role-appropriate dashboard
+    if (pathname === "/login" || pathname === "/signup") {
+      let home = "/dashboard"
+      if (userRole === "investor") home = "/investor/dashboard"
+      else if (userRole === "super_admin") home = "/admin"
+      return NextResponse.redirect(new URL(home, request.url))
+    }
+
+    // Investor users on main app dashboard should go to investor portal
+    if (userRole === "investor" && pathname === "/dashboard") {
+      return NextResponse.redirect(new URL("/investor/dashboard", request.url))
+    }
+
+    // Block super_admins from realtor CRM routes → redirect to /admin
+    if (userRole === "super_admin") {
+      const isBlockedRoute = superAdminBlockedRoutes.some(
+        (route) => pathname === route || pathname.startsWith(route + "/")
+      )
+      if (isBlockedRoute) {
+        return NextResponse.redirect(new URL("/admin", request.url))
+      }
+    }
     
     // Check if route requires specific role
     for (const [routePrefix, allowedRoles] of Object.entries(roleRoutes)) {
       if (pathname.startsWith(routePrefix)) {
         if (!allowedRoles.includes(userRole)) {
-          // Redirect to dashboard if role not allowed
-          return NextResponse.redirect(new URL("/dashboard", request.url))
+          const fallback = userRole === "investor" ? "/investor/dashboard" : "/dashboard"
+          return NextResponse.redirect(new URL(fallback, request.url))
         }
       }
     }

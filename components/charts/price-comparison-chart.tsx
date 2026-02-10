@@ -15,7 +15,7 @@ import {
 
 interface PriceComparisonChartProps {
   askingPrice: number
-  marketAverage: number
+  marketAverage?: number
   recommendedOffer: number
   stabilizedValue?: number
 }
@@ -29,8 +29,11 @@ export function PriceComparisonChart({
   const data = [
     { name: "Recommended Offer", value: recommendedOffer, color: "#16a34a" },
     { name: "Asking Price", value: askingPrice, color: "#6b7280" },
-    { name: "Market Avg", value: marketAverage, color: "#3b82f6" },
   ]
+
+  if (typeof marketAverage === "number" && marketAverage > 0) {
+    data.push({ name: "Market Avg", value: marketAverage, color: "#3b82f6" })
+  }
 
   if (stabilizedValue) {
     data.push({ name: "Stabilized Value", value: stabilizedValue, color: "#8b5cf6" })
@@ -76,10 +79,7 @@ export function PriceComparisonChart({
               fontSize: "12px",
               backgroundColor: "white",
             }}
-            formatter={(value: number) => [
-              `AED ${value.toLocaleString()}`,
-              "Price",
-            ]}
+            formatter={(value: unknown) => `AED ${Number(value).toLocaleString()}`}
           />
           <ReferenceLine
             x={askingPrice}
@@ -94,7 +94,7 @@ export function PriceComparisonChart({
             <LabelList
               dataKey="value"
               position="right"
-              formatter={formatValue}
+              formatter={(value: unknown) => formatValue(Number(value))}
               style={{ fontSize: 11, fill: "#374151", fontWeight: 500 }}
             />
           </Bar>

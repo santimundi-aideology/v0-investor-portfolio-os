@@ -19,7 +19,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [aiPanelOpen, setAIPanelOpen] = useState(false)
-  const { user, scopedInvestorId, platformRole, availableInvestors, setScopedInvestorId } = useApp()
+  const { user, scopedInvestorId, platformRole, availableInvestors, setScopedInvestorId, demoModeActive } = useApp()
 
   const handleMobileMenuClose = useCallback(() => {
     setMobileMenuOpen(false)
@@ -36,17 +36,24 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   // Count unread notifications for the badge
   const unreadCount = ([] as { unread?: boolean }[]).filter((n) => n.unread).length
 
-  // Determine if this is a super_admin previewing the investor portal
-  const isSuperAdmin = platformRole === "super_admin"
+  // Determine if this is a super_admin previewing the investor portal (not in demo mode)
+  const isSuperAdmin = platformRole === "super_admin" && !demoModeActive
 
-  // For super_admins, find the selected investor from the available list
+  // For super_admins (not in demo), find the selected investor from the available list
   const selectedInvestor = isSuperAdmin && scopedInvestorId
     ? availableInvestors.find((inv) => inv.id === scopedInvestorId)
     : undefined
 
-  // Get investor display info - use selected investor's data for super_admins
-  const investorName = selectedInvestor?.name ?? user?.name ?? "Investor"
-  const companyName = selectedInvestor?.company ?? "Investment Portfolio"
+  // Get investor display info:
+  // - Demo mode: persona controls everything (user.name comes from persona)
+  // - Super admin preview: show selected investor's name
+  // - Real investor: show auth user's name
+  const investorName = demoModeActive
+    ? user?.name ?? "Investor"
+    : selectedInvestor?.name ?? user?.name ?? "Investor"
+  const companyName = demoModeActive
+    ? "Investment Portfolio"
+    : selectedInvestor?.company ?? "Investment Portfolio"
   const investorAvatar = user?.avatar
 
   return (

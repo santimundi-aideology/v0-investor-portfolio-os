@@ -64,7 +64,7 @@ export type MemoVersion = {
 export type MemoRecord = {
   id: string
   tenantId: string
-  investorId: string
+  investorId: string | null
   listingId?: string
   underwritingId?: string
   state: MemoState

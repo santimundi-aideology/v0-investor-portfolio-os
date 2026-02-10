@@ -33,7 +33,7 @@ export async function getMemo(id: string): Promise<MemoRecord | undefined> {
 }
 
 export async function createMemo(input: {
-  investorId: string
+  investorId?: string | null
   listingId?: string
   underwritingId?: string
   content: unknown
@@ -43,9 +43,9 @@ export async function createMemo(input: {
   const supabase = getSupabaseAdminClient()
   const now = new Date().toISOString()
 
-  // Resolve tenantId from the investor if not provided
+  // Resolve tenantId: prefer explicit, then from investor, then from the creating user
   let tenantId = input.tenantId
-  if (!tenantId) {
+  if (!tenantId && input.investorId) {
     const { data: inv } = await supabase
       .from("investors")
       .select("tenant_id")
@@ -53,12 +53,25 @@ export async function createMemo(input: {
       .maybeSingle()
     tenantId = inv?.tenant_id ?? undefined
   }
+  if (!tenantId) {
+    // Resolve from the creating user's tenant
+    const { data: usr } = await supabase
+      .from("users")
+      .select("tenant_id")
+      .eq("id", input.createdBy)
+      .maybeSingle()
+    tenantId = usr?.tenant_id ?? undefined
+  }
+
+  if (!tenantId) {
+    throw new Error("Cannot create memo: unable to resolve tenant")
+  }
 
   const { data: memoRow, error: memoErr } = await supabase
     .from("memos")
     .insert({
       tenant_id: tenantId,
-      investor_id: input.investorId,
+      investor_id: input.investorId ?? null,
       listing_id: input.listingId ?? null,
       underwriting_id: input.underwritingId ?? null,
       state: "draft",
@@ -247,7 +260,7 @@ function mapMemoRow(row: Record<string, unknown>, versionRows: Record<string, un
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
-    investorId: row.investor_id as string,
+    investorId: (row.investor_id as string) ?? null,
     listingId: (row.listing_id as string) ?? undefined,
     underwritingId: (row.underwriting_id as string) ?? undefined,
     state: row.state as MemoState,

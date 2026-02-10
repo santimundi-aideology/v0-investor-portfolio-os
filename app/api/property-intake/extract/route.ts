@@ -37,11 +37,29 @@ interface ExtractedProperty {
   listingUrl: string
   listedDate: string | null
   coordinates: { lat: number; lng: number } | null
-  completionStatus?: "ready" | "off_plan" | "unknown"
+  completionStatus?: "ready" | "off_plan" | "under_construction" | "unknown"
   developer?: string | null
   handoverDate?: string | null
   serviceCharge?: number | null
   rentalPotential?: number | null
+  referenceNumber?: string | null
+  permitNumber?: string | null
+  purpose?: "for-sale" | "for-rent" | null
+  buildingName?: string | null
+  buildingFloors?: number | null
+  totalParkingSpaces?: number | null
+  elevators?: number | null
+  floorPlanImages?: string[]
+  paymentPlan?: {
+    downPaymentPercent?: number | null
+    preHandoverPercent?: number | null
+    handoverPercent?: number | null
+    postHandoverPercent?: number | null
+  } | null
+  verified?: boolean
+  verifiedDate?: string | null
+  plotSize?: number | null
+  coverImageUrl?: string | null
 }
 
 // Bayut API configuration
@@ -89,6 +107,80 @@ function getPortalDisplayName(source: PortalSource): string {
 }
 
 /**
+ * Normalise completion status string from Bayut to our enum
+ */
+function normaliseCompletionStatus(raw?: string): "ready" | "off_plan" | "under_construction" | "unknown" {
+  if (!raw) return "unknown"
+  const s = raw.toLowerCase().replace(/[^a-z]/g, "")
+  if (s.includes("underconstruction")) return "under_construction"
+  if (s.includes("offplan")) return "off_plan"
+  if (s === "ready" || s === "completed") return "ready"
+  return "unknown"
+}
+
+/**
+ * Flatten the grouped amenities structure returned by Bayut API.
+ * Bayut returns amenities in several formats:
+ *  - Flat strings: ["Pool", "Gym"]
+ *  - Objects with .text: [{ text: "Pool" }]
+ *  - Grouped objects: [{ type: "Features", items: ["Pool", "Gym"] }]
+ *  - Nested arrays: [["Pool", "Gym"]]
+ */
+function flattenAmenities(raw: unknown): string[] {
+  const out: string[] = []
+  if (!Array.isArray(raw)) return out
+
+  for (const item of raw) {
+    if (typeof item === "string") {
+      out.push(item)
+    } else if (Array.isArray(item)) {
+      // Nested array: [["Pool", "Gym"]]
+      for (const sub of item) {
+        if (typeof sub === "string") out.push(sub)
+      }
+    } else if (item && typeof item === "object") {
+      // Grouped: { type, items: [...] }
+      if (Array.isArray((item as Record<string, unknown>).items)) {
+        for (const sub of (item as Record<string, unknown>).items as unknown[]) {
+          if (typeof sub === "string") out.push(sub)
+        }
+      }
+      // Grouped with items_ar (skip Arabic, we only want English)
+      // Object with .text
+      if (typeof (item as Record<string, unknown>).text === "string") {
+        out.push((item as Record<string, unknown>).text as string)
+      }
+    }
+  }
+
+  // Deduplicate
+  return [...new Set(out)]
+}
+
+/**
+ * Flatten photos array from Bayut API.
+ * May be: string[], string[][], or array of {url} objects.
+ */
+function flattenPhotos(raw: unknown): string[] {
+  const out: string[] = []
+  if (!Array.isArray(raw)) return out
+
+  for (const item of raw) {
+    if (typeof item === "string") {
+      out.push(item)
+    } else if (Array.isArray(item)) {
+      for (const sub of item) {
+        if (typeof sub === "string") out.push(sub)
+      }
+    } else if (item && typeof item === "object" && typeof (item as Record<string, unknown>).url === "string") {
+      out.push((item as Record<string, unknown>).url as string)
+    }
+  }
+
+  return out
+}
+
+/**
  * Fetch property from Bayut RapidAPI
  */
 async function fetchBayutProperty(propertyId: string): Promise<ExtractedProperty | null> {
@@ -111,59 +203,173 @@ async function fetchBayutProperty(propertyId: string): Promise<ExtractedProperty
       return null
     }
 
-    const property = await response.json()
+    const p = await response.json()
 
-    // Handle size conversion (sqm to sqft)
-    const sizeSqft = property.area?.built_up
-      ? Math.round(property.area.built_up * 10.764)
-      : null
+    // ---------- Size ----------
+    // Bayut API area.unit can be "sqft" or "sqm". Convert to sqft when needed.
+    const rawBuiltUp = p.area?.built_up ?? null
+    const areaUnit = (p.area?.unit || "sqft").toLowerCase()
+    let sizeSqft: number | null = null
+    if (typeof rawBuiltUp === "number" && rawBuiltUp > 0) {
+      sizeSqft = areaUnit === "sqm" ? Math.round(rawBuiltUp * 10.764) : Math.round(rawBuiltUp)
+    }
 
-    const pricePerSqft = sizeSqft && sizeSqft > 0 && property.price
-      ? Math.round(property.price / sizeSqft)
-      : null
+    const rawPlot = p.area?.plot ?? null
+    let plotSizeSqft: number | null = null
+    if (typeof rawPlot === "number" && rawPlot > 0) {
+      plotSizeSqft = areaUnit === "sqm" ? Math.round(rawPlot * 10.764) : Math.round(rawPlot)
+    }
 
-    // Safely check amenities - they might be objects, not strings
-    let hasParking = false
-    const amenityList: string[] = []
-    if (Array.isArray(property.amenities)) {
-      for (const a of property.amenities) {
-        if (typeof a === 'string') {
-          amenityList.push(a)
-          if (a.toLowerCase().includes("parking")) {
-            hasParking = true
-          }
-        } else if (a && typeof a === 'object' && a.text) {
-          amenityList.push(a.text)
-          if (a.text.toLowerCase().includes("parking")) {
-            hasParking = true
-          }
+    const pricePerSqft =
+      sizeSqft && sizeSqft > 0 && p.price ? Math.round(p.price / sizeSqft) : null
+
+    // ---------- Amenities ----------
+    const amenityList = flattenAmenities(p.amenities)
+
+    // Also merge keywords (e.g. ["parking", "private pool"])
+    if (Array.isArray(p.keywords)) {
+      for (const kw of p.keywords) {
+        if (typeof kw === "string" && !amenityList.some((a) => a.toLowerCase() === kw.toLowerCase())) {
+          amenityList.push(kw)
         }
       }
     }
 
+    // ---------- Parking ----------
+    // building_info.total_parking_space is the BUILDING total (e.g. 478),
+    // not the individual unit's parking. Unit parking is inferred from amenities/keywords.
+    const totalParkingFromBuilding = p.building_info?.total_parking_space ?? null
+    const unitHasParking = amenityList.some((a) => a.toLowerCase().includes("parking"))
+      || (Array.isArray(p.keywords) && p.keywords.some((k: string) => typeof k === "string" && k.toLowerCase().includes("parking")))
+    const unitParking = unitHasParking ? 1 : null
+
+    // ---------- Photos ----------
+    const coverPhoto = p.media?.cover_photo || null
+    const photos = flattenPhotos(p.media?.photos)
+    // Ensure cover photo is first
+    const allImages: string[] = []
+    if (coverPhoto && !photos.includes(coverPhoto)) {
+      allImages.push(coverPhoto)
+    }
+    allImages.push(...photos)
+    // Limit to 15 images
+    const finalImages = allImages.slice(0, 15)
+
+    // ---------- Floor plans ----------
+    const floorPlanImages: string[] = []
+    if (p.floor_plan) {
+      if (Array.isArray(p.floor_plan["2d_images"])) {
+        floorPlanImages.push(...p.floor_plan["2d_images"])
+      }
+      if (Array.isArray(p.floor_plan["3d_images"])) {
+        floorPlanImages.push(...p.floor_plan["3d_images"])
+      }
+    }
+
+    // ---------- Completion ----------
+    const completionStatus = normaliseCompletionStatus(
+      p.details?.completion_status || p.project?.completion_status
+    )
+
+    // ---------- Handover date ----------
+    const handoverRaw =
+      p.details?.completion_details?.completion_date ||
+      p.project?.completion_details?.completion_date ||
+      null
+    const handoverDate = handoverRaw ? String(handoverRaw).split("T")[0].split(" ")[0] : null
+
+    // ---------- Payment plan ----------
+    let paymentPlan: ExtractedProperty["paymentPlan"] = null
+    if (Array.isArray(p.payment_plans) && p.payment_plans.length > 0) {
+      const pp = p.payment_plans[0]
+      paymentPlan = {
+        downPaymentPercent: pp.down_payment_percent ?? pp.down_payment?.percent ?? null,
+        preHandoverPercent: pp.pre_handover_percent ?? null,
+        handoverPercent: pp.handover_percent ?? pp.handover?.percent ?? null,
+        postHandoverPercent: pp.post_handover_percent ?? null,
+      }
+      // Also handle array-based pre_handover
+      if (paymentPlan.preHandoverPercent == null && Array.isArray(pp.pre_handover)) {
+        paymentPlan.preHandoverPercent = pp.pre_handover.reduce(
+          (sum: number, p: { percent?: number }) => sum + (p.percent || 0),
+          0
+        )
+      }
+      if (paymentPlan.postHandoverPercent == null && Array.isArray(pp.post_handover)) {
+        paymentPlan.postHandoverPercent = pp.post_handover.reduce(
+          (sum: number, p: { percent?: number }) => sum + (p.percent || 0),
+          0
+        )
+      }
+    }
+
+    // ---------- Purpose ----------
+    const purposeRaw = (p.purpose || "").toLowerCase()
+    const purpose: ExtractedProperty["purpose"] = purposeRaw.includes("rent")
+      ? "for-rent"
+      : purposeRaw.includes("sale")
+        ? "for-sale"
+        : null
+
+    // ---------- Address / Building name ----------
+    const buildingName =
+      p.building_info?.name ||
+      p.location?.cluster?.name ||
+      null
+
+    const address = buildingName
+      ? `${buildingName}, ${p.location?.sub_community?.name || p.location?.community?.name || ""}`
+      : p.location?.sub_community?.name
+        ? `${p.location.sub_community.name}, ${p.location?.community?.name || ""}`
+        : null
+
+    console.log(
+      `[Bayut API] Extracted: ${p.title || propertyId} — AED ${p.price?.toLocaleString()} — ${p.location?.community?.name} — ${sizeSqft} sqft — ${amenityList.length} amenities — ${finalImages.length} photos`
+    )
+
     return {
       source: "bayut",
-      listingId: property.id?.toString() || propertyId,
-      title: property.title || "Untitled Property",
-      price: property.price || 0,
+      listingId: p.id?.toString() || propertyId,
+      title: p.title || "Untitled Property",
+      price: p.price || 0,
       pricePerSqft,
       size: sizeSqft,
-      bedrooms: property.details?.bedrooms || 0,
-      bathrooms: property.details?.bathrooms || 0,
-      propertyType: property.type?.sub || property.type?.main || "Apartment",
-      area: property.location?.community?.name || "Dubai",
-      subArea: property.location?.sub_community?.name || null,
-      address: null,
-      furnished: property.details?.is_furnished || false,
-      parking: hasParking ? 1 : null,
+      bedrooms: p.details?.bedrooms ?? 0,
+      bathrooms: p.details?.bathrooms ?? 0,
+      propertyType: p.type?.sub || p.type?.main || "Apartment",
+      area: p.location?.community?.name || p.location?.city?.name || "Dubai",
+      subArea: p.location?.sub_community?.name || null,
+      address,
+      furnished: p.details?.is_furnished || false,
+      parking: unitParking,
       amenities: amenityList,
-      description: property.description || null,
-      images: property.media?.photos?.slice(0, 10) || [],
-      agentName: property.agent?.name || null,
-      agencyName: property.agency?.name || null,
-      listingUrl: property.meta?.url || "",
-      listedDate: property.meta?.created_at?.split(" ")[0] || null,
-      coordinates: property.location?.coordinates || null,
+      description: p.description || null,
+      images: finalImages,
+      agentName: p.agent?.name || null,
+      agencyName: p.agency?.name || null,
+      listingUrl: p.meta?.url || "",
+      listedDate: p.meta?.created_at?.split("T")[0]?.split(" ")[0] || null,
+      coordinates: p.location?.coordinates || null,
+
+      // Extended fields
+      completionStatus,
+      developer: p.project?.developer?.name || null,
+      handoverDate,
+      serviceCharge: null, // Not returned by this API endpoint
+      rentalPotential: null,
+      referenceNumber: p.reference_number || null,
+      permitNumber: p.legal?.permit_number || null,
+      purpose,
+      buildingName,
+      buildingFloors: p.building_info?.floors ?? null,
+      totalParkingSpaces: typeof totalParkingFromBuilding === "number" ? totalParkingFromBuilding : null,
+      elevators: p.building_info?.elevators ?? null,
+      floorPlanImages: floorPlanImages.length > 0 ? floorPlanImages : undefined,
+      paymentPlan,
+      verified: p.verification?.is_verified ?? false,
+      verifiedDate: p.verification?.verified_at?.split("T")[0]?.split(" ")[0] || null,
+      plotSize: plotSizeSqft,
+      coverImageUrl: coverPhoto,
     }
   } catch (error) {
     console.error("Error fetching from Bayut API:", error)
@@ -204,36 +410,51 @@ async function extractWithClaude(
 
   const systemPrompt = `You are a property data extraction expert specializing in UAE real estate listings.
 
-Extract property information from the given Bayut listing content. The content may be messy HTML or text, but contains the property details.
+Extract property information from the given listing content. The content may be messy HTML or text, but contains the property details.
 
 Return ONLY a valid JSON object with these exact fields:
 {
   "title": "string - the property headline/title",
   "price": number - price in AED (just the number, no commas or currency),
-  "size": number - size in sqft (if in sqm, multiply by 10.764),
+  "size": number or null - built-up area size in sqft (if in sqm, multiply by 10.764),
+  "plotSize": number or null - plot size in sqft (for villas/townhouses),
   "bedrooms": number (0 for studio),
   "bathrooms": number,
   "propertyType": "Apartment" | "Villa" | "Penthouse" | "Townhouse" | "Studio" | "Duplex",
   "area": "string - main area/community (e.g., Palm Jumeirah, Dubai Marina)",
   "subArea": "string or null - building or sub-community name",
+  "buildingName": "string or null - the specific building/tower name",
+  "address": "string or null - full address if available",
   "furnished": boolean,
-  "amenities": ["array of amenity strings like Pool, Gym, Parking, etc"],
-  "description": "string - property description (max 400 chars)",
+  "parking": number or null - number of parking spaces,
+  "amenities": ["array of amenity strings like Pool, Gym, Parking, Balcony, Sea View, etc."],
+  "description": "string - property description (max 500 chars)",
   "agentName": "string or null",
   "agencyName": "string or null",
-  "developer": "string or null",
-  "yearBuilt": number or null,
-  "serviceCharge": number or null (AED per sqft),
-  "averageRent": number or null (annual rent in AED)
+  "developer": "string or null - the developer company name",
+  "completionStatus": "ready" | "off_plan" | "under_construction" | null,
+  "handoverDate": "string or null - expected completion/handover date (YYYY-MM-DD if possible)",
+  "serviceCharge": number or null (AED per sqft per year),
+  "averageRent": number or null (annual rent estimate in AED),
+  "referenceNumber": "string or null - the listing reference number",
+  "permitNumber": "string or null - RERA/DLD permit number",
+  "purpose": "for-sale" | "for-rent" | null,
+  "buildingFloors": number or null - total floors in the building,
+  "verified": boolean or null - whether the listing is verified,
+  "paymentPlan": { "downPaymentPercent": number, "preHandoverPercent": number, "handoverPercent": number, "postHandoverPercent": number } or null
 }
 
 IMPORTANT RULES:
 1. For price, look for the main listing price (usually the largest AED amount near the title)
 2. Common Dubai areas: Palm Jumeirah, Dubai Marina, Downtown Dubai, Business Bay, JVC, JBR, Dubai Hills, DIFC, Bluewaters, Arabian Ranches
 3. Service charge is usually in format "AED X.XX / sqft"
-4. Look for "Built-up Area" for the actual size
+4. Look for "Built-up Area" for the actual size. "Plot" is the land area, separate from built-up.
 5. If bedrooms is not found, check for patterns like "3 Bedroom" or "3BR"
-6. DO NOT make up data - use null if information is not found`
+6. Look for developer info (e.g., Emaar, Damac, Nakheel, Meraas, Sobha, etc.)
+7. Check for completion status: "Ready", "Off-Plan", "Under Construction"
+8. Look for payment plan details: "20/80", "60/40", down payment %, installments
+9. Look for RERA permit number or DLD reference
+10. DO NOT make up data - use null if information is not found`
 
   try {
     const response = await anthropic.messages.create({
@@ -271,23 +492,46 @@ IMPORTANT RULES:
     const aiData = JSON.parse(jsonStr)
 
     // Build the property object
+    const parkingCount = typeof aiData.parking === "number"
+      ? aiData.parking
+      : aiData.amenities?.some((a: string) => a.toLowerCase().includes("parking"))
+        ? 1
+        : null
+
+    const size = typeof aiData.size === "number" && aiData.size > 0 ? aiData.size : null
+    const pricePerSqft = size && aiData.price ? Math.round(aiData.price / size) : null
+
+    const completionRaw = (aiData.completionStatus || "").toLowerCase()
+    const completionStatus: ExtractedProperty["completionStatus"] = completionRaw.includes("under")
+      ? "under_construction"
+      : completionRaw.includes("off")
+        ? "off_plan"
+        : completionRaw === "ready"
+          ? "ready"
+          : "unknown"
+
+    const purposeRaw = (aiData.purpose || "").toLowerCase()
+    const purpose: ExtractedProperty["purpose"] = purposeRaw.includes("rent")
+      ? "for-rent"
+      : purposeRaw.includes("sale")
+        ? "for-sale"
+        : null
+
     const property: ExtractedProperty = {
       source,
       listingId: propertyId,
       title: aiData.title || "Property Listing",
       price: aiData.price || 0,
-      pricePerSqft: null,
-      size: aiData.size || null,
+      pricePerSqft,
+      size,
       bedrooms: aiData.bedrooms ?? 0,
       bathrooms: aiData.bathrooms ?? 0,
       propertyType: aiData.propertyType || "Apartment",
       area: aiData.area || "Dubai",
       subArea: aiData.subArea || null,
-      address: null,
+      address: aiData.address || null,
       furnished: aiData.furnished ?? false,
-      parking: aiData.amenities?.some((a: string) => 
-        a.toLowerCase().includes('parking')
-      ) ? 1 : null,
+      parking: parkingCount,
       amenities: aiData.amenities || [],
       description: aiData.description || null,
       images: [],
@@ -296,14 +540,20 @@ IMPORTANT RULES:
       listingUrl: url,
       listedDate: null,
       coordinates: null,
+      completionStatus,
       developer: aiData.developer || null,
+      handoverDate: aiData.handoverDate || null,
       serviceCharge: aiData.serviceCharge || null,
       rentalPotential: aiData.averageRent || null,
-    }
-
-    // Calculate price per sqft
-    if (property.price && property.size && property.size > 0) {
-      property.pricePerSqft = Math.round(property.price / property.size)
+      referenceNumber: aiData.referenceNumber || null,
+      permitNumber: aiData.permitNumber || null,
+      purpose,
+      buildingName: aiData.buildingName || null,
+      buildingFloors: typeof aiData.buildingFloors === "number" ? aiData.buildingFloors : null,
+      totalParkingSpaces: typeof aiData.parking === "number" ? aiData.parking : null,
+      verified: typeof aiData.verified === "boolean" ? aiData.verified : null,
+      plotSize: typeof aiData.plotSize === "number" && aiData.plotSize > 0 ? aiData.plotSize : null,
+      paymentPlan: aiData.paymentPlan || null,
     }
 
     console.log(`[Claude] Extracted: ${property.title} - AED ${property.price?.toLocaleString()} - ${property.area}`)

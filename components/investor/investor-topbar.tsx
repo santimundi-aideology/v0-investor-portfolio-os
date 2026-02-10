@@ -121,7 +121,12 @@ export function InvestorTopbar({
     </Button>
   )
 
-  const initials = investorName
+  const safeInvestorName =
+    typeof investorName === "string" && investorName.trim().length > 0
+      ? investorName
+      : "Investor"
+
+  const initials = safeInvestorName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -168,7 +173,7 @@ export function InvestorTopbar({
         ) : (
           <div className="hidden sm:flex flex-col">
             <span className="text-sm font-semibold text-foreground leading-tight">
-              {investorName}
+              {safeInvestorName}
             </span>
             <span className="text-xs text-gray-500">
               {companyName}
@@ -255,7 +260,7 @@ export function InvestorTopbar({
               className="relative h-9 w-9 rounded-full ml-1"
             >
               <Avatar className="h-9 w-9 ring-2 ring-gray-200 hover:ring-green-300 transition-all">
-                <AvatarImage src={investorAvatar || "/placeholder.svg"} alt={investorName} />
+                <AvatarImage src={investorAvatar || "/placeholder.svg"} alt={safeInvestorName} />
                 <AvatarFallback className="bg-green-50 text-green-600 font-semibold">
                   {initials}
                 </AvatarFallback>
@@ -269,7 +274,7 @@ export function InvestorTopbar({
                   <User2 className="size-5 text-green-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{investorName}</p>
+                  <p className="truncate text-sm font-semibold">{safeInvestorName}</p>
                   <p className="truncate text-xs text-gray-500">{companyName}</p>
                 </div>
               </div>

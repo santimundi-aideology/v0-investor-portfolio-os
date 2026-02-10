@@ -80,17 +80,42 @@ export async function POST(req: Request) {
       )
     }
 
+    // The AI evaluation may return memo-specific content under "memoContent" or
+    // the full rich analysis under "analysis". Handle both gracefully.
+    const mc = (evaluation as Record<string, unknown>).memoContent as Record<string, unknown> | undefined
+    const analysis = (evaluation as Record<string, unknown>).analysis as Record<string, unknown> | undefined
+    const pricing = analysis?.pricing as Record<string, unknown> | undefined
+    const fa = mc?.financialAnalysis as Record<string, unknown> | undefined
+
     // Build memo content from evaluation
     const memoContent = {
       // Executive summary
-      execSummary: evaluation.memoContent.execSummary,
+      execSummary: mc?.execSummary ?? analysis?.summary ?? evaluation.headline,
 
-      // Source tracking
+      // Source tracking (includes all extracted property fields for PDF generation)
       source: {
         portal: property.source,
         listingId: property.listingId,
         listingUrl: property.listingUrl,
+        coordinates:
+          (property as unknown as { coordinates?: { lat?: number; lng?: number } | null }).coordinates ?? null,
         extractedAt: new Date().toISOString(),
+        // Extended fields persisted for downstream use (PDF export, memo detail)
+        completionStatus: (property as Record<string, unknown>).completionStatus ?? null,
+        developer: (property as Record<string, unknown>).developer ?? null,
+        handoverDate: (property as Record<string, unknown>).handoverDate ?? null,
+        buildingName: (property as Record<string, unknown>).buildingName ?? null,
+        buildingFloors: (property as Record<string, unknown>).buildingFloors ?? null,
+        totalParkingSpaces: (property as Record<string, unknown>).totalParkingSpaces ?? null,
+        parking: (property as Record<string, unknown>).parking ?? null,
+        furnished: (property as Record<string, unknown>).furnished ?? false,
+        serviceCharge: (property as Record<string, unknown>).serviceCharge ?? null,
+        referenceNumber: (property as Record<string, unknown>).referenceNumber ?? null,
+        permitNumber: (property as Record<string, unknown>).permitNumber ?? null,
+        verified: (property as Record<string, unknown>).verified ?? false,
+        plotSize: (property as Record<string, unknown>).plotSize ?? null,
+        paymentPlan: (property as Record<string, unknown>).paymentPlan ?? null,
+        purpose: (property as Record<string, unknown>).purpose ?? null,
       },
 
       // Property details
@@ -102,7 +127,7 @@ export async function POST(req: Request) {
         size: property.size,
         bedrooms: property.bedrooms,
         bathrooms: property.bathrooms,
-        images: property.images.slice(0, 5),
+        images: property.images.slice(0, 10),
       },
 
       // AI Evaluation
@@ -116,32 +141,37 @@ export async function POST(req: Request) {
         recommendation: evaluation.recommendation,
       },
 
-      // Financial analysis
+      // Financial analysis - prefer memoContent.financialAnalysis, fall back to analysis.pricing
       numbers: {
-        askingPrice: evaluation.memoContent.financialAnalysis.askingPrice,
-        pricePerSqft: evaluation.memoContent.financialAnalysis.pricePerSqft,
-        estimatedMonthlyRent: evaluation.memoContent.financialAnalysis.estimatedRent,
-        grossYield: evaluation.memoContent.financialAnalysis.grossYield,
-        netYield: evaluation.memoContent.financialAnalysis.netYield,
-        priceVsMarket: evaluation.memoContent.financialAnalysis.priceVsMarket,
+        askingPrice: fa?.askingPrice ?? pricing?.askingPrice ?? property.price,
+        pricePerSqft: fa?.pricePerSqft ?? pricing?.pricePerSqft ?? property.pricePerSqft,
+        estimatedMonthlyRent: fa?.estimatedRent ?? (pricing?.rentCurrent ? Number(pricing.rentCurrent) / 12 : null),
+        grossYield: fa?.grossYield ?? null,
+        netYield: fa?.netYield ?? null,
+        priceVsMarket: fa?.priceVsMarket ?? null,
       },
 
-      // Analysis sections
-      propertyOverview: evaluation.memoContent.propertyOverview,
-      marketAnalysis: evaluation.memoContent.marketAnalysis,
+      // Analysis sections - prefer memoContent fields, fall back to analysis fields
+      propertyOverview: mc?.propertyOverview ?? (analysis?.property as Record<string, unknown>)?.description ?? null,
+      marketAnalysis: mc?.marketAnalysis ?? (analysis?.market as Record<string, unknown>)?.overview ?? null,
 
       // Risks and opportunities
-      risks: evaluation.memoContent.risks,
-      opportunities: evaluation.memoContent.opportunities,
+      risks: mc?.risks ?? (analysis?.risks as unknown[])?.map((r: unknown) =>
+        typeof r === "string" ? r : (r as Record<string, string>)?.risk
+      ) ?? [],
+      opportunities: mc?.opportunities ?? [],
 
       // Assumptions and evidence
-      assumptions: evaluation.memoContent.assumptions,
+      assumptions: mc?.assumptions ?? [],
 
       // Recommendation
-      recommendation: evaluation.memoContent.recommendation,
+      recommendation: mc?.recommendation ?? analysis?.investmentThesis ?? evaluation.recommendation,
 
       // Notes from realtor
       realtorNotes: notes || null,
+
+      // Full analysis (preserve for memo detail view)
+      analysis: analysis ?? null,
 
       // Metadata
       generatedBy: "property-intake-ai",
@@ -149,13 +179,14 @@ export async function POST(req: Request) {
     }
 
     // Create the memo
-    // Note: If no investorId provided, we create a "general" memo that can be assigned later
+    // If no investorId provided, create an unassigned memo that can be assigned later
     const memo = await createMemo({
-      investorId: investorId || "unassigned",
+      investorId: investorId || null,
       listingId: property.listingId || undefined,
       underwritingId: undefined,
       content: memoContent,
       createdBy: ctx.userId,
+      tenantId: ctx.tenantId ?? undefined,
     })
 
     // Audit logging

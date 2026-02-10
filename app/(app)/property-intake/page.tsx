@@ -13,8 +13,6 @@ import {
   Loader2,
   MapPin,
   Sparkles,
-  TrendingDown,
-  TrendingUp,
   Upload,
 } from "lucide-react"
 
@@ -33,9 +31,10 @@ import { PropertyAIChat } from "@/components/ai/property-ai-chat"
 import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
 import { PriceComparisonChart } from "@/components/charts/price-comparison-chart"
 import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
-import type { Investor } from "@/lib/types"
+import type { Investor, OffPlanProject, OffPlanUnit, OffPlanPaymentPlan, OffPlanEvaluationResult } from "@/lib/types"
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
 import { useAPI } from "@/lib/hooks/use-api"
+import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
 
 // CMA and Off-Plan components
 import { CMAPanel } from "@/components/property-intake/cma-panel"
@@ -65,6 +64,7 @@ import {
   saveOffplanMemo,
   resetOffplan,
 } from "@/lib/property-intake-store"
+import type { ExtractedProperty, EvaluationResult } from "@/lib/property-intake-store"
 
 const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
@@ -90,6 +90,48 @@ function formatPerSqft(value?: number) {
 function formatPercent(value?: number) {
   if (typeof value !== "number") return "—"
   return percentFormatter.format(value)
+}
+
+function buildStaticMapUrl(
+  coords?: { lat: number; lng: number } | null,
+  locationLabel?: string,
+) {
+  const lat = coords?.lat
+  const lng = coords?.lng
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
+  const label = (locationLabel || "Property location").slice(0, 80)
+  const coordText = hasCoords
+    ? `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`
+    : "Coordinates unavailable"
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="420" viewBox="0 0 800 420">
+  <rect width="800" height="420" fill="#f8fafc"/>
+  <g stroke="#e2e8f0" stroke-width="1">
+    <line x1="0" y1="70" x2="800" y2="70"/>
+    <line x1="0" y1="140" x2="800" y2="140"/>
+    <line x1="0" y1="210" x2="800" y2="210"/>
+    <line x1="0" y1="280" x2="800" y2="280"/>
+    <line x1="0" y1="350" x2="800" y2="350"/>
+    <line x1="130" y1="0" x2="130" y2="420"/>
+    <line x1="260" y1="0" x2="260" y2="420"/>
+    <line x1="390" y1="0" x2="390" y2="420"/>
+    <line x1="520" y1="0" x2="520" y2="420"/>
+    <line x1="650" y1="0" x2="650" y2="420"/>
+  </g>
+  <path d="M40 300 C170 240, 260 250, 390 200 S620 170, 760 130" stroke="#cbd5e1" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M80 110 C180 130, 270 120, 360 150 S560 230, 720 260" stroke="#dbeafe" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <g transform="translate(400,210)">
+    <path d="M0 -26 C10 -26 18 -18 18 -8 C18 5 8 17 0 30 C-8 17 -18 5 -18 -8 C-18 -18 -10 -26 0 -26 Z" fill="#ef4444"/>
+    <circle cx="0" cy="-8" r="6" fill="#ffffff"/>
+  </g>
+  <rect x="24" y="24" width="430" height="42" rx="8" fill="#ffffff" opacity="0.96"/>
+  <text x="42" y="50" font-size="22" font-family="Helvetica" fill="#0f172a">${label}</text>
+  <rect x="24" y="360" width="280" height="34" rx="7" fill="#ffffff" opacity="0.96"/>
+  <text x="42" y="383" font-size="16" font-family="Helvetica" fill="#334155">${coordText}</text>
+</svg>`
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 export default function PropertyIntakePage() {
@@ -154,7 +196,23 @@ function PropertyIntakeContent() {
   }
 
   const analysis = evaluation?.analysis
-
+  const growth = analysis?.growth
+  const portalReportPayload = React.useMemo(
+    () => (property && evaluation ? buildPortalIntakeReportPayload(property, evaluation) : undefined),
+    [property, evaluation],
+  )
+  const offplanReportPayload = React.useMemo(
+    () =>
+      offplanProject && selectedOffplanUnits[0] && offplanPaymentPlan && offplanEvaluation
+        ? buildOffplanIntakeReportPayload(
+            offplanProject,
+            selectedOffplanUnits[0],
+            offplanPaymentPlan,
+            offplanEvaluation,
+          )
+        : undefined,
+    [offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits],
+  )
   // Determine if we should show reset button
   const showPortalReset = step !== "input" && step !== "saved"
   const showOffplanReset = offplanStep !== "upload" && offplanStep !== "saved"
@@ -168,14 +226,22 @@ function PropertyIntakeContent() {
           (activeTab === "portal" && showPortalReset) ? (
             <div className="flex items-center gap-2">
               {(step === "evaluated" || step === "saving") && property && (
-                <MemoPdfExport title={property.title} />
+                <MemoPdfExport
+                  title={property.title}
+                  memoId={savedMemoId || undefined}
+                  intakeReportPayload={portalReportPayload}
+                />
               )}
               <Button variant="outline" onClick={resetPortal}>Start Over</Button>
             </div>
           ) : (activeTab === "offplan" && showOffplanReset) ? (
             <div className="flex items-center gap-2">
               {(offplanStep === "evaluated" || offplanStep === "saving") && offplanProject && selectedOffplanUnits[0] && (
-                <MemoPdfExport title={`${offplanProject.projectName} - ${selectedOffplanUnits[0].unitNumber}`} />
+                <MemoPdfExport
+                  title={`${offplanProject.projectName} - ${selectedOffplanUnits[0].unitNumber}`}
+                  memoId={offplanSavedMemoId || undefined}
+                  intakeReportPayload={offplanReportPayload}
+                />
               )}
               <Button variant="outline" onClick={resetOffplan}>Start Over</Button>
             </div>
@@ -184,7 +250,7 @@ function PropertyIntakeContent() {
       />
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "portal" | "offplan")} className="space-y-6">
+      <Tabs id="property-intake-tabs" value={activeTab} onValueChange={(v) => setActiveTab(v as "portal" | "offplan")} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="portal" className="flex items-center gap-2">
             <ExternalLink className="h-4 w-4" />
@@ -312,7 +378,70 @@ function PropertyIntakeContent() {
                   <div><span className="text-gray-500">Type</span><div className="font-semibold">{property.propertyType}</div></div>
                   <div><span className="text-gray-500">Bedrooms</span><div className="font-semibold">{property.bedrooms}</div></div>
                   <div><span className="text-gray-500">Bathrooms</span><div className="font-semibold">{property.bathrooms}</div></div>
+                  {property.furnished && (
+                    <div><span className="text-gray-500">Furnished</span><div className="font-semibold">Yes</div></div>
+                  )}
+                  {property.parking != null && property.parking > 0 && (
+                    <div><span className="text-gray-500">Parking</span><div className="font-semibold">{property.parking} {property.parking === 1 ? "space" : "spaces"}</div></div>
+                  )}
+                  {property.totalParkingSpaces != null && property.totalParkingSpaces > 0 && (
+                    <div><span className="text-gray-500">Building Parking</span><div className="font-semibold">{property.totalParkingSpaces} total</div></div>
+                  )}
+                  {property.completionStatus && property.completionStatus !== "unknown" && (
+                    <div><span className="text-gray-500">Status</span><div className="font-semibold capitalize">{property.completionStatus.replace(/_/g, " ")}</div></div>
+                  )}
+                  {property.developer && (
+                    <div><span className="text-gray-500">Developer</span><div className="font-semibold">{property.developer}</div></div>
+                  )}
+                  {property.handoverDate && (
+                    <div><span className="text-gray-500">Handover</span><div className="font-semibold">{property.handoverDate}</div></div>
+                  )}
+                  {property.buildingName && (
+                    <div><span className="text-gray-500">Building</span><div className="font-semibold">{property.buildingName}</div></div>
+                  )}
+                  {property.buildingFloors && (
+                    <div><span className="text-gray-500">Building Floors</span><div className="font-semibold">{property.buildingFloors}</div></div>
+                  )}
+                  {property.plotSize && (
+                    <div><span className="text-gray-500">Plot Size</span><div className="font-semibold">{property.plotSize.toLocaleString()} sqft</div></div>
+                  )}
+                  {property.serviceCharge != null && property.serviceCharge > 0 && (
+                    <div><span className="text-gray-500">Service Charge</span><div className="font-semibold">AED {property.serviceCharge}/sqft</div></div>
+                  )}
+                  {property.referenceNumber && (
+                    <div><span className="text-gray-500">Reference</span><div className="font-semibold">{property.referenceNumber}</div></div>
+                  )}
+                  {property.permitNumber && (
+                    <div><span className="text-gray-500">Permit No.</span><div className="font-semibold text-xs">{property.permitNumber}</div></div>
+                  )}
+                  {property.verified && (
+                    <div><span className="text-gray-500">Verified</span><div className="font-semibold text-green-600">Yes{property.verifiedDate ? ` (${property.verifiedDate})` : ""}</div></div>
+                  )}
                 </div>
+                {property.amenities.length > 0 && (
+                  <div className="text-sm">
+                    <span className="text-gray-500">Amenities</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {property.amenities.slice(0, 12).map((a, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{a}</Badge>
+                      ))}
+                      {property.amenities.length > 12 && (
+                        <Badge variant="secondary" className="text-xs">+{property.amenities.length - 12} more</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {property.paymentPlan && (
+                  <div className="text-sm">
+                    <span className="text-gray-500">Payment Plan</span>
+                    <div className="flex gap-3 mt-1 text-xs">
+                      {property.paymentPlan.downPaymentPercent != null && <span className="font-medium">{property.paymentPlan.downPaymentPercent}% Down</span>}
+                      {property.paymentPlan.preHandoverPercent != null && <span className="font-medium">{property.paymentPlan.preHandoverPercent}% Pre-Handover</span>}
+                      {property.paymentPlan.handoverPercent != null && <span className="font-medium">{property.paymentPlan.handoverPercent}% Handover</span>}
+                      {property.paymentPlan.postHandoverPercent != null && <span className="font-medium">{property.paymentPlan.postHandoverPercent}% Post-Handover</span>}
+                    </div>
+                  </div>
+                )}
                 {property.listingUrl && (
                   <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
                     View on {property.source}<ExternalLink className="h-3 w-3" />
@@ -368,36 +497,14 @@ function PropertyIntakeContent() {
         <div className="space-y-6">
           {/* Header with Score */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold">{property.title}</h2>
+                <h2 className="text-2xl font-bold truncate">{property.title}</h2>
                 {getRecommendationBadge(evaluation.recommendation)}
                 <Badge variant="outline">Score: {evaluation.overallScore}/100</Badge>
               </div>
               <p className="text-gray-600">{evaluation.headline}</p>
             </div>
-            {marketContext && (
-              <div className="flex items-center gap-4 rounded-lg border bg-gray-50 p-4">
-                <div className="text-center">
-                  <div className="text-xl font-bold">{marketContext.priceVsMarket > 0 ? "+" : ""}{marketContext.priceVsMarket.toFixed(1)}%</div>
-                  <div className="text-xs text-gray-500">vs Market</div>
-                </div>
-                <Separator orientation="vertical" className="h-10" />
-                <div className="text-center">
-                  <div className="flex items-center gap-1 font-semibold">
-                    {marketContext.marketTrend === "rising" && <TrendingUp className="h-4 w-4 text-green-600" />}
-                    {marketContext.marketTrend === "declining" && <TrendingDown className="h-4 w-4 text-red-600" />}
-                    <span className="capitalize">{marketContext.marketTrend}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">Trend</div>
-                </div>
-                <Separator orientation="vertical" className="h-10" />
-                <div className="text-center">
-                  <div className="font-semibold">{marketContext.areaAverageYield}%</div>
-                  <div className="text-xs text-gray-500">Yield</div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="grid gap-6 lg:grid-cols-4">
@@ -511,6 +618,65 @@ function PropertyIntakeContent() {
                 </div>
               </AnalysisSection>
 
+              {/* Future Value Outlook */}
+              <AnalysisSection title="Future Value Outlook" description="Neighborhood-led value growth scenarios">
+                <p className="text-gray-600">
+                  {growth?.narrative ||
+                    "Future value outlook is anchored on neighborhood trend, liquidity and demand resilience. Final projections are refined as additional comp and transaction data is ingested."}
+                </p>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <StatTile
+                    label="Projected 1Y Value"
+                    value={formatCurrency(growth?.projectedValue1Y ?? Math.round(analysis.pricing.stabilizedValue * 1.04))}
+                  />
+                  <StatTile
+                    label="Projected 3Y Value"
+                    value={formatCurrency(growth?.projectedValue3Y ?? Math.round(analysis.pricing.stabilizedValue * 1.13))}
+                  />
+                  <StatTile
+                    label="Projected 5Y Value"
+                    value={formatCurrency(growth?.projectedValue5Y ?? Math.round(analysis.pricing.stabilizedValue * 1.22))}
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <StatTile
+                    label="Base Growth"
+                    value={`${(growth?.annualGrowthBase ?? 4.0).toFixed(1)}% / year`}
+                    hint="Underwriting base case"
+                  />
+                  <StatTile
+                    label="Conservative"
+                    value={`${(growth?.annualGrowthConservative ?? 2.0).toFixed(1)}% / year`}
+                    hint="Downside case"
+                  />
+                  <StatTile
+                    label="Upside"
+                    value={`${(growth?.annualGrowthUpside ?? 6.0).toFixed(1)}% / year`}
+                    hint="Upside case"
+                  />
+                </div>
+                {growth?.drivers?.length ? (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Growth drivers</p>
+                    <ul className="mt-2 space-y-2 text-sm">
+                      {growth.drivers.map((driver, idx) => (
+                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{driver}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {growth?.sensitivities?.length ? (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Key sensitivities</p>
+                    <ul className="mt-2 space-y-2 text-sm">
+                      {growth.sensitivities.map((risk, idx) => (
+                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" /><span>{risk}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </AnalysisSection>
+
               {/* Pricing & Upside */}
               <AnalysisSection title="Pricing & Upside" description="Actual vs potential value">
                 {/* Price Comparison Chart */}
@@ -518,7 +684,6 @@ function PropertyIntakeContent() {
                   <h4 className="text-sm font-medium text-gray-700 mb-3">Price Comparison</h4>
                   <PriceComparisonChart
                     askingPrice={analysis.pricing.askingPrice}
-                    marketAverage={analysis.pricing.marketAvgPricePerSqft * (property.size || 1000)}
                     recommendedOffer={analysis.pricing.recommendedOffer}
                     stabilizedValue={analysis.pricing.stabilizedValue}
                   />
@@ -530,7 +695,6 @@ function PropertyIntakeContent() {
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <StatTile label="Price / sq ft" value={formatPerSqft(analysis.pricing.pricePerSqft ?? undefined)} hint="Subject" />
-                  <StatTile label="Market avg / sq ft" value={formatPerSqft(analysis.pricing.marketAvgPricePerSqft)} hint="Recent trades" />
                   <StatTile label="Value-add budget" value={formatCurrency(analysis.pricing.valueAddBudget)} />
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
@@ -595,6 +759,40 @@ function PropertyIntakeContent() {
                 </AnalysisSection>
               </div>
 
+              {/* ROI on Equity Bridge */}
+              <AnalysisSection title="ROI on Equity Bridge" description="Levered return stack (same assumptions used in PDF)">
+                {analysis.financialAnalysis.returnBridge ? (
+                  <div className="space-y-2">
+                    {[
+                      { label: "Purchase price", value: formatCurrency(analysis.financialAnalysis.returnBridge.purchasePrice) },
+                      { label: "DLD fee", value: formatCurrency(analysis.financialAnalysis.returnBridge.dldFee) },
+                      { label: "DLD fee rate", value: `${analysis.financialAnalysis.returnBridge.dldRatePct.toFixed(1)}%` },
+                      { label: "Broker fee", value: formatCurrency(analysis.financialAnalysis.returnBridge.brokerFee) },
+                      { label: "Broker fee rate", value: `${analysis.financialAnalysis.returnBridge.brokerFeePct.toFixed(1)}%` },
+                      { label: "Renovation", value: formatCurrency(analysis.financialAnalysis.returnBridge.renovation) },
+                      { label: "Total project cost", value: formatCurrency(analysis.financialAnalysis.returnBridge.totalProjectCost) },
+                      { label: "Mortgage amount", value: formatCurrency(analysis.financialAnalysis.returnBridge.mortgageAmount) },
+                      { label: "Mortgage LTV", value: `${analysis.financialAnalysis.returnBridge.mortgageLtvPct.toFixed(1)}%` },
+                      { label: "Equity invested", value: formatCurrency(analysis.financialAnalysis.returnBridge.equityInvested) },
+                      { label: "Annual interest", value: formatCurrency(analysis.financialAnalysis.returnBridge.annualInterest) },
+                      { label: "Interest rate", value: `${analysis.financialAnalysis.returnBridge.annualInterestRatePct.toFixed(1)}%` },
+                      { label: "Resale price", value: formatCurrency(analysis.financialAnalysis.returnBridge.resalePrice) },
+                      { label: "Net sale proceeds after mortgage repayment", value: formatCurrency(analysis.financialAnalysis.returnBridge.netSaleProceedsAfterMortgage) },
+                      { label: "Net profit (after interest)", value: formatCurrency(analysis.financialAnalysis.returnBridge.netProfitAfterInterest) },
+                      { label: "ROI on equity", value: `${analysis.financialAnalysis.returnBridge.roiOnEquityPct.toFixed(1)}%` },
+                    ].map((row) => (
+                      <div key={row.label} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-md border bg-gray-50 px-3 py-2">
+                        <p className="text-sm text-gray-600">{row.label}</p>
+                        <p className="text-sm font-semibold text-gray-900">{row.value}</p>
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-500">{analysis.financialAnalysis.returnBridge.assumptions}</p>
+                  </div>
+                ) : (
+                  <p className="text-gray-600">Return bridge will be available once financing assumptions are confirmed.</p>
+                )}
+              </AnalysisSection>
+
               {/* Risks & Mitigations */}
               <AnalysisSection title="Risks & Mitigations">
                 <div className="space-y-3">
@@ -621,6 +819,44 @@ function PropertyIntakeContent() {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Investor Matching — top of sidebar */}
+              <InvestorMatchingPanel
+                property={{
+                  title: property.title,
+                  price: property.price,
+                  area: property.area,
+                  propertyType: property.propertyType,
+                  bedrooms: property.bedrooms,
+                  yieldPotential: marketContext?.areaAverageYield,
+                }}
+                investors={investors}
+                onShare={(investorIds) => {
+                  console.log("Sharing with investors:", investorIds)
+                  // TODO: Implement actual sharing
+                  alert(`IC Memo shared with ${investorIds.length} investor(s)`)
+                }}
+              />
+
+              {step !== "saved" && (
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <FileText className="h-5 w-5 text-green-600" />
+                      Save as IC Memo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Notes (optional)</Label>
+                      <Textarea id="notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={step === "saving"} />
+                    </div>
+                    <Button onClick={saveMemo} disabled={step === "saving"} className="w-full">
+                      {step === "saving" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Save to IC Memos</>}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* AI Chat Widget */}
               <PropertyAIChat
                 property={{
@@ -670,26 +906,6 @@ function PropertyIntakeContent() {
                 </Card>
               )}
 
-              {step !== "saved" && (
-                <Card className="border-green-200 bg-green-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <FileText className="h-5 w-5 text-green-600" />
-                      Save as IC Memo
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Notes (optional)</Label>
-                      <Textarea id="notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={step === "saving"} />
-                    </div>
-                    <Button onClick={saveMemo} disabled={step === "saving"} className="w-full">
-                      {step === "saving" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Save to IC Memos</>}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
               {step === "saved" && savedMemoId && (
                 <Card className="border-green-200 bg-green-50">
                   <CardContent className="py-6 text-center space-y-4">
@@ -706,29 +922,32 @@ function PropertyIntakeContent() {
                 </Card>
               )}
 
-              {/* Investor Matching */}
-              <InvestorMatchingPanel
-                property={{
-                  title: property.title,
-                  price: property.price,
-                  area: property.area,
-                  propertyType: property.propertyType,
-                  bedrooms: property.bedrooms,
-                  yieldPotential: marketContext?.areaAverageYield,
-                }}
-                investors={investors}
-                onShare={(investorIds) => {
-                  console.log("Sharing with investors:", investorIds)
-                  // TODO: Implement actual sharing
-                  alert(`IC Memo shared with ${investorIds.length} investor(s)`)
-                }}
-              />
-
               <Card>
                 <CardHeader><CardTitle className="text-base">Source</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Portal</span><span className="font-medium capitalize">{property.source}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Listing ID</span><span className="font-medium">{property.listingId || "—"}</span></div>
+                  {property.referenceNumber && (
+                    <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-medium">{property.referenceNumber}</span></div>
+                  )}
+                  {property.permitNumber && (
+                    <div className="flex justify-between"><span className="text-gray-500">Permit No.</span><span className="font-medium text-xs">{property.permitNumber}</span></div>
+                  )}
+                  {property.verified && (
+                    <div className="flex justify-between"><span className="text-gray-500">Verified</span><span className="font-medium text-green-600">Yes</span></div>
+                  )}
+                  {property.developer && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between"><span className="text-gray-500">Developer</span><span className="font-medium">{property.developer}</span></div>
+                    </>
+                  )}
+                  {property.completionStatus && property.completionStatus !== "unknown" && (
+                    <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="font-medium capitalize">{property.completionStatus.replace(/_/g, " ")}</span></div>
+                  )}
+                  {property.handoverDate && (
+                    <div className="flex justify-between"><span className="text-gray-500">Handover</span><span className="font-medium">{property.handoverDate}</span></div>
+                  )}
                   <Separator />
                   <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-600 hover:underline">
                     View Original<ExternalLink className="h-3 w-3" />
@@ -881,4 +1100,356 @@ function StatTile({ label, value, hint }: { label: string; value?: string | numb
       {hint && <p className="text-xs text-gray-500">{hint}</p>}
     </div>
   )
+}
+
+function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation: EvaluationResult): IntakeReportPayload {
+  const analysis = evaluation.analysis
+  const score = `${evaluation.overallScore}/100`
+  const recommendation = `${evaluation.recommendation} (${analysis.finalRecommendation.decision})`
+  const growth = analysis.growth
+  const rb = analysis.financialAnalysis.returnBridge
+
+  return {
+    title: `IC Opportunity Report - ${property.title}`,
+    subtitle: `${property.area}${property.subArea ? `, ${property.subArea}` : ""}`,
+    generatedAt: new Date().toISOString(),
+    score,
+    recommendation,
+    summary: `${evaluation.headline}. ${evaluation.reasoning}`,
+    coverImageUrl: property.images[0],
+    galleryImageUrls: property.images.slice(1, 4),
+    floorPlanImageUrls: property.floorPlanImages?.length ? property.floorPlanImages : undefined,
+    factors: evaluation.factors ? {
+      mandateFit: evaluation.factors.mandateFit,
+      marketTiming: evaluation.factors.marketTiming,
+      portfolioFit: evaluation.factors.portfolioFit,
+      riskAlignment: evaluation.factors.riskAlignment,
+    } : undefined,
+    mapImageUrl: buildStaticMapUrl(
+      property.coordinates,
+      `${property.area}${property.subArea ? `, ${property.subArea}` : ""}`,
+    ),
+    sections: [
+      {
+        title: "Property Snapshot",
+        keyValues: [
+          { label: "Property", value: property.title },
+          { label: "Type", value: property.propertyType },
+          { label: "Location", value: `${property.area}${property.subArea ? `, ${property.subArea}` : ""}` },
+          ...(property.agentName ? [{ label: "Realtor", value: property.agentName }] : []),
+          ...(property.agencyName ? [{ label: "Agency", value: property.agencyName }] : []),
+          ...(property.buildingName ? [{ label: "Building", value: property.buildingName }] : []),
+          { label: "Asking Price", value: formatCurrency(property.price) },
+          { label: "Price / sq ft", value: property.pricePerSqft ? formatCurrency(property.pricePerSqft) : "N/A" },
+          { label: "Size", value: property.size ? `${property.size.toLocaleString()} sq ft` : "N/A" },
+          ...(property.plotSize ? [{ label: "Plot Size", value: `${property.plotSize.toLocaleString()} sq ft` }] : []),
+          { label: "Bedrooms / Bathrooms", value: `${property.bedrooms} / ${property.bathrooms}` },
+          { label: "Furnished", value: property.furnished ? "Yes" : "No" },
+          ...(property.parking ? [{ label: "Parking", value: `${property.totalParkingSpaces ?? property.parking} space(s)` }] : []),
+          ...(property.completionStatus && property.completionStatus !== "unknown" ? [{ label: "Status", value: property.completionStatus.replace(/_/g, " ") }] : []),
+          ...(property.developer ? [{ label: "Developer", value: property.developer }] : []),
+          ...(property.handoverDate ? [{ label: "Handover", value: property.handoverDate }] : []),
+          ...(property.serviceCharge ? [{ label: "Service Charge", value: `AED ${property.serviceCharge}/sq ft` }] : []),
+          ...(property.verified ? [{ label: "Verified", value: "Yes" }] : []),
+        ],
+      },
+      {
+        title: "Executive Summary",
+        body: analysis.summary,
+        bullets: analysis.keyPoints,
+      },
+      {
+        title: "Neighborhood Analysis",
+        body: analysis.neighborhood.profile,
+        keyValues: [
+          { label: "Area", value: analysis.neighborhood.name },
+          { label: "Grade", value: analysis.neighborhood.grade },
+        ],
+        bullets: analysis.neighborhood.highlights,
+      },
+      {
+        title: "Market Analysis",
+        body: analysis.market.overview,
+        keyValues: [
+          { label: "Supply", value: analysis.market.supply },
+          { label: "Demand", value: analysis.market.demand },
+          { label: "Absorption", value: analysis.market.absorption },
+        ],
+        bullets: analysis.market.drivers,
+      },
+      {
+        title: "Pricing and Return Profile",
+        keyValues: [
+          { label: "Asking Price", value: formatCurrency(analysis.pricing.askingPrice) },
+          { label: "Recommended Offer", value: formatCurrency(analysis.pricing.recommendedOffer) },
+          { label: "Stabilized Value", value: formatCurrency(analysis.pricing.stabilizedValue) },
+          { label: "Current Rent", value: formatCurrency(analysis.pricing.rentCurrent) },
+          { label: "Potential Rent", value: formatCurrency(analysis.pricing.rentPotential) },
+          { label: "IRR", value: formatPercent(analysis.pricing.irr) },
+          {
+            label: "Equity Multiple",
+            value: typeof analysis.pricing.equityMultiple === "number" ? `${analysis.pricing.equityMultiple.toFixed(2)}x` : "N/A",
+          },
+        ],
+      },
+      {
+        title: "ROI on Equity Bridge",
+        keyValues: [
+          { label: "Purchase price", value: formatCurrency(rb?.purchasePrice ?? analysis.pricing.askingPrice) },
+          { label: "DLD fee", value: formatCurrency(rb?.dldFee ?? Math.round(analysis.pricing.askingPrice * 0.04)) },
+          { label: "DLD fee rate", value: `${(rb?.dldRatePct ?? 4).toFixed(1)}%` },
+          { label: "Broker fee", value: formatCurrency(rb?.brokerFee ?? Math.round(analysis.pricing.askingPrice * 0.02)) },
+          { label: "Broker fee rate", value: `${(rb?.brokerFeePct ?? 2).toFixed(1)}%` },
+          { label: "Renovation", value: formatCurrency(rb?.renovation ?? analysis.pricing.valueAddBudget) },
+          {
+            label: "Total project cost",
+            value: formatCurrency(
+              rb?.totalProjectCost ??
+              (analysis.pricing.askingPrice +
+                Math.round(analysis.pricing.askingPrice * 0.04) +
+                Math.round(analysis.pricing.askingPrice * 0.02) +
+                analysis.pricing.valueAddBudget),
+            ),
+          },
+          { label: "Mortgage amount", value: formatCurrency(rb?.mortgageAmount ?? Math.round(analysis.pricing.askingPrice * 0.7)) },
+          { label: "Mortgage LTV", value: `${(rb?.mortgageLtvPct ?? 70).toFixed(1)}%` },
+          {
+            label: "Equity invested",
+            value: formatCurrency(
+              rb?.equityInvested ??
+              ((analysis.pricing.askingPrice +
+                Math.round(analysis.pricing.askingPrice * 0.04) +
+                Math.round(analysis.pricing.askingPrice * 0.02) +
+                analysis.pricing.valueAddBudget) -
+                Math.round(analysis.pricing.askingPrice * 0.7)),
+            ),
+          },
+          { label: "Annual interest", value: formatCurrency(rb?.annualInterest ?? Math.round(analysis.pricing.askingPrice * 0.7 * 0.035)) },
+          { label: "Interest rate", value: `${(rb?.annualInterestRatePct ?? 3.5).toFixed(1)}%` },
+          { label: "Resale price", value: formatCurrency(rb?.resalePrice ?? (growth?.projectedValue5Y ?? analysis.pricing.stabilizedValue)) },
+          {
+            label: "Net sale proceeds after mortgage repayment",
+            value: formatCurrency(
+              rb?.netSaleProceedsAfterMortgage ??
+              ((growth?.projectedValue5Y ?? analysis.pricing.stabilizedValue) - Math.round(analysis.pricing.askingPrice * 0.7)),
+            ),
+          },
+          { label: "Net profit (after interest)", value: formatCurrency(rb?.netProfitAfterInterest ?? 0) },
+          { label: "ROI on equity", value: `${(rb?.roiOnEquityPct ?? 0).toFixed(1)}%` },
+        ],
+        bullets: rb?.assumptions ? [rb.assumptions] : undefined,
+      },
+      {
+        title: "Future Value Outlook",
+        body:
+          growth?.narrative ||
+          `${property.area} future value is underwritten from neighborhood trajectory and demand/supply balance, with a base growth path near ${(growth?.annualGrowthBase ?? 4).toFixed(1)}% per year.`,
+        keyValues: [
+          { label: "1Y Projected Value", value: formatCurrency(growth?.projectedValue1Y ?? Math.round(analysis.pricing.stabilizedValue * 1.04)) },
+          { label: "3Y Projected Value", value: formatCurrency(growth?.projectedValue3Y ?? Math.round(analysis.pricing.stabilizedValue * 1.13)) },
+          { label: "5Y Projected Value", value: formatCurrency(growth?.projectedValue5Y ?? Math.round(analysis.pricing.stabilizedValue * 1.22)) },
+          { label: "Base Growth", value: `${(growth?.annualGrowthBase ?? 4).toFixed(1)}% / year` },
+          { label: "Conservative Case", value: `${(growth?.annualGrowthConservative ?? 2).toFixed(1)}% / year` },
+          { label: "Upside Case", value: `${(growth?.annualGrowthUpside ?? 6).toFixed(1)}% / year` },
+        ],
+        bullets: [
+          ...(growth?.drivers || []),
+          ...((growth?.sensitivities || []).map((s) => `Sensitivity: ${s}`)),
+        ],
+      },
+      {
+        title: "Comparable Transactions",
+        bullets: analysis.comparables.map(
+          (comp) =>
+            `${comp.name} (${comp.distance}) - ${formatCurrency(comp.price)} | ${formatPerSqft(comp.pricePerSqft)} | ${comp.closingDate}${comp.note ? ` - ${comp.note}` : ""}`,
+        ),
+      },
+      {
+        title: "Strategy and Execution",
+        body: analysis.strategy.plan,
+        keyValues: [
+          { label: "Hold Period", value: analysis.strategy.holdPeriod },
+          { label: "Exit Strategy", value: analysis.strategy.exit },
+        ],
+        bullets: analysis.strategy.focusPoints,
+      },
+      {
+        title: "Investment Thesis",
+        body: analysis.investmentThesis,
+      },
+      {
+        title: "Risk Assessment",
+        bullets: analysis.risks.map((risk, index) => `${index + 1}. ${risk.risk} - Mitigation: ${risk.mitigation}`),
+      },
+      {
+        title: "Final Recommendation",
+        body: `${analysis.finalRecommendation.decision}: ${analysis.finalRecommendation.condition || "Proceed with standard due diligence."}`,
+        bullets: [
+          `AI recommendation: ${evaluation.recommendation}`,
+          ...evaluation.keyStrengths.map((strength) => `Strength: ${strength}`),
+          ...evaluation.considerations.map((consideration) => `Consideration: ${consideration}`),
+        ],
+      },
+    ],
+  }
+}
+
+function buildOffplanIntakeReportPayload(
+  project: OffPlanProject,
+  selectedUnit: OffPlanUnit,
+  paymentPlan: OffPlanPaymentPlan,
+  evaluation: OffPlanEvaluationResult,
+): IntakeReportPayload {
+  const memo = evaluation.memoContent
+  const baseGrowthRate = Math.max(2.5, Math.min(10, memo.financialProjections.expectedAppreciation / 5))
+  const baselineValue = memo.financialProjections.estimatedCompletionValue
+  const projected3Y = Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 3))
+  const projected5Y = Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 5))
+  const purchase = selectedUnit.totalPrice
+  const dld = Math.round(purchase * 0.04)
+  const broker = Math.round(purchase * 0.02)
+  const renovation = 0
+  const totalProjectCost = purchase + dld + broker + renovation
+  const mortgage = Math.round(purchase * 0.7)
+  const equityInvested = totalProjectCost - mortgage
+  const annualInterest = Math.round(mortgage * 0.035)
+  const netSaleProceeds = projected5Y - mortgage
+  const netProfit = netSaleProceeds - equityInvested - annualInterest * 5
+  const roiOnEquity = equityInvested > 0 ? (netProfit / equityInvested) * 100 : 0
+
+  return {
+    title: `Off-Plan IC Opportunity Report - ${project.projectName}`,
+    subtitle: `${selectedUnit.unitNumber} | ${project.location.area}`,
+    generatedAt: memo.generatedAt || new Date().toISOString(),
+    score: `${evaluation.overallScore}/100`,
+    recommendation: `${evaluation.recommendation} (${memo.recommendation.decision})`,
+    summary: `${evaluation.headline}. ${memo.projectSummary}`,
+    coverImageUrl: undefined,
+    galleryImageUrls: [],
+    mapImageUrl: undefined,
+    sections: [
+      {
+        title: "Project Snapshot",
+        keyValues: [
+          { label: "Project", value: project.projectName },
+          { label: "Developer", value: project.developer },
+          { label: "Location", value: `${project.location.area}${project.location.subArea ? `, ${project.location.subArea}` : ""}` },
+          { label: "Completion", value: project.completionDate },
+          { label: "Selected Unit", value: `${selectedUnit.unitNumber} (${selectedUnit.type})` },
+          { label: "Unit Size", value: `${selectedUnit.sizeSqft.toLocaleString()} sq ft` },
+          { label: "Price / sq ft", value: formatCurrency(selectedUnit.pricePerSqft) },
+          { label: "Unit Price", value: formatCurrency(selectedUnit.totalPrice) },
+        ],
+      },
+      {
+        title: "Project Highlights",
+        bullets: memo.projectHighlights,
+      },
+      {
+        title: "Developer Assessment",
+        body: memo.developerAssessment.trackRecordSummary,
+        keyValues: [
+          { label: "Developer Score", value: `${memo.developerAssessment.score}/100` },
+          { label: "Developer Grade", value: memo.developerAssessment.grade },
+          { label: "Financial Stability", value: memo.developerAssessment.financialStability || "N/A" },
+        ],
+        bullets: [
+          ...memo.developerAssessment.strengths.map((s) => `Strength: ${s}`),
+          ...memo.developerAssessment.concerns.map((c) => `Concern: ${c}`),
+        ],
+      },
+      {
+        title: "Location Analysis",
+        body: memo.locationAnalysis.areaProfile,
+        keyValues: [{ label: "Location Grade", value: memo.locationAnalysis.grade }],
+        bullets: [
+          ...memo.locationAnalysis.highlights,
+          ...Object.entries(memo.locationAnalysis.proximity).map(([k, v]) => `${k}: ${v}`),
+        ],
+      },
+      {
+        title: "Payment Plan Analysis",
+        body: memo.paymentPlanAnalysis.summary,
+        keyValues: [
+          { label: "During Construction", value: `${paymentPlan.constructionPercent}%` },
+          { label: "On Completion", value: `${paymentPlan.postHandoverPercent}%` },
+          { label: "DLD Fee", value: `${paymentPlan.dldFeePercent}%` },
+          { label: "Attractiveness Score", value: `${memo.paymentPlanAnalysis.attractivenessScore}/100` },
+        ],
+        bullets: memo.paymentPlanAnalysis.insights,
+      },
+      {
+        title: "Financial Projections",
+        keyValues: [
+          { label: "Purchase Price", value: formatCurrency(memo.financialProjections.purchasePrice) },
+          { label: "Completion Value", value: formatCurrency(memo.financialProjections.estimatedCompletionValue) },
+          { label: "Expected Appreciation", value: `${memo.financialProjections.expectedAppreciation.toFixed(1)}%` },
+          { label: "Expected Gain", value: formatCurrency(memo.financialProjections.expectedAppreciationAed) },
+          { label: "Estimated Annual Rent", value: formatCurrency(memo.financialProjections.estimatedAnnualRent) },
+          { label: "Gross Yield", value: `${memo.financialProjections.projectedRentalYieldGross}%` },
+          { label: "Net Yield", value: `${memo.financialProjections.projectedRentalYieldNet}%` },
+        ],
+      },
+      {
+        title: "Future Value Outlook",
+        body: `${project.location.area} (${memo.locationAnalysis.grade} grade) shows favorable long-term tendencies. Under a base case of ${baseGrowthRate.toFixed(1)}% annual growth from completion value, 5-year estimated value is ${formatCurrency(projected5Y)}.`,
+        keyValues: [
+          { label: "Value at Completion", value: formatCurrency(baselineValue) },
+          { label: "Projected Value (3Y)", value: formatCurrency(projected3Y) },
+          { label: "Projected Value (5Y)", value: formatCurrency(projected5Y) },
+          { label: "Base Growth Rate", value: `${baseGrowthRate.toFixed(1)}% / year` },
+        ],
+        bullets: [
+          ...memo.locationAnalysis.highlights.slice(0, 3),
+          ...memo.keyStrengths.slice(0, 2),
+        ],
+      },
+      {
+        title: "ROI on Equity Bridge",
+        keyValues: [
+          { label: "Purchase price", value: formatCurrency(purchase) },
+          { label: "DLD fee", value: formatCurrency(dld) },
+          { label: "DLD fee rate", value: `${paymentPlan.dldFeePercent.toFixed(1)}%` },
+          { label: "Broker fee", value: formatCurrency(broker) },
+          { label: "Broker fee rate", value: "2.0%" },
+          { label: "Renovation", value: formatCurrency(renovation) },
+          { label: "Total project cost", value: formatCurrency(totalProjectCost) },
+          { label: "Mortgage amount", value: formatCurrency(mortgage) },
+          { label: "Mortgage LTV", value: "70.0%" },
+          { label: "Equity invested", value: formatCurrency(equityInvested) },
+          { label: "Annual interest", value: formatCurrency(annualInterest) },
+          { label: "Interest rate", value: "3.5%" },
+          { label: "Resale price", value: formatCurrency(projected5Y) },
+          { label: "Net sale proceeds after mortgage repayment", value: formatCurrency(netSaleProceeds) },
+          { label: "Net profit (after interest)", value: formatCurrency(netProfit) },
+          { label: "ROI on equity", value: `${roiOnEquity.toFixed(1)}%` },
+        ],
+        bullets: ["Assumes 70% LTV, 3.5% annual interest, and 5-year hold period."],
+      },
+      {
+        title: "Market Comparables",
+        bullets: memo.marketComparables.map(
+          (comp) =>
+            `${comp.project} (${comp.completionStatus}) - ${formatCurrency(comp.pricePerSqft)} / sq ft${comp.note ? ` - ${comp.note}` : ""}`,
+        ),
+      },
+      {
+        title: "Risk Assessment",
+        body: `Overall risk level: ${memo.overallRiskLevel.toUpperCase()}`,
+        bullets: memo.riskAssessment.map((risk) => `${risk.category} (${risk.level}): ${risk.description} | Mitigation: ${risk.mitigation}`),
+      },
+      {
+        title: "Investment Thesis and Recommendation",
+        body: memo.investmentThesis,
+        bullets: [
+          ...memo.keyStrengths.map((strength) => `Strength: ${strength}`),
+          ...memo.keyConsiderations.map((consideration) => `Consideration: ${consideration}`),
+          `Recommendation: ${memo.recommendation.decision}`,
+          memo.recommendation.reasoning,
+          ...(memo.recommendation.conditions || []),
+          ...(memo.recommendation.suggestedNegotiationPoints || []),
+        ],
+      },
+    ],
+  }
 }

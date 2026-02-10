@@ -15,8 +15,7 @@ export type Notification = {
 }
 
 export const orgs: Org[] = [
-  { id: "org-1", name: "Palm & Partners Realty", avatarText: "PP", plan: "pro" },
-  { id: "org-2", name: "Marina Capital Advisors", avatarText: "MC", plan: "enterprise" },
+  { id: "org-1", name: "Palm & Partners Realty", avatarText: "P&", plan: "pro" },
 ]
 
 export const defaultOrgId = orgs[0]?.id ?? "org-1"

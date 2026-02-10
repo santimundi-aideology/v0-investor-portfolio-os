@@ -10,14 +10,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
 
 interface MemoPdfExportProps {
   memoId?: string
   title: string
+  intakeReportPayload?: IntakeReportPayload
   onExport?: () => void
 }
 
-export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
+export function MemoPdfExport({ memoId, title, intakeReportPayload, onExport }: MemoPdfExportProps) {
   const [isExporting, setIsExporting] = React.useState(false)
 
   const handlePrint = () => {
@@ -85,18 +87,23 @@ export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
   }
 
   const handleDownloadPdf = async () => {
-    if (!memoId) {
-      handlePrint() // Fallback to print if no memoId
-      return
-    }
-
     setIsExporting(true)
     
     try {
-      // Use server-side PDF generation
-      const response = await fetch(`/api/memos/${memoId}/export-pdf`)
+      const response = memoId
+        ? await fetch(`/api/memos/${memoId}/export-pdf`)
+        : intakeReportPayload
+          ? await fetch("/api/property-intake/export-pdf", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                payload: intakeReportPayload,
+                fileName: `${title}_IC_Memo`,
+              }),
+            })
+          : null
       
-      if (!response.ok) {
+      if (!response || !response.ok) {
         throw new Error("Failed to generate PDF")
       }
 
@@ -114,8 +121,6 @@ export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
       onExport?.()
     } catch (error) {
       console.error("PDF export error:", error)
-      // Fallback to print
-      handlePrint()
     } finally {
       setIsExporting(false)
     }
@@ -138,10 +143,12 @@ export function MemoPdfExport({ memoId, title, onExport }: MemoPdfExportProps) {
           <Download className="mr-2 h-4 w-4" />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handlePrint}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
-        </DropdownMenuItem>
+        {!intakeReportPayload ? (
+          <DropdownMenuItem onClick={handlePrint}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )

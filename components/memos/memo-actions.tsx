@@ -45,90 +45,35 @@ export function MemoActions({ memo, property }: MemoActionsProps) {
   }
 
   const handleDownloadPDF = () => {
-    setDownloading(true)
-    try {
-      const printWindow = window.open("", "_blank", "width=900,height=1200")
-      if (!printWindow) throw new Error("Pop-up blocked")
+    void (async () => {
+      setDownloading(true)
+      try {
+        const response = await fetch(`/api/memos/${memo.id}/export-pdf`)
+        if (!response.ok) {
+          throw new Error("Failed to generate PDF")
+        }
 
-      const safeTitle = memo.title || "IC Memo"
-      const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-      const htmlContent = markdownToHtml(memo.content || "")
-      const analysisBlocks = buildAnalysisBlocks(memo)
-      const photoBlocks = buildPhotoBlocks(property)
-      const html = `<html><head><title>${safeTitle}</title>
-        <style>
-          :root {
-            --brand: #0f172a;
-            --accent: #0ea5e9;
-            --muted: #e2e8f0;
-          }
-          * { box-sizing: border-box; }
-          body { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 48px; line-height: 1.6; color: #0f172a; background: #f8fafc; }
-          .cover { display: grid; gap: 12px; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: linear-gradient(135deg, rgba(14,165,233,0.08), rgba(79,70,229,0.06)); }
-          .brand { display:flex; align-items:center; justify-content:space-between; }
-          .pill { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:#0ea5e910; color:#0ea5e9; font-weight:600; }
-          h1 { margin: 0; font-size: 26px; }
-          h2 { margin: 12px 0 6px; font-size: 18px; }
-          h3 { margin: 10px 0 4px; font-size: 16px; }
-          .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-          .card { padding:16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
-          .muted { color:#475569; font-size: 13px; }
-          .content { margin-top:24px; padding:20px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
-          p { margin: 0 0 10px; }
-          ul { margin: 0 0 10px 16px; padding: 0; }
-          figure { margin: 18px 0; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
-          figure img { max-width: 100%; border-radius: 10px; }
-          figure figcaption { margin-top: 6px; font-size: 12px; color: #475569; }
-        </style>
-        </head><body>
-          <div class="cover">
-            <div class="brand">
-              <div>
-                <div class="pill">Vantage • IC Memo</div>
-                <h1>${safeTitle}</h1>
-                <div class="muted">${memo.propertyTitle}</div>
-              </div>
-              <div class="muted">${today}</div>
-            </div>
-            <div class="grid">
-              <div class="card">
-                <h3>Investor</h3>
-                <div class="muted">${memo.investorName}</div>
-              </div>
-              <div class="card">
-                <h3>Property</h3>
-                <div class="muted">${memo.propertyTitle}</div>
-              </div>
-              <div class="card">
-                <h3>Status</h3>
-                <div class="muted" style="text-transform:capitalize">${memo.status}</div>
-              </div>
-            </div>
-          </div>
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `${(memo.title || "IC_Memo").replace(/[^a-z0-9]/gi, "_")}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
 
-          <div class="content">
-            ${htmlContent}
-          </div>
-          ${analysisBlocks}
-          ${photoBlocks}
-        </body></html>`
-
-      printWindow.document.open()
-      printWindow.document.write(html)
-      printWindow.document.close()
-      printWindow.focus()
-      printWindow.print()
-
-      toast.success("Print dialog opened", {
-        description: 'Select "Save as PDF" to download the memo.',
-      })
-    } catch (err) {
-      toast.error("Could not open download dialog", {
-        description: (err as Error)?.message ?? "Try allowing pop-ups for this site.",
-      })
-    } finally {
-      setDownloading(false)
-    }
+        toast.success("PDF downloaded", {
+          description: "The IC memo has been exported with full detail.",
+        })
+      } catch (err) {
+        toast.error("Could not download PDF", {
+          description: (err as Error)?.message ?? "Please try again.",
+        })
+      } finally {
+        setDownloading(false)
+      }
+    })()
   }
 
   const handleDownloadWord = () => {
@@ -421,7 +366,6 @@ function buildAnalysisBlocks(memo: Memo) {
         `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
           ${pricingRow("Asking price", currency(a.pricing.askingPrice))}
           ${pricingRow("Price / sqft", currency(a.pricing.pricePerSqft))}
-          ${pricingRow("Market avg / sqft", a.pricing.marketAvgPricePerSqft ? currency(a.pricing.marketAvgPricePerSqft) : "")}
           ${pricingRow("Recommended offer", currency(a.pricing.recommendedOffer))}
           ${pricingRow("Value-add budget", a.pricing.valueAddBudget ? currency(a.pricing.valueAddBudget) : "")}
           ${pricingRow("Stabilized value", a.pricing.stabilizedValue ? currency(a.pricing.stabilizedValue) : "")}

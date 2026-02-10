@@ -20,7 +20,7 @@ export async function GET(req: Request) {
       tenants: {
         id: string; name: string; plan: string; type: string | null;
         logo_url: string | null; domain: string | null; contact_email: string | null;
-        is_active: boolean | null; created_at: string; created_by: string | null;
+        is_active: boolean | null; is_demo: boolean | null; created_at: string; created_by: string | null;
       }[]
     ) {
       if (tenants.length === 0) return tenants
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       // Super admins see all tenants
       let query = supabase
         .from("tenants")
-        .select("id, name, plan, type, logo_url, domain, contact_email, is_active, created_at, created_by")
+        .select("id, name, plan, type, logo_url, domain, contact_email, is_active, is_demo, created_at, created_by")
         .order("name")
 
       if (activeOnly) {
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
     // Non-super_admin: get tenants through user_tenant_access + primary tenant
     const { data: accessRecords, error: accessError } = await supabase
       .from("user_tenant_access")
-      .select("tenant_id, role, tenants(id, name, plan, type, logo_url, domain, contact_email, is_active, created_at, created_by)")
+      .select("tenant_id, role, tenants(id, name, plan, type, logo_url, domain, contact_email, is_active, is_demo, created_at, created_by)")
       .eq("user_id", ctx.userId)
 
     if (accessError) {
@@ -76,7 +76,7 @@ export async function GET(req: Request) {
     type TenantRow = {
       id: string; name: string; plan: string; type: string | null;
       logo_url: string | null; domain: string | null; contact_email: string | null;
-      is_active: boolean | null; created_at: string; created_by: string | null;
+      is_active: boolean | null; is_demo: boolean | null; created_at: string; created_by: string | null;
     }
 
     // Also include the user's primary tenant (from users table)
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
     if (ctx.tenantId && !tenantIds.has(ctx.tenantId)) {
       const { data: primaryTenant } = await supabase
         .from("tenants")
-        .select("id, name, plan, type, logo_url, domain, contact_email, is_active, created_at, created_by")
+        .select("id, name, plan, type, logo_url, domain, contact_email, is_active, is_demo, created_at, created_by")
         .eq("id", ctx.tenantId)
         .single()
 
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
     const { data: tenant, error } = await supabase
       .from("tenants")
       .insert(insertData)
-      .select("id, name, plan, type, logo_url, domain, contact_email, is_active, created_at, created_by")
+      .select("id, name, plan, type, logo_url, domain, contact_email, is_active, is_demo, created_at, created_by")
       .single()
 
     if (error) {

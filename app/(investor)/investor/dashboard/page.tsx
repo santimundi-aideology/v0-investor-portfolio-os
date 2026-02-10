@@ -120,6 +120,10 @@ export default function InvestorDashboardPage() {
     scopedInvestorId ? `/api/investors/${scopedInvestorId}` : null
   )
   const investorName = investor?.name ?? "Investor"
+  const investorFirstName =
+    typeof investorName === "string" && investorName.trim().length > 0
+      ? investorName.trim().split(/\s+/)[0]
+      : "Investor"
 
   // Fetch portfolio
   const { data: portfolioData, isLoading: portfolioLoading } = useAPI<{
@@ -376,7 +380,7 @@ export default function InvestorDashboardPage() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
-                  Welcome back, {investorName.split(" ")[0]}
+                  Welcome back, {investorFirstName}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-500 truncate sm:whitespace-normal">
                   {summary.propertyCount} properties • {formatAED(summary.totalValue)}

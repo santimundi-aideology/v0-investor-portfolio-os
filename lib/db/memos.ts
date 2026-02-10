@@ -4,7 +4,7 @@ import type { MemoData, MemoVersion, MemoContent } from "@/lib/ai/memo-context"
 type MemoRow = {
   id: string
   tenant_id: string
-  investor_id: string
+  investor_id: string | null
   listing_id: string | null
   underwriting_id: string | null
   state: string

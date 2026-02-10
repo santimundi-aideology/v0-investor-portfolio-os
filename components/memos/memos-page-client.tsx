@@ -31,6 +31,26 @@ function getStatusVariant(status: string) {
   }
 }
 
+function normalizeStatus(rawStatus: unknown, rawState: unknown): Memo["status"] {
+  if (rawStatus === "draft" || rawStatus === "review" || rawStatus === "approved" || rawStatus === "sent") {
+    return rawStatus
+  }
+  switch (rawState) {
+    case "draft":
+      return "draft"
+    case "pending_review":
+      return "review"
+    case "ready":
+      return "approved"
+    case "sent":
+    case "opened":
+    case "decided":
+      return "sent"
+    default:
+      return "draft"
+  }
+}
+
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-AE", {
     day: "numeric",
@@ -55,11 +75,45 @@ export function MemosPageClient() {
   }, [listings])
 
   const visible = React.useMemo(() => {
-    const memos = allMemos ?? []
+    const memos = (allMemos ?? []).map((m) => {
+      const raw = m as unknown as Record<string, unknown>
+      const propertyId =
+        (typeof raw.propertyId === "string" && raw.propertyId) ||
+        (typeof raw.listingId === "string" && raw.listingId) ||
+        (typeof raw.listing_id === "string" && raw.listing_id) ||
+        ""
+
+      const property = propertyId ? propertiesMap.get(propertyId) : undefined
+
+      return {
+        ...m,
+        investorId:
+          (typeof raw.investorId === "string" && raw.investorId) ||
+          (typeof raw.investor_id === "string" && raw.investor_id) ||
+          "",
+        investorName:
+          (typeof raw.investorName === "string" && raw.investorName) ||
+          "Investor",
+        propertyId,
+        propertyTitle:
+          (typeof raw.propertyTitle === "string" && raw.propertyTitle) ||
+          property?.title ||
+          "Property",
+        title:
+          (typeof raw.title === "string" && raw.title.trim()) ||
+          (property?.title ? `IC Memo: ${property.title}` : "Investment Committee Memo"),
+        status: normalizeStatus(raw.status, raw.state),
+        updatedAt:
+          (typeof raw.updatedAt === "string" && raw.updatedAt) ||
+          (typeof raw.updated_at === "string" && raw.updated_at) ||
+          new Date().toISOString(),
+      } as Memo
+    })
+
     return role === "investor" && scopedInvestorId
       ? memos.filter((m) => m.investorId === scopedInvestorId)
       : memos
-  }, [allMemos, role, scopedInvestorId])
+  }, [allMemos, role, scopedInvestorId, propertiesMap])
 
   const isLoading = memosLoading || listingsLoading
 

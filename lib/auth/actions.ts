@@ -1,6 +1,7 @@
 "use server"
 
 import { createSupabaseServerClient } from "./server"
+import { getSupabaseAdminClient } from "@/lib/db/client"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
@@ -145,6 +146,39 @@ export async function updatePassword(formData: FormData): Promise<AuthResult> {
 
   revalidatePath("/", "layout")
   return { success: true, message: "Password updated successfully" }
+}
+
+/**
+ * Resolves the correct redirect path after password setup/reset based on user role.
+ * - super_admin (no tenant) → /admin
+ * - investor → /investor/dashboard
+ * - everyone else → /dashboard
+ */
+export async function resolveUserRedirect(): Promise<string> {
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+
+    if (authUser) {
+      const adminClient = getSupabaseAdminClient()
+      const { data: userData } = await adminClient
+        .from("users")
+        .select("role, tenant_id")
+        .eq("auth_user_id", authUser.id)
+        .maybeSingle()
+
+      if (userData?.role === "super_admin" && !userData?.tenant_id) {
+        return "/admin"
+      }
+      if (userData?.role === "investor") {
+        return "/investor/dashboard"
+      }
+    }
+  } catch (err) {
+    console.warn("[resolveUserRedirect] Error:", err)
+  }
+
+  return "/dashboard"
 }
 
 /**

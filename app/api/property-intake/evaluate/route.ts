@@ -24,18 +24,35 @@ interface PropertyData {
   propertyType: string
   area: string
   subArea: string | null
+  address?: string | null
   furnished: boolean
   parking: number | null
   amenities: string[]
   description: string | null
   listingUrl: string
   listedDate: string | null
+  coordinates?: { lat: number; lng: number } | null
   // Extended properties
-  completionStatus?: "ready" | "off_plan" | "unknown"
+  completionStatus?: "ready" | "off_plan" | "under_construction" | "unknown"
   developer?: string | null
   handoverDate?: string | null
   serviceCharge?: number | null
   rentalPotential?: number | null
+  referenceNumber?: string | null
+  permitNumber?: string | null
+  purpose?: "for-sale" | "for-rent" | null
+  buildingName?: string | null
+  buildingFloors?: number | null
+  totalParkingSpaces?: number | null
+  elevators?: number | null
+  plotSize?: number | null
+  paymentPlan?: {
+    downPaymentPercent?: number | null
+    preHandoverPercent?: number | null
+    handoverPercent?: number | null
+    postHandoverPercent?: number | null
+  } | null
+  verified?: boolean
 }
 
 interface MarketContext {
@@ -100,11 +117,23 @@ interface EvaluationResult {
       demand: string
       absorption: string
     }
+    growth?: {
+      narrative: string
+      neighborhoodTrend: string
+      annualGrowthBase: number
+      annualGrowthConservative: number
+      annualGrowthUpside: number
+      projectedValue1Y: number
+      projectedValue3Y: number
+      projectedValue5Y: number
+      drivers: string[]
+      sensitivities: string[]
+    }
     
     pricing: {
       askingPrice: number
       pricePerSqft: number | null
-      marketAvgPricePerSqft: number
+      marketAvgPricePerSqft: number | null
       recommendedOffer: number
       stabilizedValue: number
       valueAddBudget: number
@@ -138,6 +167,25 @@ interface EvaluationResult {
       capRate: number
       targetIrr: number
       holdPeriod: string
+      returnBridge?: {
+        purchasePrice: number
+        dldRatePct: number
+        dldFee: number
+        brokerFeePct: number
+        brokerFee: number
+        renovation: number
+        totalProjectCost: number
+        mortgageLtvPct: number
+        mortgageAmount: number
+        equityInvested: number
+        annualInterestRatePct: number
+        annualInterest: number
+        resalePrice: number
+        netSaleProceedsAfterMortgage: number
+        netProfitAfterInterest: number
+        roiOnEquityPct: number
+        assumptions: string
+      }
     }
     
     risks: { risk: string; mitigation: string }[]
@@ -191,11 +239,34 @@ async function getMarketContext(area: string, propertyType: string, bedrooms: nu
       : propertyType?.toLowerCase().includes("land") ? "Land"
       : "Unit"
 
+    // Resolve Bayut community name to DLD area name
+    // (Bayut uses "Majan", "Dubai Marina"; DLD uses "Wadi Al Safa 3", "Marsa Dubai")
+    let resolvedArea = area
+    const { data: directCheck } = await supabase
+      .from("dld_area_stats")
+      .select("area_name_en")
+      .eq("area_name_en", area)
+      .limit(1)
+
+    if (!directCheck || directCheck.length === 0) {
+      try {
+        const { data: resolved } = await supabase.rpc("resolve_area_name", {
+          p_community_name: area,
+        }).maybeSingle()
+        if (resolved?.dld_area_name) {
+          console.log(`[evaluate] Resolved area "${area}" → "${resolved.dld_area_name}"`)
+          resolvedArea = resolved.dld_area_name
+        }
+      } catch {
+        // Ignore resolution failure, will use original name
+      }
+    }
+
     // Query the pre-computed area stats view
     const { data: stats } = await supabase
       .from("dld_area_stats")
       .select("*")
-      .eq("area_name_en", area)
+      .eq("area_name_en", resolvedArea)
       .eq("property_type_en", dldPropertyType)
       .maybeSingle()
 
@@ -212,7 +283,7 @@ async function getMarketContext(area: string, propertyType: string, bedrooms: nu
       const { data: trends } = await supabase
         .from("dld_monthly_trends")
         .select("month, avg_price, avg_price_per_sqm, transaction_count")
-        .eq("area_name_en", area)
+        .eq("area_name_en", resolvedArea)
         .order("month", { ascending: false })
         .limit(6)
 
@@ -316,39 +387,45 @@ async function evaluateWithAI(
     apiKey: process.env.OPENAI_API_KEY,
   })
 
-  const priceVsMarket = property.pricePerSqft && marketContext.areaMedianPricePerSqft
-    ? ((property.pricePerSqft - marketContext.areaMedianPricePerSqft) / marketContext.areaMedianPricePerSqft * 100)
-    : 0
-
   const estimatedAnnualRent = property.price * (marketContext.areaAverageYield / 100)
   const estimatedMonthlyRent = estimatedAnnualRent / 12
+  const fallbackGrowth = buildGrowthAnalysis(
+    property,
+    marketContext,
+    property.price,
+    Math.round(property.price * 1.08),
+  )
 
   const prompt = `You are a senior real estate investment analyst evaluating a property in Dubai, UAE for institutional investors and family offices.
 
 PROPERTY DETAILS:
 - Title: ${property.title}
 - Type: ${property.propertyType}
-- Location: ${property.area}${property.subArea ? `, ${property.subArea}` : ""}
+- Location: ${property.area}${property.subArea ? `, ${property.subArea}` : ""}${property.buildingName ? ` — ${property.buildingName}` : ""}
+- Address: ${property.address || "Not specified"}
 - Price: AED ${property.price.toLocaleString()}
-- Size: ${property.size ? `${property.size} sqft` : "Unknown"}
+- Size: ${property.size ? `${property.size} sqft` : "Unknown"}${property.plotSize ? ` (Plot: ${property.plotSize} sqft)` : ""}
 - Price/sqft: ${property.pricePerSqft ? `AED ${property.pricePerSqft.toLocaleString()}` : "Unknown"}
 - Bedrooms: ${property.bedrooms}
 - Bathrooms: ${property.bathrooms}
 - Furnished: ${property.furnished ? "Yes" : "No"}
-- Parking: ${property.parking || "Unknown"}
-- Completion Status: ${property.completionStatus || "Ready"}
+- Parking: ${property.totalParkingSpaces ?? property.parking ?? "Unknown"}
+- Completion Status: ${property.completionStatus?.replace(/_/g, " ") || "Ready"}
 - Developer: ${property.developer || "Unknown"}
 - Handover: ${property.handoverDate || "Immediate"}
 - Service Charge: ${property.serviceCharge ? `AED ${property.serviceCharge}/sqft` : "Unknown"}
+- Building: ${property.buildingName || "Unknown"}${property.buildingFloors ? `, ${property.buildingFloors} floors` : ""}${property.elevators ? `, ${property.elevators} elevators` : ""}
 - Amenities: ${property.amenities.join(", ") || "Not specified"}
 - Description: ${property.description || "Not provided"}
 - Source: ${property.source}
 - Listed: ${property.listedDate || "Unknown"}
+- Purpose: ${property.purpose || "for-sale"}
+- Reference: ${property.referenceNumber || "N/A"}
+- Permit: ${property.permitNumber || "N/A"}
+- Verified: ${property.verified ? "Yes" : "No"}${property.paymentPlan ? `\n- Payment Plan: ${property.paymentPlan.downPaymentPercent ?? "?"}% down / ${property.paymentPlan.preHandoverPercent ?? "?"}% pre-handover / ${property.paymentPlan.handoverPercent ?? "?"}% handover / ${property.paymentPlan.postHandoverPercent ?? "?"}% post-handover` : ""}
 
 COMPREHENSIVE MARKET CONTEXT (${property.area}):
 - Area Grade: ${marketContext.areaGrade} (A=Premium, B=Established, C=Emerging)
-- Area Median Price/sqft: AED ${marketContext.areaMedianPricePerSqft.toLocaleString()}
-- This Property vs Market: ${priceVsMarket > 0 ? "+" : ""}${priceVsMarket.toFixed(1)}%
 - Area Average Yield: ${marketContext.areaAverageYield}%
 - Estimated Monthly Rent: AED ${Math.round(estimatedMonthlyRent).toLocaleString()}
 - Market Trend: ${marketContext.marketTrend}
@@ -380,6 +457,15 @@ Evaluate this property and provide your assessment in the following JSON format:
     "execSummary": "<2-3 sentence executive summary for IC memo with key metrics>",
     "propertyOverview": "<detailed property description including specs, condition assessment>",
     "marketAnalysis": "<comprehensive market analysis paragraph with trends, supply/demand, comparisons>",
+    "futureValueOutlook": {
+      "narrative": "<1 paragraph on expected value growth based on neighborhood trend and demand/supply>",
+      "oneYearValue": "<number AED>",
+      "threeYearValue": "<number AED>",
+      "fiveYearValue": "<number AED>",
+      "baseGrowthRatePct": "<number>",
+      "drivers": ["<driver 1>", "<driver 2>"],
+      "sensitivities": ["<sensitivity 1>", "<sensitivity 2>"]
+    },
     "risks": ["<specific risk 1>", "<specific risk 2>", "<specific risk 3>"],
     "opportunities": ["<specific opportunity 1 with numbers>", "<specific opportunity 2>"],
     "assumptions": ["<key assumption 1>", "<key assumption 2>", "<key assumption 3>"],
@@ -397,7 +483,6 @@ ENHANCED SCORING CRITERIA:
    - Bedroom count (1-2 BR highest demand for rentals)
 
 2. MARKET TIMING (0-25 points):
-   - Price vs DLD median (below = higher score)
    - Market trend (rising/stable = higher)
    - Supply pipeline risk (high supply = lower score)
    - Days on market (faster = healthier market)
@@ -452,22 +537,154 @@ Be specific and reference actual numbers in your analysis. Include specific data
 
     // If AI didn't return full analysis, create it from the response
     if (!result.analysis) {
-      const fallback = createFallbackEvaluation(property, marketContext, priceVsMarket, estimatedMonthlyRent)
+      const fallback = createFallbackEvaluation(property, marketContext, estimatedMonthlyRent)
       result.analysis = fallback.analysis
+    }
+
+    // Ensure future growth analysis always exists for PDF + IC memo.
+    if (!result.analysis.growth) {
+      result.analysis.growth = fallbackGrowth
+    } else {
+      result.analysis.growth = {
+        ...fallbackGrowth,
+        ...result.analysis.growth,
+        drivers: Array.isArray(result.analysis.growth.drivers) && result.analysis.growth.drivers.length > 0
+          ? result.analysis.growth.drivers
+          : fallbackGrowth.drivers,
+        sensitivities: Array.isArray(result.analysis.growth.sensitivities) && result.analysis.growth.sensitivities.length > 0
+          ? result.analysis.growth.sensitivities
+          : fallbackGrowth.sensitivities,
+      }
+    }
+
+    const askingPrice = Number(result.analysis?.pricing?.askingPrice ?? property.price)
+    const renovationBudget = Number(
+      result.analysis?.pricing?.valueAddBudget ??
+      (property.furnished ? 0 : Math.round(askingPrice * 0.02)),
+    )
+    const resalePrice = Number(
+      result.analysis?.growth?.projectedValue5Y ??
+      result.analysis?.pricing?.stabilizedValue ??
+      Math.round(askingPrice * 1.2),
+    )
+    const holdYearsRaw = String(result.analysis?.financialAnalysis?.holdPeriod ?? "5")
+    const holdYearsMatch = holdYearsRaw.match(/\d+/)
+    const holdYears = holdYearsMatch ? Number(holdYearsMatch[0]) : 5
+    const fallbackReturnBridge = buildReturnBridge(askingPrice, renovationBudget, resalePrice, holdYears)
+    const currentReturnBridge = result.analysis?.financialAnalysis?.returnBridge
+    result.analysis.financialAnalysis = {
+      ...(result.analysis.financialAnalysis ?? {}),
+      returnBridge: currentReturnBridge
+        ? { ...fallbackReturnBridge, ...currentReturnBridge }
+        : fallbackReturnBridge,
     }
 
     return result
   } catch (error) {
     console.error("AI evaluation error:", error)
     // Return fallback evaluation
-    return createFallbackEvaluation(property, marketContext, priceVsMarket, estimatedMonthlyRent)
+    return createFallbackEvaluation(property, marketContext, estimatedMonthlyRent)
+  }
+}
+
+function buildGrowthAnalysis(
+  property: PropertyData,
+  marketContext: MarketContext,
+  askingPrice: number,
+  stabilizedValue: number,
+) {
+  const baseRateRaw = (marketContext.historicalAppreciation * 0.75) + (marketContext.rentalGrowth * 0.25)
+  const annualGrowthBase = Math.max(1.5, Math.min(12, Math.round(baseRateRaw * 10) / 10))
+  const annualGrowthConservative = Math.max(0.5, Math.round((annualGrowthBase - 2) * 10) / 10)
+  const annualGrowthUpside = Math.round(
+    (annualGrowthBase + (marketContext.marketTrend === "rising" ? 2.5 : 1.5)) * 10,
+  ) / 10
+
+  const baseline = Math.max(askingPrice, stabilizedValue)
+  const projectedValue1Y = Math.round(baseline * (1 + annualGrowthBase / 100))
+  const projectedValue3Y = Math.round(baseline * Math.pow(1 + annualGrowthBase / 100, 3))
+  const projectedValue5Y = Math.round(baseline * Math.pow(1 + annualGrowthBase / 100, 5))
+
+  const neighborhoodTrend =
+    marketContext.marketTrend === "rising"
+      ? "Neighborhood is in an expansion phase with positive transaction momentum."
+      : marketContext.marketTrend === "stable"
+        ? "Neighborhood shows stable pricing behavior with resilient end-user demand."
+        : "Neighborhood is currently in a softer cycle; underwriting assumes slower near-term growth."
+
+  return {
+    narrative: `${property.area} shows ${marketContext.marketTrend} neighborhood tendencies with ${marketContext.historicalAppreciation}% historical annual appreciation and ${marketContext.rentalGrowth}% rental growth. Base underwriting assumes ${annualGrowthBase}% annual capital growth, supporting a 5-year value estimate near AED ${projectedValue5Y.toLocaleString()}.`,
+    neighborhoodTrend,
+    annualGrowthBase,
+    annualGrowthConservative,
+    annualGrowthUpside,
+    projectedValue1Y,
+    projectedValue3Y,
+    projectedValue5Y,
+    drivers: [
+      `${marketContext.tenantDemand.charAt(0).toUpperCase() + marketContext.tenantDemand.slice(1)} tenant demand with ${marketContext.occupancyRate}% occupancy`,
+      `${marketContext.liquidityScore}/10 liquidity profile supporting eventual exit pricing`,
+      `${marketContext.newSupplyUnits < 2000 ? "Limited" : "Moderate"} pipeline supply in the surrounding micro-market`,
+    ],
+    sensitivities: [
+      "Higher-than-expected new launches can cap short-term resale upside.",
+      "Interest rate changes may affect buyer affordability and absorption speed.",
+      "Execution quality and service-charge competitiveness influence long-term premium retention.",
+    ],
+  }
+}
+
+function buildReturnBridge(
+  purchasePrice: number,
+  renovationBudget: number,
+  resalePrice: number,
+  holdYears: number,
+  assumptions?: {
+    dldRatePct?: number
+    brokerFeePct?: number
+    mortgageLtvPct?: number
+    annualInterestRatePct?: number
+  },
+) {
+  const dldRatePct = assumptions?.dldRatePct ?? 4
+  const brokerFeePct = assumptions?.brokerFeePct ?? 2
+  const mortgageLtvPct = assumptions?.mortgageLtvPct ?? 70
+  const annualInterestRatePct = assumptions?.annualInterestRatePct ?? 3.5
+  const dldFee = Math.round(purchasePrice * (dldRatePct / 100))
+  const brokerFee = Math.round(purchasePrice * (brokerFeePct / 100))
+  const totalProjectCost = purchasePrice + dldFee + brokerFee + renovationBudget
+  const mortgageAmount = Math.round(purchasePrice * (mortgageLtvPct / 100))
+  const equityInvested = Math.max(0, totalProjectCost - mortgageAmount)
+  const annualInterest = Math.round(mortgageAmount * (annualInterestRatePct / 100))
+  const totalInterest = Math.round(annualInterest * Math.max(1, holdYears))
+  const netSaleProceedsAfterMortgage = Math.round(resalePrice - mortgageAmount)
+  const netProfitAfterInterest = Math.round(netSaleProceedsAfterMortgage - equityInvested - totalInterest)
+  const roiOnEquityPct = equityInvested > 0 ? Math.round((netProfitAfterInterest / equityInvested) * 1000) / 10 : 0
+
+  return {
+    purchasePrice,
+    dldRatePct,
+    dldFee,
+    brokerFeePct,
+    brokerFee,
+    renovation: renovationBudget,
+    totalProjectCost,
+    mortgageLtvPct,
+    mortgageAmount,
+    equityInvested,
+    annualInterestRatePct,
+    annualInterest,
+    resalePrice,
+    netSaleProceedsAfterMortgage,
+    netProfitAfterInterest,
+    roiOnEquityPct,
+    assumptions: `Assumes ${mortgageLtvPct}% LTV, ${annualInterestRatePct}% annual interest, and ${Math.max(1, holdYears)}-year hold.`,
   }
 }
 
 function createFallbackEvaluation(
   property: PropertyData,
   marketContext: MarketContext,
-  priceVsMarket: number,
   estimatedMonthlyRent: number
 ): EvaluationResult {
   // Enhanced rule-based scoring with multiple factors
@@ -486,16 +703,15 @@ function createFallbackEvaluation(
 
   // 2. MARKET TIMING (0-25)
   let marketTiming = 10
-  if (priceVsMarket < -15) marketTiming += 8
-  else if (priceVsMarket < -10) marketTiming += 6
-  else if (priceVsMarket < -5) marketTiming += 4
-  else if (priceVsMarket < 5) marketTiming += 2
-  else if (priceVsMarket > 10) marketTiming -= 4
   if (marketContext.marketTrend === "rising") marketTiming += 4
   else if (marketContext.marketTrend === "stable") marketTiming += 2
   else marketTiming -= 3
+  if (marketContext.tenantDemand === "high") marketTiming += 3
+  else if (marketContext.tenantDemand === "low") marketTiming -= 2
   if (marketContext.newSupplyUnits > 4000) marketTiming -= 3
   else if (marketContext.newSupplyUnits < 1000) marketTiming += 2
+  if (marketContext.averageDaysOnMarket <= 35) marketTiming += 2
+  else if (marketContext.averageDaysOnMarket >= 60) marketTiming -= 2
   marketTiming = Math.max(0, Math.min(25, marketTiming))
 
   // 3. PORTFOLIO FIT (0-25)
@@ -528,19 +744,25 @@ function createFallbackEvaluation(
 
   // Financial calculations
   const estimatedAnnualRent = estimatedMonthlyRent * 12
-  const recommendedOffer = Math.round(property.price * (priceVsMarket < 0 ? 0.98 : 0.95))
+  const liquidityAdj = marketContext.liquidityScore >= 7 ? 0.98 : 0.96
+  const recommendedOffer = Math.round(property.price * liquidityAdj)
   const stabilizedValue = Math.round(property.price * 1.08)
   const noi = Math.round(estimatedAnnualRent * 0.85) // 15% expenses
   const capRate = (noi / property.price) * 100
   const targetIrr = capRate + marketContext.historicalAppreciation
+  const growth = buildGrowthAnalysis(property, marketContext, property.price, stabilizedValue)
+  const returnBridge = buildReturnBridge(
+    property.price,
+    property.furnished ? 0 : Math.round(property.price * 0.02),
+    growth.projectedValue5Y,
+    5,
+  )
   
   // Build key strengths and considerations
   const keyStrengths: string[] = []
   const considerations: string[] = []
 
-  if (priceVsMarket < -5) {
-    keyStrengths.push(`${Math.abs(priceVsMarket).toFixed(1)}% below area median with ${marketContext.areaAverageYield}% yield potential`)
-  }
+  keyStrengths.push(`${marketContext.areaAverageYield}% yield potential in a ${marketContext.marketTrend} market`)
   if (marketContext.occupancyRate >= 90) {
     keyStrengths.push(`${marketContext.occupancyRate}% occupancy with ${marketContext.tenantDemand} tenant demand`)
   }
@@ -551,22 +773,21 @@ function createFallbackEvaluation(
     keyStrengths.push("Competitive entry point for the area")
   }
 
-  if (priceVsMarket > 5) considerations.push(`Priced ${priceVsMarket.toFixed(1)}% above area median`)
   if (marketContext.newSupplyUnits > 3000) considerations.push(`High supply: ${marketContext.newSupplyUnits.toLocaleString()} units in pipeline`)
   if (considerations.length === 0) considerations.push("Standard due diligence recommended")
 
   return {
     overallScore: score,
     factors: { mandateFit, marketTiming, portfolioFit, riskAlignment },
-    headline: `Grade ${marketContext.areaGrade} ${property.area} - ${priceVsMarket < 0 ? `${Math.abs(priceVsMarket).toFixed(0)}% Below Market` : "Market Rate"}`,
-    reasoning: `${property.bedrooms}BR ${property.propertyType.toLowerCase()} at AED ${(property.pricePerSqft || 0).toLocaleString()}/sqft (${priceVsMarket > 0 ? "+" : ""}${priceVsMarket.toFixed(1)}% vs median) with ${marketContext.areaAverageYield}% yield in ${marketContext.marketTrend} market.`,
+    headline: `Grade ${marketContext.areaGrade} ${property.area} - ${marketContext.marketTrend.toUpperCase()} demand`,
+    reasoning: `${property.bedrooms}BR ${property.propertyType.toLowerCase()} with projected ${marketContext.areaAverageYield}% yield, ${marketContext.occupancyRate}% occupancy backdrop, and ${marketContext.marketTrend} market momentum.`,
     keyStrengths: keyStrengths.slice(0, 2),
     considerations: considerations.slice(0, 1),
     recommendation,
     
     // Rich IC Memo format
     analysis: {
-      summary: `${property.bedrooms} bedroom ${property.propertyType.toLowerCase()} in ${property.area} with ${priceVsMarket < 0 ? "below-market pricing" : "competitive positioning"}, offering ${marketContext.areaAverageYield}% gross yield with ${marketContext.marketTrend} market dynamics.`,
+      summary: `${property.bedrooms} bedroom ${property.propertyType.toLowerCase()} in ${property.area}, offering ${marketContext.areaAverageYield}% gross yield with ${marketContext.marketTrend} market dynamics.`,
       keyPoints: [
         `${capRate.toFixed(1)}% in-place cap rate with ${marketContext.rentalGrowth}% annual rent escalation potential`,
         `Vacancy at ${100 - marketContext.occupancyRate}% with ${marketContext.newSupplyUnits < 2000 ? "limited" : marketContext.newSupplyUnits.toLocaleString()} new supply through 2026`,
@@ -591,21 +812,27 @@ function createFallbackEvaluation(
       },
       
       property: {
-        description: `${property.size ? `${property.size.toLocaleString()} sq ft` : ""} ${property.propertyType.toLowerCase()} ${property.bedrooms}BR/${property.bathrooms}BA. ${property.furnished ? "Fully furnished" : "Unfurnished"}. ${property.completionStatus === "ready" ? "Ready for immediate occupation" : `Off-plan with ${property.handoverDate || "TBC"} handover`}.`,
-        condition: property.completionStatus === "ready" ? "Ready, well-maintained" : `Off-plan - ${property.developer || "Developer TBC"}`,
+        description: `${property.size ? `${property.size.toLocaleString()} sq ft` : ""} ${property.propertyType.toLowerCase()} ${property.bedrooms}BR/${property.bathrooms}BA${property.buildingName ? ` in ${property.buildingName}` : ""}. ${property.furnished ? "Fully furnished" : "Unfurnished"}. ${property.completionStatus === "ready" || property.completionStatus === "unknown" ? "Ready for immediate occupation" : `Off-plan with ${property.handoverDate || "TBC"} handover${property.developer ? ` by ${property.developer}` : ""}`}.${property.plotSize ? ` Plot: ${property.plotSize.toLocaleString()} sq ft.` : ""}`,
+        condition: property.completionStatus === "ready" || property.completionStatus === "unknown"
+          ? "Ready, well-maintained"
+          : `Off-plan - ${property.developer || "Developer TBC"}`,
         specs: [
           { label: "Size", value: property.size ? `${property.size.toLocaleString()} sq ft` : "TBC" },
+          ...(property.plotSize ? [{ label: "Plot Size", value: `${property.plotSize.toLocaleString()} sq ft` }] : []),
           { label: "Bedrooms", value: `${property.bedrooms} BR` },
-          { label: "Parking", value: property.parking ? `${property.parking} space(s)` : "TBC" },
+          { label: "Bathrooms", value: `${property.bathrooms} BA` },
+          { label: "Parking", value: property.totalParkingSpaces ? `${property.totalParkingSpaces} space(s)` : property.parking ? `${property.parking} space(s)` : "TBC" },
           { label: "Service Charge", value: `AED ${property.serviceCharge || 18}/sq ft (est.)` },
           { label: "Furnished", value: property.furnished ? "Yes" : "No" },
-          { label: "Status", value: property.completionStatus === "ready" ? "Ready" : "Off-plan" },
+          { label: "Status", value: property.completionStatus === "ready" ? "Ready" : property.completionStatus === "under_construction" ? "Under Construction" : property.completionStatus === "off_plan" ? "Off-Plan" : "Ready" },
+          ...(property.developer ? [{ label: "Developer", value: property.developer }] : []),
+          ...(property.buildingFloors ? [{ label: "Floors", value: `${property.buildingFloors}` }] : []),
         ],
-        highlights: property.amenities.slice(0, 4).map(a => a),
+        highlights: property.amenities.slice(0, 6).map(a => a),
       },
       
       market: {
-        overview: `${property.area} is showing ${marketContext.marketTrend} dynamics with ${marketContext.historicalAppreciation}% YoY appreciation. Area median at AED ${marketContext.areaMedianPricePerSqft.toLocaleString()}/sqft with ${marketContext.areaAverageYield}% average yields.`,
+        overview: `${property.area} is showing ${marketContext.marketTrend} dynamics with ${marketContext.historicalAppreciation}% YoY appreciation and ${marketContext.areaAverageYield}% average yields.`,
         drivers: [
           `${marketContext.marketTrend === "rising" ? "Strong" : "Stable"} demand from ${marketContext.investorProfile} investors`,
           `${marketContext.rentalGrowth}% rental growth trajectory`,
@@ -615,11 +842,12 @@ function createFallbackEvaluation(
         demand: `${marketContext.tenantDemand.charAt(0).toUpperCase() + marketContext.tenantDemand.slice(1)} demand from end-users and investors seeking ${marketContext.areaAverageYield}%+ yields`,
         absorption: `${Math.round(marketContext.newSupplyUnits * 0.8).toLocaleString()} sq ft absorbed in 2024, ${marketContext.areaGrade === "A" ? "highest" : "strong"} in segment`,
       },
+      growth,
       
       pricing: {
         askingPrice: property.price,
         pricePerSqft: property.pricePerSqft,
-        marketAvgPricePerSqft: marketContext.areaMedianPricePerSqft,
+        marketAvgPricePerSqft: null,
         recommendedOffer,
         stabilizedValue,
         valueAddBudget: property.furnished ? 0 : Math.round(property.price * 0.02),
@@ -651,13 +879,14 @@ function createFallbackEvaluation(
       ],
       
       strategy: {
-        plan: `Acquire at ${priceVsMarket < 0 ? "below-market" : "fair"} pricing, optimize rental income, and ${marketContext.marketTrend === "rising" ? "benefit from appreciation" : "hold for stable yield"}.`,
+        plan: `Acquire with disciplined entry terms, optimize rental income, and ${marketContext.marketTrend === "rising" ? "benefit from appreciation" : "hold for stable yield"}.`,
         holdPeriod: "5 years",
         exit: `Sell to ${marketContext.investorProfile === "core" ? "institutional buyer or income fund" : "private investor or end-user"}`,
         focusPoints: [
-          `Negotiate ${Math.abs(priceVsMarket) > 5 ? "additional" : "2-3%"} discount at offer stage`,
+          "Negotiate 2-4% discount at offer stage",
           "Verify service charges and confirm capped rates if available",
           `Target market rent of AED ${Math.round(estimatedMonthlyRent * 1.05).toLocaleString()}/month at first renewal`,
+          `Underwrite to AED ${growth.projectedValue5Y.toLocaleString()} 5-year value in base case (${growth.annualGrowthBase}% annual growth)`,
         ],
       },
       
@@ -668,6 +897,7 @@ function createFallbackEvaluation(
         capRate: Math.round(capRate * 10) / 10,
         targetIrr: Math.round(targetIrr * 10) / 10,
         holdPeriod: "5 years",
+        returnBridge,
       },
       
       risks: [
@@ -745,11 +975,7 @@ export async function POST(req: Request) {
     )
 
     // Calculate price vs market
-    if (property.pricePerSqft && marketContext.areaMedianPricePerSqft) {
-      marketContext.priceVsMarket =
-        ((property.pricePerSqft - marketContext.areaMedianPricePerSqft) /
-          marketContext.areaMedianPricePerSqft) * 100
-    }
+    marketContext.priceVsMarket = 0
 
     // Evaluate with AI (or fallback)
     const evaluation = await evaluateWithAI(property, marketContext)

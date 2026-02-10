@@ -39,7 +39,7 @@ export const personas: Persona[] = [
     user: {
       id: "user-realtor-1",
       name: "Sarah Al-Rashid",
-      email: "sarah@investorsos.ae",
+      email: "demo-realtor@aideology.ai",
       role: "realtor",
       avatar: "/professional-woman-avatar.png",
     },
@@ -68,7 +68,7 @@ export const personas: Persona[] = [
     user: {
       id: "user-investor-1",
       name: "Mohammed Al-Fayed",
-      email: "m.alfayed@investments.ae",
+      email: "demo-investor@aideology.ai",
       role: "investor",
       avatar: "/placeholder-user.jpg",
     },
@@ -91,7 +91,7 @@ export const personas: Persona[] = [
     user: {
       id: "user-owner-1",
       name: "Omar Al-Nahyan",
-      email: "owner@palm-partners.ae",
+      email: "demo-admin@aideology.ai",
       role: "owner",
       avatar: "/placeholder-user.jpg",
     },

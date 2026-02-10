@@ -18,8 +18,7 @@ export type AppOrg = {
 
 /** Default orgs used only in demo mode (no real auth / no DB) */
 const demoOrgs: AppOrg[] = [
-  { id: "org-1", name: "Palm & Partners Realty", avatarText: "PP", plan: "pro" },
-  { id: "org-2", name: "Marina Capital Advisors", avatarText: "MC", plan: "enterprise" },
+  { id: "org-1", name: "Palm & Partners Realty", avatarText: "P&", plan: "pro" },
 ]
 
 const demoOrgId = demoOrgs[0]?.id ?? "org-1"
@@ -62,6 +61,11 @@ type AppContextValue = {
   setScopedInvestorId: (id: string) => void
   /** List of investors available for the current tenant (for super_admin investor selector) */
   availableInvestors: { id: string; name: string; company?: string; email?: string; status?: string }[]
+
+  /** Demo mode: when true, personas control full identity (name, email, avatar, role) */
+  demoModeActive: boolean
+  setDemoModeActive: (active: boolean) => void
+
   orgs: AppOrg[]
   currentOrg: AppOrg
   setCurrentOrgId: (orgId: string) => void
@@ -124,6 +128,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Use real auth when available, fallback to personas for demo
   const [useRealAuth, setUseRealAuth] = React.useState(true)
   const [needsTenantSelection, setNeedsTenantSelection] = React.useState(false)
+
+  // Demo mode: super_admins can toggle this at runtime to use full persona identity
+  // for presentations. When off (default), real auth identity is always used.
+  const [demoModeActive, setDemoModeActiveRaw] = React.useState(false)
+
+  const setDemoModeActive = React.useCallback((active: boolean) => {
+    setDemoModeActiveRaw(active)
+    if (!active) {
+      // When exiting demo mode, reset persona to default
+      setPersonaId(defaultPersonaId)
+    }
+  }, [])
 
   // Wrap setOrgId to also persist to localStorage
   const setOrgId = React.useCallback((id: string) => {
@@ -220,28 +236,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return mapping[r] || "agent"
   }, [])
 
-  // Super admins can use the persona switcher to preview different role views
-  // while keeping their real identity (name, email, avatar).
-  // Note: we check auth.user directly (not shouldUseRealAuth) to avoid the race
-  // where shouldUseRealAuth is false during initial async auth resolution.
-  const isSuperAdminPreview = auth.user?.role === "super_admin"
-
-  // Build user object from auth or persona.
-  // CRITICAL: When a real user is authenticated, their identity (name, email,
-  // avatar) must ALWAYS come from auth — never from persona. The persona only
-  // controls the effective role and scoped IDs. During auth loading
-  // (auth.isLoading=true), we show a neutral placeholder instead of persona data.
+  // Build user object, role, and platformRole.
+  // When demoModeActive=true: full persona identity (name, email, avatar, role).
+  // When demoModeActive=false: real auth identity, real role.
+  // During auth loading: neutral placeholder (no persona leak).
   const user = React.useMemo(() => {
+    // Demo mode: use full persona identity
+    if (demoModeActive) {
+      return persona.user
+    }
+    // Real mode: always use authenticated user's identity
     if (auth.user) {
-      // Authenticated: always use real identity, persona only overrides role
-      const effectiveRole = isSuperAdminPreview
-        ? persona.role
-        : mapPlatformRole(auth.user.role)
       return {
         id: auth.user.id,
         name: auth.user.name,
         email: auth.user.email,
-        role: effectiveRole,
+        role: mapPlatformRole(auth.user.role),
         avatar: auth.user.avatarUrl,
       }
     }
@@ -251,27 +261,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: "",
         name: "",
         email: "",
-        role: persona.role,
+        role: "realtor" as UserRole,
         avatar: undefined as string | undefined,
       }
     }
-    // Not authenticated (demo mode) — use persona
+    // Not authenticated at all (env-var demo mode) — use persona
     return persona.user
-  }, [auth.user, auth.isLoading, persona, isSuperAdminPreview])
+  }, [auth.user, auth.isLoading, persona, demoModeActive])
 
   const role = React.useMemo(() => {
-    if (auth.user) {
-      return isSuperAdminPreview ? persona.role : mapPlatformRole(auth.user.role)
-    }
+    if (demoModeActive) return persona.role
+    if (auth.user) return mapPlatformRole(auth.user.role)
     return persona.role
-  }, [auth.user, persona.role, isSuperAdminPreview])
+  }, [auth.user, persona.role, demoModeActive])
 
   const platformRole = React.useMemo(() => {
-    if (auth.user) {
-      return isSuperAdminPreview ? personaToPlatformRole(persona.role) : auth.user.role
-    }
+    if (demoModeActive) return personaToPlatformRole(persona.role)
+    if (auth.user) return auth.user.role
     return personaToPlatformRole(persona.role)
-  }, [auth.user, persona.role, isSuperAdminPreview, personaToPlatformRole])
+  }, [auth.user, persona.role, demoModeActive, personaToPlatformRole])
 
   // Detect if we're on an investor route
   const pathname = usePathname()
@@ -357,6 +365,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const scopedInvestorId = React.useMemo(() => {
+    // Demo mode: always use persona's scoped investor ID
+    if (demoModeActive) {
+      return persona.scopedInvestorId
+    }
     // Real investor users: use their resolved ID
     if (shouldUseRealAuth && auth.user?.role === "investor") {
       return resolvedInvestorId
@@ -365,12 +377,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (shouldUseRealAuth && auth.user?.role === "super_admin" && isOnInvestorRoute && superAdminInvestorId) {
       return superAdminInvestorId
     }
-    // Super admins previewing investor persona get the persona's scoped investor ID
-    if (isSuperAdminPreview && persona.scopedInvestorId) {
-      return persona.scopedInvestorId
-    }
-    return persona.scopedInvestorId
-  }, [shouldUseRealAuth, auth.user, persona.scopedInvestorId, resolvedInvestorId, isSuperAdminPreview, isOnInvestorRoute, superAdminInvestorId])
+    return undefined
+  }, [demoModeActive, shouldUseRealAuth, auth.user, persona.scopedInvestorId, resolvedInvestorId, isOnInvestorRoute, superAdminInvestorId])
 
   const value = React.useMemo<AppContextValue>(
     () => ({
@@ -388,6 +396,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       scopedInvestorId,
       setScopedInvestorId: setScopedInvestorIdManual,
       availableInvestors,
+      demoModeActive,
+      setDemoModeActive,
       orgs: availableOrgs,
       currentOrg,
       setCurrentOrgId: setOrgId,
@@ -400,7 +410,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       breadcrumbsOverride,
       setBreadcrumbsOverride,
     }),
-    [user, role, platformRole, auth.user, auth.isAuthenticated, auth.isLoading, tenantId, personaId, useRealAuth, scopedInvestorId, setScopedInvestorIdManual, availableInvestors, availableOrgs, currentOrg, setOrgId, tenantsLoading, fetchTenants, needsTenantSelection, commandOpen, breadcrumbsOverride],
+    [user, role, platformRole, auth.user, auth.isAuthenticated, auth.isLoading, tenantId, personaId, useRealAuth, scopedInvestorId, setScopedInvestorIdManual, availableInvestors, demoModeActive, setDemoModeActive, availableOrgs, currentOrg, setOrgId, tenantsLoading, fetchTenants, needsTenantSelection, commandOpen, breadcrumbsOverride],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
