@@ -6,21 +6,19 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Building2,
+  Clock3,
   Heart,
   Loader2,
   MapPin,
   MessageSquare,
   Sparkles,
-  Star,
   ThumbsDown,
-  X,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
 import { useAPI } from "@/lib/hooks/use-api"
@@ -84,13 +82,8 @@ const decisionConfig = {
     color: "bg-blue-50 text-blue-700 border-blue-200",
     icon: Heart,
   },
-  very_interested: {
-    label: "Very Interested",
-    color: "bg-amber-50 text-amber-700 border-amber-200",
-    icon: Star,
-  },
   not_interested: {
-    label: "Not Interested",
+    label: "Pass",
     color: "bg-gray-50 text-gray-400 border-gray-200 line-through",
     icon: ThumbsDown,
   },
@@ -105,6 +98,13 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   rejected: { label: "Rejected", color: "bg-gray-50 text-gray-500 border-gray-200" },
 }
 
+function getUiDecision(decision: string, decisionAt: string | null): "interested" | "not_now" | "pass" | null {
+  if (decision === "interested" || decision === "very_interested") return "interested"
+  if (decision === "not_interested") return "pass"
+  if (decision === "pending" && decisionAt) return "not_now"
+  return null
+}
+
 function OpportunityCard({
   opportunity,
   onDecision,
@@ -113,10 +113,9 @@ function OpportunityCard({
   onDecision: (id: string, decision: string, note?: string) => void
 }) {
   const router = useRouter()
-  const [showNote, setShowNote] = React.useState(false)
-  const [note, setNote] = React.useState("")
   const p = opportunity.property
   const st = statusConfig[opportunity.status] ?? statusConfig.recommended
+  const uiDecision = getUiDecision(opportunity.decision, opportunity.decisionAt)
   const primaryHref = opportunity.memoId
     ? `/investor/memos/${opportunity.memoId}`
     : `/investor/opportunities/${opportunity.id}`
@@ -220,7 +219,7 @@ function OpportunityCard({
             Your decision:
           </span>
           <Button
-            variant={opportunity.decision === "interested" ? "default" : "outline"}
+            variant={uiDecision === "interested" ? "default" : "outline"}
             size="sm"
             className="h-7 text-xs gap-1"
             onClick={() => onDecision(opportunity.id, "interested")}
@@ -229,51 +228,24 @@ function OpportunityCard({
             Interested
           </Button>
           <Button
-            variant={opportunity.decision === "very_interested" ? "default" : "outline"}
+            variant={uiDecision === "not_now" ? "default" : "outline"}
             size="sm"
-            className={cn(
-              "h-7 text-xs gap-1",
-              opportunity.decision === "very_interested" &&
-                "bg-amber-500 hover:bg-amber-600"
-            )}
-            onClick={() => onDecision(opportunity.id, "very_interested")}
+            className="h-7 text-xs gap-1"
+            onClick={() => onDecision(opportunity.id, "not_now")}
           >
-            <Star className="size-3" />
-            Very Interested
+            <Clock3 className="size-3" />
+            Not Now
           </Button>
           <Button
-            variant="ghost"
+            variant={uiDecision === "pass" ? "destructive" : "outline"}
             size="sm"
-            className="h-7 text-xs gap-1 text-muted-foreground"
-            onClick={() => setShowNote(!showNote)}
+            className="h-7 text-xs gap-1"
+            onClick={() => onDecision(opportunity.id, "pass")}
           >
-            <X className="size-3" />
+            <ThumbsDown className="size-3" />
             Pass
           </Button>
         </div>
-
-        {showNote && (
-          <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional: reason for passing..."
-              className="text-xs h-16 resize-none"
-            />
-            <Button
-              size="sm"
-              variant="destructive"
-              className="text-xs h-7"
-              onClick={() => {
-                onDecision(opportunity.id, "not_interested", note)
-                setShowNote(false)
-                setNote("")
-              }}
-            >
-              Confirm Pass
-            </Button>
-          </div>
-        )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
@@ -350,16 +322,18 @@ export default function InvestorOpportunitiesPage() {
 
   // Filter into tabs
   const newOpps = opportunities.filter(
-    (o) => o.decision === "pending" && o.status === "recommended"
+    (o) =>
+      o.status === "recommended" &&
+      !["interested", "pass"].includes(getUiDecision(o.decision, o.decisionAt) ?? "")
   )
   const interestedOpps = opportunities.filter(
-    (o) => o.decision === "interested" || o.decision === "very_interested"
+    (o) => getUiDecision(o.decision, o.decisionAt) === "interested"
   )
   const pipelineOpps = opportunities.filter((o) =>
     ["shortlisted", "memo_review", "deal_room"].includes(o.status)
   )
   const passedOpps = opportunities.filter(
-    (o) => o.status === "rejected" || o.decision === "not_interested"
+    (o) => o.status === "rejected" || getUiDecision(o.decision, o.decisionAt) === "pass"
   )
 
   if (isLoading) {

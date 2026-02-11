@@ -238,6 +238,9 @@ export default function RealtorOpsPage() {
                   </Link>
                 </Button>
                 <Button variant="outline" asChild>
+                  <Link href="/realtor/opportunities">Opportunities</Link>
+                </Button>
+                <Button variant="outline" asChild>
                   <Link href="/deal-room">Deal rooms</Link>
                 </Button>
               </>

@@ -96,6 +96,12 @@ export interface Investor {
   leadSource?: string
   tags?: string[]
   notes?: string
+
+  // Investment thesis (high-level philosophy)
+  thesisReturnStyle?: "income" | "appreciation" | "balanced"
+  thesisHoldPeriod?: string
+  thesisPreferredExits?: string[]
+  thesisNotes?: string
 }
 
 export type PropertyReadinessStatus = "DRAFT" | "NEEDS_VERIFICATION" | "READY_FOR_MEMO"

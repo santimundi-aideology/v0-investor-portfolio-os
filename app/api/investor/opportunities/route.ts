@@ -6,6 +6,7 @@ import { getHoldingsByInvestor } from "@/lib/db/holdings"
 import {
   getOpportunitiesByInvestor,
   getOpportunityCounts,
+  validateOpportunityState,
 } from "@/lib/db/opportunities"
 
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,16 @@ export async function GET(req: Request) {
     const opportunities = await getOpportunitiesByInvestor(investorId, {
       includeAcquired: false,
     })
+    const statusOverrides = new Map<string, string>()
+    for (const opportunity of opportunities) {
+      const validation = validateOpportunityState(opportunity)
+      if (!validation.valid && validation.warning) {
+        console.warn(validation.warning)
+        if (validation.normalizedStatus) {
+          statusOverrides.set(opportunity.id, validation.normalizedStatus)
+        }
+      }
+    }
     const holdings = await getHoldingsByInvestor(investorId)
     const ownedListingIds = new Set(holdings.map((holding) => holding.listingId))
 
@@ -116,7 +127,7 @@ export async function GET(req: Request) {
           investorId: opp.investorId,
           listingId: opp.listingId,
           isOwned: ownedListingIds.has(opp.listingId),
-          status: opp.status,
+          status: statusOverrides.get(opp.id) ?? opp.status,
           decision: opp.decision,
           decisionAt: opp.decisionAt,
           decisionNote: opp.decisionNote,

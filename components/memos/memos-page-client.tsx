@@ -85,6 +85,11 @@ export function MemosPageClient() {
 
       const property = propertyId ? propertiesMap.get(propertyId) : undefined
 
+      // Enriched fields from the API (extracted from memo_versions content)
+      const enrichedTitle = typeof raw.title === "string" ? raw.title.trim() : ""
+      const enrichedPropertyTitle = typeof raw.propertyTitle === "string" ? raw.propertyTitle : ""
+      const enrichedCoverImage = typeof raw.coverImage === "string" ? raw.coverImage : ""
+
       return {
         ...m,
         investorId:
@@ -93,21 +98,23 @@ export function MemosPageClient() {
           "",
         investorName:
           (typeof raw.investorName === "string" && raw.investorName) ||
-          "Investor",
+          (raw.investor_id ? "Investor" : "Unassigned"),
         propertyId,
         propertyTitle:
-          (typeof raw.propertyTitle === "string" && raw.propertyTitle) ||
+          enrichedPropertyTitle ||
           property?.title ||
           "Property",
         title:
-          (typeof raw.title === "string" && raw.title.trim()) ||
+          enrichedTitle ||
           (property?.title ? `IC Memo: ${property.title}` : "Investment Committee Memo"),
         status: normalizeStatus(raw.status, raw.state),
         updatedAt:
           (typeof raw.updatedAt === "string" && raw.updatedAt) ||
           (typeof raw.updated_at === "string" && raw.updated_at) ||
           new Date().toISOString(),
-      } as Memo
+        // Attach cover image for rendering (used when no listing match)
+        _coverImage: enrichedCoverImage || undefined,
+      } as Memo & { _coverImage?: string }
     })
 
     return role === "investor" && scopedInvestorId
@@ -151,18 +158,20 @@ export function MemosPageClient() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {visible.map((memo) => {
           const property = memo.propertyId ? propertiesMap.get(memo.propertyId) : undefined
+          const coverImageUrl = property?.imageUrl || (memo as Memo & { _coverImage?: string })._coverImage
           return (
             <Link key={memo.id} href={`/memos/${memo.id}`} className="group block">
               <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
                 {/* Property Image Header */}
-                {property?.imageUrl && (
+                {coverImageUrl && (
                   <div className="relative h-36 overflow-hidden">
                     <Image
-                      src={property.imageUrl}
-                      alt={property.title}
+                      src={coverImageUrl}
+                      alt={property?.title || memo.propertyTitle}
                       fill
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
                       sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      unoptimized={!property?.imageUrl}
                       onError={(e) => { e.currentTarget.style.display = "none" }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
@@ -177,9 +186,9 @@ export function MemosPageClient() {
                     
                     {/* Property Info Overlay */}
                     <div className="absolute bottom-3 left-3 right-3">
-                      <div className="text-sm font-medium text-white truncate">{property.title}</div>
+                      <div className="text-sm font-medium text-white truncate">{property?.title || memo.propertyTitle}</div>
                       <div className="flex items-center gap-2 text-xs text-white/80">
-                        <span>{property.area}</span>
+                        <span>{property?.area || ""}</span>
                       </div>
                     </div>
                   </div>

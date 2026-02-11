@@ -42,6 +42,10 @@ export async function createInvestorDb(input: Omit<InvestorRecord, "id" | "creat
     assigned_agent_id: input.assignedAgentId,
     owner_user_id: input.ownerUserId ?? null,
     avatar: input.avatar ?? null,
+    thesis_return_style: input.thesisReturnStyle ?? null,
+    thesis_hold_period: input.thesisHoldPeriod ?? null,
+    thesis_preferred_exits: input.thesisPreferredExits ?? null,
+    thesis_notes: input.thesisNotes ?? null,
   }
   const { data, error } = await supabase.from("investors").insert(payload).select("*").maybeSingle()
   if (error) throw error
@@ -63,6 +67,10 @@ export async function updateInvestorDb(id: string, patch: Partial<InvestorRecord
   if (patch.ownerUserId !== undefined) payload.owner_user_id = patch.ownerUserId
   if (patch.avatar !== undefined) payload.avatar = patch.avatar
   if (patch.description !== undefined) payload.description = patch.description
+  if (patch.thesisReturnStyle !== undefined) payload.thesis_return_style = patch.thesisReturnStyle
+  if (patch.thesisHoldPeriod !== undefined) payload.thesis_hold_period = patch.thesisHoldPeriod
+  if (patch.thesisPreferredExits !== undefined) payload.thesis_preferred_exits = patch.thesisPreferredExits
+  if (patch.thesisNotes !== undefined) payload.thesis_notes = patch.thesisNotes
 
   const { data, error } = await supabase.from("investors").update(payload).eq("id", id).select("*").maybeSingle()
   if (error) throw error
@@ -93,6 +101,10 @@ function mapRow(row: Record<string, unknown>): InvestorRecord {
     assignedAgentId: row.assigned_agent_id as string,
     ownerUserId: (row.owner_user_id as string) ?? undefined,
     avatar: (row.avatar as string) ?? undefined,
+    thesisReturnStyle: (row.thesis_return_style as InvestorRecord["thesisReturnStyle"]) ?? undefined,
+    thesisHoldPeriod: (row.thesis_hold_period as string) ?? undefined,
+    thesisPreferredExits: (row.thesis_preferred_exits as string[]) ?? undefined,
+    thesisNotes: (row.thesis_notes as string) ?? undefined,
   }
 }
 

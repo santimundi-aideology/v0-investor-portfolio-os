@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="hidden lg:flex lg:w-[55%] xl:w-[60%] bg-slate-900 text-white relative overflow-hidden">
         {/* Background image + overlays */}
         <img
-          src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1800&q=80"
+          src="https://dmkrjnuzruhkmykbrqld.supabase.co/storage/v1/object/public/listings/images/villa_1.jpg"
           alt=""
           aria-hidden="true"
           loading="lazy"

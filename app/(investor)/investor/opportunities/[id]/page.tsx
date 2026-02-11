@@ -5,13 +5,13 @@ import Link from "next/link"
 import {
   ArrowLeft,
   Building2,
+  Clock3,
   FileText,
   Heart,
   Loader2,
   MapPin,
   Send,
   Sparkles,
-  Star,
   ThumbsDown,
   User,
 } from "lucide-react"
@@ -28,6 +28,7 @@ type OpportunityDetail = {
   id: string
   status: string
   decision: string
+  decisionAt: string | null
   decisionNote: string | null
   sharedByName: string | null
   sharedAt: string
@@ -61,6 +62,13 @@ function formatAED(value: number) {
   if (value >= 1_000_000) return `AED ${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `AED ${(value / 1_000).toFixed(0)}K`
   return `AED ${value.toLocaleString()}`
+}
+
+function getUiDecision(decision: string, decisionAt?: string | null): "interested" | "not_now" | "pass" | null {
+  if (decision === "interested" || decision === "very_interested") return "interested"
+  if (decision === "not_interested") return "pass"
+  if (decision === "pending" && decisionAt) return "not_now"
+  return null
 }
 
 export default function OpportunityDetailPage({
@@ -195,6 +203,7 @@ export default function OpportunityDetailPage({
   }
 
   const p = opportunity.property
+  const uiDecision = getUiDecision(opportunity.decision, opportunity.decisionAt)
 
   return (
     <div className="min-h-screen bg-gray-100/30">
@@ -417,7 +426,7 @@ export default function OpportunityDetailPage({
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
-                  variant={opportunity.decision === "interested" ? "default" : "outline"}
+                  variant={uiDecision === "interested" ? "default" : "outline"}
                   className="w-full justify-start gap-2"
                   onClick={() => handleDecision("interested")}
                 >
@@ -425,24 +434,20 @@ export default function OpportunityDetailPage({
                   Interested
                 </Button>
                 <Button
-                  variant={opportunity.decision === "very_interested" ? "default" : "outline"}
-                  className={cn(
-                    "w-full justify-start gap-2",
-                    opportunity.decision === "very_interested" &&
-                      "bg-amber-500 hover:bg-amber-600"
-                  )}
-                  onClick={() => handleDecision("very_interested")}
+                  variant={uiDecision === "not_now" ? "default" : "outline"}
+                  className="w-full justify-start gap-2"
+                  onClick={() => handleDecision("not_now")}
                 >
-                  <Star className="size-4" />
-                  Very Interested
+                  <Clock3 className="size-4" />
+                  Not Now
                 </Button>
                 <Button
-                  variant={opportunity.decision === "not_interested" ? "destructive" : "ghost"}
-                  className="w-full justify-start gap-2 text-muted-foreground"
-                  onClick={() => handleDecision("not_interested")}
+                  variant={uiDecision === "pass" ? "destructive" : "outline"}
+                  className="w-full justify-start gap-2"
+                  onClick={() => handleDecision("pass")}
                 >
                   <ThumbsDown className="size-4" />
-                  Not Interested
+                  Pass
                 </Button>
               </CardContent>
             </Card>

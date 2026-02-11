@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, X, MessageSquare, Sparkles, AlertTriangle, ShieldCheck, Clock, Loader2, CheckCircle2, ArrowRight } from "lucide-react"
+import { Check, X, MessageSquare, Sparkles, AlertTriangle, ShieldCheck, Clock, Clock3, Loader2, CheckCircle2, ArrowRight, Heart, ThumbsDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 
 type DecisionType = "approved" | "rejected" | "approved_conditional"
+type InvestorAction = "interested" | "not_now" | "pass"
 
 type Comp = {
   description?: string
@@ -50,7 +51,7 @@ interface MemoDecisionPanelProps {
   trustStatus?: "verified" | "unknown" | "flagged"
   trustReason?: string
   currentVersion?: MemoVersion
-  onDecisionMade?: (decision: DecisionType) => void
+  onDecisionMade?: (decision: InvestorAction) => void
 }
 
 const REASON_TAGS = [
@@ -86,7 +87,7 @@ export function MemoDecisionPanel({
   const [comment, setComment] = React.useState("")
   const [conditionText, setConditionText] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
-  const [submitted, setSubmitted] = React.useState<DecisionType | null>(null)
+  const [submitted, setSubmitted] = React.useState<InvestorAction | null>(null)
   const [aiSummary, setAiSummary] = React.useState<string | null>(null)
   const [loadingAiSummary, setLoadingAiSummary] = React.useState(false)
 
@@ -146,8 +147,21 @@ export function MemoDecisionPanel({
     )
   }
 
-  async function submitDecision(decisionType: DecisionType) {
-    if (selectedTags.length === 0) return
+  function mapDecisionTypeToAction(decisionType: DecisionType): InvestorAction {
+    if (decisionType === "approved") return "interested"
+    if (decisionType === "approved_conditional") return "not_now"
+    return "pass"
+  }
+
+  async function submitDecision(
+    decisionType: DecisionType,
+    opts?: { reasonTags?: string[]; comment?: string; conditionText?: string; action?: InvestorAction }
+  ) {
+    const reasonTags = opts?.reasonTags ?? selectedTags
+    const commentText = opts?.comment ?? comment
+    const condition = opts?.conditionText ?? conditionText
+
+    if (reasonTags.length === 0) return
 
     setSubmitting(true)
     try {
@@ -156,18 +170,19 @@ export function MemoDecisionPanel({
         headers: { "Content-Type": "application/json", "x-role": "investor" },
         body: JSON.stringify({
           decision: decisionType,
-          reasonTags: selectedTags,
-          conditionText: decisionType === "approved_conditional" ? conditionText : undefined,
-          comment: comment || undefined,
+          reasonTags,
+          conditionText: decisionType === "approved_conditional" ? condition : undefined,
+          comment: commentText || undefined,
         }),
       })
 
       if (res.ok) {
-        setSubmitted(decisionType)
+        const action = opts?.action ?? mapDecisionTypeToAction(decisionType)
+        setSubmitted(action)
         setShowApproveDialog(false)
         setShowRejectDialog(false)
         setShowRequestChangesDialog(false)
-        onDecisionMade?.(decisionType)
+        onDecisionMade?.(action)
       }
     } finally {
       setSubmitting(false)
@@ -205,11 +220,11 @@ export function MemoDecisionPanel({
                 Decision Submitted
               </h3>
               <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80">
-                {submitted === "approved" || memoState === "decided"
-                  ? "This memo has been approved. The realtor will be notified."
-                  : submitted === "rejected"
-                    ? "This memo has been rejected. The realtor will be notified."
-                    : "This memo has been conditionally approved. Review the conditions with your realtor."}
+                {submitted === "interested" || memoState === "decided"
+                  ? "Marked as Interested. The realtor will be notified."
+                  : submitted === "pass"
+                    ? "Marked as Pass. The realtor will be notified."
+                    : "Marked as Not Now. The realtor will be notified."}
               </p>
             </div>
           </div>
@@ -239,7 +254,7 @@ export function MemoDecisionPanel({
               </h3>
               <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
                 This memo is in <span className="font-medium capitalize">{memoState}</span> state. 
-                It must be sent to you before you can approve or reject it.
+                It must be sent to you before you can choose Interested, Not Now, or Pass.
               </p>
             </div>
           </div>
@@ -291,17 +306,8 @@ export function MemoDecisionPanel({
               className="h-16 text-lg font-semibold bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/25"
               size="lg"
             >
-              <Check className="mr-2 size-6" />
-              Approve
-            </Button>
-            <Button
-              onClick={openRejectDialog}
-              variant="destructive"
-              className="h-16 text-lg font-semibold shadow-lg shadow-destructive/25"
-              size="lg"
-            >
-              <X className="mr-2 size-6" />
-              Reject
+              <Heart className="mr-2 size-6" />
+              Interested
             </Button>
             <Button
               onClick={openRequestChangesDialog}
@@ -309,8 +315,17 @@ export function MemoDecisionPanel({
               className="h-16 text-lg font-semibold"
               size="lg"
             >
-              <MessageSquare className="mr-2 size-5" />
-              Request Changes
+              <Clock3 className="mr-2 size-5" />
+              Not Now
+            </Button>
+            <Button
+              onClick={openRejectDialog}
+              variant="destructive"
+              className="h-16 text-lg font-semibold shadow-lg shadow-destructive/25"
+              size="lg"
+            >
+              <ThumbsDown className="mr-2 size-5" />
+              Pass
             </Button>
           </div>
 
@@ -325,17 +340,17 @@ export function MemoDecisionPanel({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600">
-              <Check className="size-6" />
-              Approve Memo
+              <Heart className="size-6" />
+              Mark as Interested
             </DialogTitle>
             <DialogDescription>
-              Confirm your approval of this investment memo. Select the reasons that support your decision.
+              Confirm your interest in this opportunity. Select the reasons that support your decision.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Reason(s) for approval</label>
+              <label className="text-sm font-medium">Reason(s) for interest</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {REASON_TAGS.filter((t) => POSITIVE_TAGS.includes(t.id)).map((tag) => (
                   <button
@@ -392,7 +407,7 @@ export function MemoDecisionPanel({
               Cancel
             </Button>
             <Button
-              onClick={() => submitDecision(conditionText ? "approved_conditional" : "approved")}
+              onClick={() => submitDecision("approved", { action: "interested" })}
               disabled={selectedTags.length === 0 || submitting}
               className="bg-emerald-500 hover:bg-emerald-600 text-white"
             >
@@ -404,7 +419,7 @@ export function MemoDecisionPanel({
               ) : (
                 <>
                   <Check className="mr-2 size-4" />
-                  Confirm Approval
+                  Confirm Interested
                 </>
               )}
             </Button>
@@ -417,17 +432,17 @@ export function MemoDecisionPanel({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <X className="size-6" />
-              Reject Memo
+              <ThumbsDown className="size-6" />
+              Mark as Pass
             </DialogTitle>
             <DialogDescription>
-              Please provide feedback on why this memo does not meet your requirements.
+              Please provide feedback on why this opportunity does not meet your requirements.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Reason(s) for rejection</label>
+              <label className="text-sm font-medium">Reason(s) for pass</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {REASON_TAGS.filter((t) => NEGATIVE_TAGS.includes(t.id)).map((tag) => (
                   <button
@@ -463,7 +478,7 @@ export function MemoDecisionPanel({
               Cancel
             </Button>
             <Button
-              onClick={() => submitDecision("rejected")}
+              onClick={() => submitDecision("rejected", { action: "pass" })}
               disabled={selectedTags.length === 0 || submitting}
               variant="destructive"
             >
@@ -474,8 +489,8 @@ export function MemoDecisionPanel({
                 </>
               ) : (
                 <>
-                  <X className="mr-2 size-4" />
-                  Confirm Rejection
+                  <ThumbsDown className="mr-2 size-4" />
+                  Confirm Pass
                 </>
               )}
             </Button>
@@ -488,33 +503,33 @@ export function MemoDecisionPanel({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="size-6 text-green-600" />
-              Request Changes
+              <Clock3 className="size-6 text-green-600" />
+              Mark as Not Now
             </DialogTitle>
             <DialogDescription>
-              Ask the realtor to revise the memo before you make a final decision.
+              Let your realtor know you are not ready to proceed right now.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">What changes do you need?</label>
+              <label className="text-sm font-medium">Optional note</label>
               <textarea
                 className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
                 rows={5}
-                placeholder="Describe the additional information, clarifications, or changes you need..."
+                placeholder="Anything your realtor should know before revisiting this opportunity..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
             </div>
 
             <div className="rounded-lg bg-gray-50 p-4">
-              <h4 className="text-sm font-medium">Common requests:</h4>
+              <h4 className="text-sm font-medium">Examples:</h4>
               <ul className="mt-2 space-y-1 text-sm text-gray-500">
-                <li>• More comparable sales data</li>
-                <li>• Updated financial projections</li>
-                <li>• Additional due diligence on title/ownership</li>
-                <li>• Clarification on renovation costs</li>
+                <li>• Revisit after current deal closes</li>
+                <li>• Share similar options next quarter</li>
+                <li>• Waiting for financing window</li>
+                <li>• Market timing is not ideal right now</li>
               </ul>
             </div>
           </div>
@@ -525,13 +540,26 @@ export function MemoDecisionPanel({
             </Button>
             <Button
               onClick={() => {
-                // Just close for now - this would send a message to the realtor
-                setShowRequestChangesDialog(false)
+                submitDecision("approved_conditional", {
+                  action: "not_now",
+                  reasonTags: ["timing"],
+                  conditionText: comment.trim() || "Investor marked this memo as not now.",
+                  comment,
+                })
               }}
-              disabled={!comment.trim()}
+              disabled={submitting}
             >
-              <MessageSquare className="mr-2 size-4" />
-              Send Request
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Clock3 className="mr-2 size-4" />
+                  Confirm Not Now
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

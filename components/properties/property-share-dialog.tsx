@@ -69,28 +69,58 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
       .map((inv) => inv.name)
       .join(", ")
 
-  const copyLink = async (shareUrl: string, title: string) => {
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return
-    try {
-      await navigator.clipboard.writeText(`${title} — ${shareUrl}`)
-    } catch {
-      // ignore clipboard failures
-    }
-  }
-
   const handleShare = async (ids: string[]) => {
     if (!property || ids.length === 0) return
     setSharing(true)
     try {
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-      const shareUrl = `${baseUrl}/properties/${property.id}`
-      await copyLink(shareUrl, property.title)
-      toast.success(`Shared ${property.title}`, {
-        description: `Sent to ${investorLabel(ids)}${message ? ` · “${message}”` : ""}`,
-        duration: 5000,
-      })
-      onShared?.({ investorIds: ids, propertyId: property.id })
-      onOpenChange(false)
+      // Create a real investor_opportunity for each selected investor
+      const results = await Promise.allSettled(
+        ids.map(async (investorId) => {
+          const aiMatch = aiMatches.find((m) => m.investor.id === investorId)
+          const res = await fetch(`/api/investors/${investorId}/opportunities`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              listingId: property.id,
+              sharedMessage: message || undefined,
+              matchScore: aiMatch?.score,
+              matchReasons: aiMatch?.reasons?.slice(0, 3),
+            }),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data.error || "Failed to share")
+          }
+          return investorId
+        })
+      )
+
+      const succeeded = results.filter((r) => r.status === "fulfilled").length
+      const failed = results.filter((r) => r.status === "rejected").length
+
+      if (succeeded > 0 && failed === 0) {
+        toast.success(`Shared ${property.title}`, {
+          description: `Sent to ${investorLabel(ids)}${message ? ` \u00b7 "${message}"` : ""}`,
+          duration: 5000,
+        })
+      } else if (succeeded > 0 && failed > 0) {
+        toast.warning(`Partially shared ${property.title}`, {
+          description: `${succeeded} succeeded, ${failed} failed.`,
+          duration: 5000,
+        })
+      } else {
+        toast.error("Failed to share property", {
+          description: "Could not create opportunities for any selected investor.",
+        })
+      }
+
+      if (succeeded > 0) {
+        onShared?.({ investorIds: ids, propertyId: property.id })
+        onOpenChange(false)
+      }
+    } catch (err) {
+      console.error("Share error:", err)
+      toast.error("Failed to share property")
     } finally {
       setSharing(false)
     }
@@ -132,11 +162,11 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
                   <div>
                     <p className="text-lg font-semibold">{property.title}</p>
                     <p className="text-sm text-muted-foreground">
-                      {property.area} · {formatPrice(property.price)}
+                      {property.area} \u00b7 {formatPrice(property.price)}
                     </p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {property.features?.slice(0, 3).join(" • ") || "No highlights captured yet"}
+                    {property.features?.slice(0, 3).join(" \u2022 ") || "No highlights captured yet"}
                   </div>
                 </div>
               </div>
@@ -154,7 +184,7 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
               </div>
               {aiMatches.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  No perfect matches yet — try manual share below.
+                  No perfect matches yet \u2014 try manual share below.
                 </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-3">
@@ -232,7 +262,7 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
               </div>
 
               <Textarea
-                placeholder="Optional note (e.g. “This matches your Core Plus ticket for Q1.”)"
+                placeholder={'Optional note (e.g. "This matches your Core Plus ticket for Q1.")'}
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
               />
@@ -247,5 +277,3 @@ export function PropertyShareDialog({ property, open, onOpenChange, initialInves
     </Dialog>
   )
 }
-
-

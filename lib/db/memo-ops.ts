@@ -93,6 +93,29 @@ export async function createMemo(input: {
   })
   if (verErr) throw verErr
 
+  // Auto-link memo to matching investor_opportunity if one exists
+  if (input.investorId && input.listingId) {
+    try {
+      const { data: opp } = await supabase
+        .from("investor_opportunities")
+        .select("id")
+        .eq("investor_id", input.investorId)
+        .eq("listing_id", input.listingId)
+        .is("memo_id", null)
+        .maybeSingle()
+
+      if (opp) {
+        await supabase
+          .from("investor_opportunities")
+          .update({ memo_id: memoRow.id, status: "memo_review", updated_at: now })
+          .eq("id", opp.id)
+      }
+    } catch (linkErr) {
+      // Non-fatal: memo was created successfully, just log the linking failure
+      console.warn("[memo-ops] Failed to auto-link memo to opportunity:", linkErr)
+    }
+  }
+
   const versions: MemoVersion[] = [
     { version: 1, content: input.content, createdAt: now, createdBy: input.createdBy },
   ]

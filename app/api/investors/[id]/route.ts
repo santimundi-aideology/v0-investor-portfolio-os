@@ -24,7 +24,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     assertInvestorAccess(investor, ctx)
 
     const body = await req.json()
-    const updated = await updateInvestorDb((await params).id, body)
+    const patch = {
+      name: body.name,
+      company: body.company,
+      email: body.email,
+      phone: body.phone,
+      status: body.status,
+      mandate: body.mandate,
+      lastContact: body.lastContact,
+      totalDeals: body.totalDeals,
+      assignedAgentId: body.assignedAgentId,
+      ownerUserId: body.ownerUserId,
+      avatar: body.avatar,
+      description: body.description,
+      thesisReturnStyle: body.thesisReturnStyle,
+      thesisHoldPeriod: body.thesisHoldPeriod,
+      thesisPreferredExits: body.thesisPreferredExits,
+      thesisNotes: body.thesisNotes,
+    }
+    const updated = await updateInvestorDb((await params).id, patch)
     return NextResponse.json(updated)
   } catch (err) {
     return handleError(err)

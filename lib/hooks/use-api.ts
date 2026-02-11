@@ -22,6 +22,7 @@ export function useAPI<T = unknown>(endpoint: string | null, options?: {
   refreshInterval?: number
   revalidateOnFocus?: boolean
   revalidateOnReconnect?: boolean
+  suspense?: boolean
 }) {
   const { tenantId } = useApp()
   

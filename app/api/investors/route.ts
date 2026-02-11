@@ -45,6 +45,10 @@ export async function POST(req: Request) {
       lastContact: body.lastContact,
       assignedAgentId,
       ownerUserId: body.ownerUserId ?? null,
+      thesisReturnStyle: body.thesisReturnStyle,
+      thesisHoldPeriod: body.thesisHoldPeriod,
+      thesisPreferredExits: body.thesisPreferredExits,
+      thesisNotes: body.thesisNotes,
     })
     if (!record) throw new Error("Failed to create investor")
 

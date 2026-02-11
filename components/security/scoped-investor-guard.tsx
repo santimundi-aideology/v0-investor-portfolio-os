@@ -16,6 +16,14 @@ export function ScopedInvestorGuard({
   children: React.ReactNode
 }) {
   const { role, scopedInvestorId } = useApp()
+  const [isMounted, setIsMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Avoid SSR/client mismatch: app context may differ before hydration.
+  if (!isMounted) return null
 
   // Internal roles are not scoped.
   if (role !== "investor") return <>{children}</>

@@ -19,6 +19,10 @@ export type InvestorRecord = {
   totalDeals: number
   assignedAgentId: string
   ownerUserId?: string | null
+  thesisReturnStyle?: "income" | "appreciation" | "balanced"
+  thesisHoldPeriod?: string
+  thesisPreferredExits?: string[]
+  thesisNotes?: string
 }
 
 export type ListingRecord = {

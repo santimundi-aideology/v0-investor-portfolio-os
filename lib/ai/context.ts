@@ -225,6 +225,25 @@ function buildContextText(context: AIContext, includeMarket: boolean, includeMan
       sections.push(`- About & Investment Goals:`)
       sections.push(`  ${context.investor.description}`)
     }
+    const thesisLines: string[] = []
+    if (context.investor.thesisReturnStyle) {
+      thesisLines.push(`Return Style: ${context.investor.thesisReturnStyle}`)
+    }
+    if (context.investor.thesisHoldPeriod) {
+      thesisLines.push(`Hold Period: ${context.investor.thesisHoldPeriod}`)
+    }
+    if (context.investor.thesisPreferredExits?.length) {
+      thesisLines.push(`Preferred Exits: ${context.investor.thesisPreferredExits.join(", ")}`)
+    }
+    if (context.investor.thesisNotes) {
+      thesisLines.push(`Notes: ${context.investor.thesisNotes}`)
+    }
+    if (thesisLines.length) {
+      sections.push(`- Investment Thesis:`)
+      for (const line of thesisLines) {
+        sections.push(`  - ${line}`)
+      }
+    }
     if (context.investor.mandate && !includeMandate) {
       // Brief mandate summary when not doing full mandate analysis
       const mandate = context.investor.mandate as Record<string, unknown>

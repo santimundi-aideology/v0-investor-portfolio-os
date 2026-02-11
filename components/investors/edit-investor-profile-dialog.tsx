@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * @deprecated
+ * Legacy editor wired to `lib/investor-store.ts` in-memory updates.
+ * Do not use in investor-facing flows. Use API-backed inline editing on
+ * `app/(investor)/investor/profile/page.tsx` instead.
+ */
+
 import * as React from "react"
 import { toast } from "sonner"
 import { Edit3, Save } from "lucide-react"

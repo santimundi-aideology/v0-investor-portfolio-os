@@ -48,6 +48,24 @@ export type OpportunityMessage = {
   createdAt: string
 }
 
+const MEMO_REQUIRED_STATUSES: OpportunityStatus[] = ["memo_review", "deal_room"]
+
+export function validateOpportunityState(opportunity: {
+  id: string
+  status: OpportunityStatus
+  memoId: string | null
+}): { valid: boolean; warning?: string; normalizedStatus?: OpportunityStatus } {
+  if (MEMO_REQUIRED_STATUSES.includes(opportunity.status) && !opportunity.memoId) {
+    return {
+      valid: false,
+      warning: `[opportunity-invariant] Opportunity ${opportunity.id} has status ${opportunity.status} without memo_id`,
+      normalizedStatus: "shortlisted",
+    }
+  }
+
+  return { valid: true }
+}
+
 function mapOpportunityRow(row: Record<string, unknown>): InvestorOpportunity {
   return {
     id: row.id as string,
@@ -123,6 +141,52 @@ export async function getOpportunitiesByInvestor(
 }
 
 /**
+ * Get all opportunities for a tenant (realtor/manager views).
+ * Ordered by most recent share first.
+ */
+export async function getOpportunitiesByTenant(
+  tenantId: string,
+  opts?: {
+    includeClosed?: boolean
+    statuses?: OpportunityStatus[]
+    investorId?: string
+    listingId?: string
+  }
+): Promise<InvestorOpportunity[]> {
+  const supabase = getSupabaseAdminClient()
+
+  try {
+    let query = supabase
+      .from("investor_opportunities")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("shared_at", { ascending: false })
+
+    if (opts?.investorId) {
+      query = query.eq("investor_id", opts.investorId)
+    }
+    if (opts?.listingId) {
+      query = query.eq("listing_id", opts.listingId)
+    }
+    if (opts?.statuses?.length) {
+      query = query.in("status", opts.statuses)
+    } else if (!opts?.includeClosed) {
+      query = query.not("status", "in", '("acquired","expired")')
+    }
+
+    const { data, error } = await query
+    if (error) {
+      console.warn("[opportunities] Error fetching tenant opportunities:", error.message)
+      return []
+    }
+    return (data ?? []).map(mapOpportunityRow)
+  } catch (err) {
+    console.warn("[opportunities] Error:", err)
+    return []
+  }
+}
+
+/**
  * Get a single opportunity by ID
  */
 export async function getOpportunityById(
@@ -150,7 +214,7 @@ export async function getOpportunityById(
 export async function updateOpportunityDecision(
   id: string,
   decision: InvestorDecision,
-  note?: string
+  opts?: { note?: string; status?: OpportunityStatus }
 ): Promise<InvestorOpportunity | null> {
   const supabase = getSupabaseAdminClient()
 
@@ -158,12 +222,8 @@ export async function updateOpportunityDecision(
     decision,
     decision_at: new Date().toISOString(),
   }
-  if (note !== undefined) payload.decision_note = note
-
-  // If "not_interested", also set status to "rejected"
-  if (decision === "not_interested") {
-    payload.status = "rejected"
-  }
+  if (opts?.note !== undefined) payload.decision_note = opts.note
+  if (opts?.status !== undefined) payload.status = opts.status
 
   try {
     const { data, error } = await supabase

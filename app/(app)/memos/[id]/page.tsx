@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Calendar, User, Building2, Send } from "lucide-react"
+import { ArrowLeft, Calendar, User, Building2, Send, ExternalLink, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { MemoActions } from "@/components/memos/memo-actions"
 import { getListingById } from "@/lib/db/listings"
@@ -234,6 +234,20 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
   const rawMemo = (await memoRes.json()) as Record<string, unknown>
 
+  // Extract structured content for direct rendering (if available)
+  const rawContent = readLatestContent(rawMemo)
+  const structuredContent =
+    rawContent && typeof rawContent === "object" && !Array.isArray(rawContent)
+      ? (rawContent as Record<string, unknown>)
+      : null
+
+  // Property-intake memos store property info inside the version content.
+  // Use that as a fallback when there's no listing_id in the DB row.
+  const contentProperty = structuredContent?.property as Record<string, unknown> | undefined
+  const contentEvaluation = structuredContent?.evaluation as Record<string, unknown> | undefined
+  const contentSource = structuredContent?.source as Record<string, unknown> | undefined
+  const contentImages = contentProperty?.images as string[] | undefined
+
   const investorId =
     (typeof rawMemo.investorId === "string" && rawMemo.investorId) ||
     (typeof rawMemo.investor_id === "string" && rawMemo.investor_id) ||
@@ -250,37 +264,57 @@ export default async function MemoPage({ params }: MemoPageProps) {
     propertyId ? getListingById(propertyId) : Promise.resolve(null),
     investorId ? getInvestorById(investorId) : Promise.resolve(null),
   ])
-  const property = listing ? mapListingToProperty(listing as Record<string, unknown>) : undefined
-  const normalizedContent = toNarrative(readLatestContent(rawMemo))
+  const dbProperty = listing ? mapListingToProperty(listing as Record<string, unknown>) : undefined
+
+  // Build a synthesized property object from content when no DB listing exists
+  const property = dbProperty ?? (contentProperty
+    ? {
+        id: propertyId || "",
+        title: String(contentProperty.title ?? "Property"),
+        area: String(contentProperty.area ?? ""),
+        subArea: contentProperty.subArea ? String(contentProperty.subArea) : undefined,
+        propertyType: String(contentProperty.type ?? ""),
+        price: 0,
+        bedrooms: Number(contentProperty.bedrooms ?? 0),
+        bathrooms: Number(contentProperty.bathrooms ?? 0),
+        size: contentProperty.size ? Number(contentProperty.size) : undefined,
+        images: contentImages?.map((url: string) => ({ url, description: undefined, category: undefined })),
+        imageUrl: contentImages?.[0] ?? undefined,
+      } as unknown as import("@/lib/types").Property
+    : undefined)
+
+  const normalizedContent = toNarrative(rawContent)
+
+  // Derive the best title
+  const derivedTitle =
+    (typeof rawMemo.title === "string" && rawMemo.title.trim()) ||
+    (property?.title ? `IC Memo: ${property.title}` : null) ||
+    (contentProperty?.title ? `IC Memo: ${contentProperty.title}` : null) ||
+    (typeof contentEvaluation?.headline === "string" ? String(contentEvaluation.headline) : null) ||
+    "Investment Committee Memo"
 
   const memo: Memo = {
     id: (rawMemo.id as string) ?? id,
-    title:
-      (typeof rawMemo.title === "string" && rawMemo.title.trim()) ||
-      (property?.title ? `IC Memo: ${property.title}` : "Investment Committee Memo"),
+    title: derivedTitle,
     investorId,
     investorName:
       (typeof rawMemo.investorName === "string" && rawMemo.investorName) ||
       investor?.name ||
-      "Investor",
+      (investorId ? "Investor" : "Unassigned"),
     propertyId,
     propertyTitle:
       (typeof rawMemo.propertyTitle === "string" && rawMemo.propertyTitle) ||
       property?.title ||
-      "Property",
+      (contentProperty?.title ? String(contentProperty.title) : "Property"),
     status: normalizeStatus(rawMemo.status, rawMemo.state),
     content: normalizedContent,
-    analysis: (rawMemo.analysis as Memo["analysis"]) ?? undefined,
+    // Prefer top-level analysis; fall back to content.analysis from property-intake memos
+    analysis: (rawMemo.analysis as Memo["analysis"]) ??
+      (structuredContent?.analysis as Memo["analysis"]) ??
+      undefined,
     createdAt: (rawMemo.createdAt as string) || (rawMemo.created_at as string) || new Date().toISOString(),
     updatedAt: (rawMemo.updatedAt as string) || (rawMemo.updated_at as string) || new Date().toISOString(),
   }
-
-  // Extract structured content for direct rendering (if available)
-  const rawContent = readLatestContent(rawMemo)
-  const structuredContent =
-    rawContent && typeof rawContent === "object" && !Array.isArray(rawContent)
-      ? (rawContent as Record<string, unknown>)
-      : null
 
   const analysis = memo.analysis
   const returnBridge = (analysis as any)?.financialAnalysis?.returnBridge as
@@ -316,9 +350,9 @@ export default async function MemoPage({ params }: MemoPageProps) {
     <div className="space-y-6">
       {/* Back Button */}
       <Button variant="ghost" size="sm" asChild>
-        <Link href={`/investors/${memo.investorId}`}>
+        <Link href={memo.investorId ? `/investors/${memo.investorId}` : "/memos"}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Investor
+          {memo.investorId ? "Back to Investor" : "Back to Memos"}
         </Link>
       </Button>
 
@@ -599,13 +633,112 @@ export default async function MemoPage({ params }: MemoPageProps) {
                 </AnalysisSection>
               ) : null}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Full Memo Narrative</CardTitle>
-                  <CardDescription>Original markdown memo</CardDescription>
-                </CardHeader>
-                <CardContent className="prose prose-sm max-w-none prose-gray">{renderMemoContent(memo.content)}</CardContent>
-              </Card>
+              {/* Investment Thesis + Financial Analysis side by side */}
+              {(analysis.investmentThesis || analysis.financialAnalysis) ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  {analysis.investmentThesis ? (
+                    <AnalysisSection title="Investment Thesis">
+                      <p className="text-gray-500">{analysis.investmentThesis}</p>
+                    </AnalysisSection>
+                  ) : null}
+                  {analysis.financialAnalysis ? (
+                    <AnalysisSection title="Financial Analysis">
+                      <div className="space-y-2">
+                        {analysis.financialAnalysis.noi != null ? (
+                          <div className="flex justify-between text-sm"><span className="text-gray-500">Current NOI:</span><span className="font-semibold">{formatCurrency(analysis.financialAnalysis.noi)}</span></div>
+                        ) : null}
+                        {analysis.financialAnalysis.capRate != null ? (
+                          <div className="flex justify-between text-sm"><span className="text-gray-500">Cap Rate:</span><span className="font-semibold">{formatPercent(analysis.financialAnalysis.capRate / 100)}</span></div>
+                        ) : null}
+                        {analysis.financialAnalysis.targetIrr != null ? (
+                          <div className="flex justify-between text-sm"><span className="text-gray-500">Target IRR:</span><span className="font-semibold">{formatPercent(analysis.financialAnalysis.targetIrr / 100)}</span></div>
+                        ) : null}
+                        {analysis.financialAnalysis.holdPeriod ? (
+                          <div className="flex justify-between text-sm"><span className="text-gray-500">Hold Period:</span><span className="font-semibold">{analysis.financialAnalysis.holdPeriod}</span></div>
+                        ) : null}
+                      </div>
+                    </AnalysisSection>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* Future Value Outlook */}
+              {(analysis as Record<string, unknown>).growth ? (() => {
+                const growth = (analysis as Record<string, unknown>).growth as {
+                  narrative?: string
+                  neighborhoodTrend?: string
+                  annualGrowthBase?: number
+                  annualGrowthConservative?: number
+                  annualGrowthUpside?: number
+                  projectedValue1Y?: number
+                  projectedValue3Y?: number
+                  projectedValue5Y?: number
+                  drivers?: string[]
+                  sensitivities?: string[]
+                }
+                return (
+                  <AnalysisSection title="Future Value Outlook" description="Neighborhood-led value growth scenarios">
+                    {growth.narrative ? <p className="text-gray-500">{growth.narrative}</p> : null}
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {growth.projectedValue1Y != null ? <StatTile label="Projected 1Y Value" value={formatCurrency(growth.projectedValue1Y)} /> : null}
+                      {growth.projectedValue3Y != null ? <StatTile label="Projected 3Y Value" value={formatCurrency(growth.projectedValue3Y)} /> : null}
+                      {growth.projectedValue5Y != null ? <StatTile label="Projected 5Y Value" value={formatCurrency(growth.projectedValue5Y)} /> : null}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {growth.annualGrowthBase != null ? <StatTile label="Base Growth" value={`${growth.annualGrowthBase}% / year`} hint="Underwriting base case" /> : null}
+                      {growth.annualGrowthConservative != null ? <StatTile label="Conservative" value={`${growth.annualGrowthConservative}% / year`} hint="Downside case" /> : null}
+                      {growth.annualGrowthUpside != null ? <StatTile label="Upside" value={`${growth.annualGrowthUpside}% / year`} hint="Upside case" /> : null}
+                    </div>
+                    {growth.drivers?.length ? (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">Growth Drivers</p>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          {growth.drivers.map((d, idx) => (
+                            <li key={`growth-driver-${idx}`} className="flex gap-2">
+                              <span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" />
+                              <span>{d}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </AnalysisSection>
+                )
+              })() : null}
+
+              {/* Risks & Mitigations — structured version */}
+              {analysis.risks?.length ? (
+                <AnalysisSection title="Risks & Mitigations" description="Key risks and mitigating factors">
+                  <div className="space-y-3">
+                    {analysis.risks.map((r, idx) => (
+                      <div key={`risk-${idx}`} className="flex gap-2 text-sm">
+                        <span className="font-semibold text-gray-900">{idx + 1}.</span>
+                        <span><span className="text-gray-700">{r.risk}</span>{r.mitigation ? <> — <span className="text-gray-500">{r.mitigation}</span></> : null}</span>
+                      </div>
+                    ))}
+                  </div>
+                </AnalysisSection>
+              ) : null}
+
+              {/* Final Recommendation */}
+              {analysis.finalRecommendation ? (
+                <Card className={analysis.finalRecommendation.decision === "PROCEED" ? "border-green-200 bg-green-50" : analysis.finalRecommendation.decision === "CONDITIONAL" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Recommendation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-lg font-bold">{analysis.finalRecommendation.decision}</p>
+                    {analysis.finalRecommendation.condition ? <p className="text-gray-600">{analysis.finalRecommendation.condition}</p> : null}
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {/* Realtor Notes */}
+              {typeof structuredContent?.realtorNotes === "string" && structuredContent.realtorNotes.trim() ? (
+                <AnalysisSection title="Realtor Notes" description="Internal notes added at intake">
+                  <p className="text-sm text-gray-500 italic">{structuredContent.realtorNotes as string}</p>
+                </AnalysisSection>
+              ) : null}
             </>
           ) : structuredContent && typeof structuredContent.execSummary === "string" ? (
             <>
@@ -780,23 +913,97 @@ export default async function MemoPage({ params }: MemoPageProps) {
             </CardContent>
           </Card>
 
+          {/* Score overview from evaluation */}
+          {contentEvaluation ? (
+            <Card className="bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-white flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-green-400" />
+                  AI Investment Analysis
+                </CardTitle>
+                <CardDescription className="text-gray-300">Analysis complete</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {contentEvaluation.factors && typeof contentEvaluation.factors === "object" ? (() => {
+                  const factors = contentEvaluation.factors as Record<string, number>
+                  return (
+                    <div className="space-y-2 text-sm">
+                      {factors.mandateFit != null ? <div className="flex justify-between"><span className="text-gray-300">Mandate Fit</span><span className="font-semibold">{factors.mandateFit}/25</span></div> : null}
+                      {factors.marketTiming != null ? <div className="flex justify-between"><span className="text-gray-300">Market Timing</span><span className="font-semibold">{factors.marketTiming}/25</span></div> : null}
+                      {factors.portfolioFit != null ? <div className="flex justify-between"><span className="text-gray-300">Portfolio Fit</span><span className="font-semibold">{factors.portfolioFit}/25</span></div> : null}
+                      {factors.riskAlignment != null ? <div className="flex justify-between"><span className="text-gray-300">Risk Alignment</span><span className="font-semibold">{factors.riskAlignment}/25</span></div> : null}
+                    </div>
+                  )
+                })() : null}
+                {contentEvaluation.score != null ? (
+                  <div className="pt-2 border-t border-gray-700 text-center">
+                    <p className="text-xs uppercase tracking-wide text-gray-400">Overall Score</p>
+                    <p className="text-3xl font-bold text-white">{String(contentEvaluation.score)}<span className="text-lg text-gray-400">/100</span></p>
+                  </div>
+                ) : null}
+                {contentEvaluation.recommendation ? (
+                  <div className="rounded-lg bg-green-900/40 p-2 text-center">
+                    <p className="text-xs uppercase text-gray-400">AI Recommendation</p>
+                    <p className="font-semibold text-green-400 capitalize">{String(contentEvaluation.recommendation).replace(/_/g, " ")}</p>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* Source info from property-intake */}
+          {contentSource ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Source</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {contentSource.portal ? <div className="flex justify-between"><span className="text-gray-500">Portal</span><span className="font-medium capitalize">{String(contentSource.portal)}</span></div> : null}
+                {contentSource.listingId ? <div className="flex justify-between"><span className="text-gray-500">Listing ID</span><span className="font-medium">{String(contentSource.listingId)}</span></div> : null}
+                {contentSource.referenceNumber ? <div className="flex justify-between"><span className="text-gray-500">Reference</span><span className="font-medium">{String(contentSource.referenceNumber)}</span></div> : null}
+                {contentSource.permitNumber ? <div className="flex justify-between"><span className="text-gray-500">Permit No.</span><span className="font-medium text-xs">{String(contentSource.permitNumber)}</span></div> : null}
+                {contentSource.verified ? <div className="flex justify-between"><span className="text-gray-500">Verified</span><span className="font-medium text-green-600">Yes</span></div> : null}
+                {contentSource.developer ? <><Separator /><div className="flex justify-between"><span className="text-gray-500">Developer</span><span className="font-medium">{String(contentSource.developer)}</span></div></> : null}
+                {contentSource.completionStatus && contentSource.completionStatus !== "unknown" ? (
+                  <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="font-medium capitalize">{String(contentSource.completionStatus).replace(/_/g, " ")}</span></div>
+                ) : null}
+                {contentSource.handoverDate ? <div className="flex justify-between"><span className="text-gray-500">Handover</span><span className="font-medium">{String(contentSource.handoverDate)}</span></div> : null}
+                {contentSource.listingUrl ? (
+                  <>
+                    <Separator />
+                    <a href={String(contentSource.listingUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-600 hover:underline">
+                      View Original<ExternalLink className="h-3 w-3" />
+                    </a>
+                  </>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Related</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="ghost" className="w-full justify-start" asChild>
-                <Link href={`/investors/${memo.investorId}`}>
-                  <User className="mr-2 h-4 w-4" />
-                  View Investor
-                </Link>
-              </Button>
-              <Button variant="ghost" className="w-full justify-start" asChild>
-                <Link href={`/properties/${memo.propertyId}`}>
-                  <Building2 className="mr-2 h-4 w-4" />
-                  View Property
-                </Link>
-              </Button>
+              {memo.investorId ? (
+                <Button variant="ghost" className="w-full justify-start" asChild>
+                  <Link href={`/investors/${memo.investorId}`}>
+                    <User className="mr-2 h-4 w-4" />
+                    View Investor
+                  </Link>
+                </Button>
+              ) : null}
+              {memo.propertyId ? (
+                <Button variant="ghost" className="w-full justify-start" asChild>
+                  <Link href={`/properties/${memo.propertyId}`}>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    View Property
+                  </Link>
+                </Button>
+              ) : null}
+              {!memo.investorId && !memo.propertyId ? (
+                <p className="text-sm text-gray-500 py-2 text-center">No linked records</p>
+              ) : null}
             </CardContent>
           </Card>
         </div>

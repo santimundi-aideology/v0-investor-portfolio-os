@@ -71,6 +71,13 @@ export async function POST(
       )
     }
 
+    if (!ctx.investorId || ctx.investorId !== opportunity.investorId) {
+      return NextResponse.json(
+        { error: "You can only post messages to your own opportunities" },
+        { status: 403 }
+      )
+    }
+
     const investor = await getInvestorById(opportunity.investorId)
     if (!investor) {
       return NextResponse.json({ error: "Investor not found" }, { status: 404 })

@@ -179,15 +179,53 @@ export default function RecommendationDetailPage() {
     )
   }
 
+  const [sending, setSending] = React.useState(false)
+
   const primaryCta =
     rec.status === "DRAFT"
       ? {
-          label: "Send to Investor",
+          label: sending ? "Sending..." : "Send to Investor",
           icon: <Send className="mr-2 h-4 w-4" />,
-          onClick: () => {
-            sendRecommendation(rec.id)
-            toast.success("Recommendation sent", { description: "Status updated to SENT." })
-            setRec(getRecommendationById(rec.id))
+          disabled: sending,
+          onClick: async () => {
+            setSending(true)
+            try {
+              // Create investor_opportunities rows for each property in the bundle
+              const results = await Promise.allSettled(
+                rec.propertyIds.map((listingId) =>
+                  fetch(`/api/investors/${rec.investorId}/opportunities`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      listingId,
+                      sharedMessage: rec.summary || `Recommendation: ${rec.title}`,
+                    }),
+                  }).then((res) => {
+                    if (!res.ok) throw new Error("Failed")
+                    return res
+                  })
+                )
+              )
+              const succeeded = results.filter((r) => r.status === "fulfilled").length
+              const failed = results.filter((r) => r.status === "rejected").length
+
+              sendRecommendation(rec.id)
+              setRec(getRecommendationById(rec.id))
+
+              if (failed === 0) {
+                toast.success("Recommendation sent", {
+                  description: `${succeeded} opportunities created for investor.`,
+                })
+              } else {
+                toast.warning("Recommendation sent with issues", {
+                  description: `${succeeded} opportunities created, ${failed} failed.`,
+                })
+              }
+            } catch {
+              toast.error("Failed to send recommendation")
+            } finally {
+              setSending(false)
+            }
           },
         }
       : rec.status === "APPROVED"
@@ -288,7 +326,7 @@ export default function RecommendationDetailPage() {
             </div>
           }
           primaryAction={
-            <Button onClick={primaryCta.onClick}>
+            <Button onClick={primaryCta.onClick} disabled={"disabled" in primaryCta && !!primaryCta.disabled}>
               {primaryCta.icon}
               {primaryCta.label}
             </Button>

@@ -22,9 +22,10 @@ import { MemosTab } from "@/components/investors/tabs/memos-tab"
 import { TasksTab } from "@/components/investors/tabs/tasks-tab"
 import { DocumentsTab } from "@/components/investors/tabs/documents-tab"
 import { RecommendationsTab } from "@/components/investors/tabs/recommendations-tab"
+import { OpportunitiesTab } from "@/components/investors/tabs/opportunities-tab"
 import { DealRoomsTab } from "@/components/investors/tabs/deal-rooms-tab"
+import { PaymentsTab } from "@/components/investors/tabs/payments-tab"
 import { InvestorAlertRules } from "@/components/investors/investor-alert-rules"
-import { EditInvestorProfileDialog } from "@/components/investors/edit-investor-profile-dialog"
 import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
@@ -134,31 +135,36 @@ export function InvestorDetail({
             <Button variant="outline" asChild>
               <a href={`/tasks?investorId=${investor.id}`}>Add task</a>
             </Button>
-            <EditInvestorProfileDialog investor={investor} />
           </>
         }
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <Tabs defaultValue="mandate" className="space-y-4">
+          <Tabs defaultValue="opportunities" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
               <TabsTrigger value="mandate">Mandate</TabsTrigger>
-                  <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+              <TabsTrigger value="recommendations">Rec. Bundles</TabsTrigger>
               <TabsTrigger value="shortlist">Shortlist ({shortlist.length})</TabsTrigger>
               <TabsTrigger value="memos">IC Memos ({memos.length})</TabsTrigger>
-                  <TabsTrigger value="dealRooms">Deal Rooms ({dealRooms.filter((d) => d.status !== "completed").length})</TabsTrigger>
+              <TabsTrigger value="dealRooms">Deal Rooms ({dealRooms.filter((d) => d.status !== "completed").length})</TabsTrigger>
+              <TabsTrigger value="payments">Payments</TabsTrigger>
               <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
               <TabsTrigger value="alerts">Alerts</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
 
+            <TabsContent value="opportunities">
+              <OpportunitiesTab investorId={investor.id} />
+            </TabsContent>
+
             <TabsContent value="mandate">
               <MandateTab mandate={investor.mandate} />
             </TabsContent>
 
-                <TabsContent value="recommendations">
-                  <RecommendationsTab investor={investor} />
+            <TabsContent value="recommendations">
+              <RecommendationsTab investor={investor} />
             </TabsContent>
 
             <TabsContent value="shortlist">
@@ -171,6 +177,10 @@ export function InvestorDetail({
 
                 <TabsContent value="dealRooms">
                   <DealRoomsTab dealRooms={dealRooms} />
+            </TabsContent>
+
+            <TabsContent value="payments">
+              <PaymentsTab investorId={investor.id} />
             </TabsContent>
 
             <TabsContent value="tasks">

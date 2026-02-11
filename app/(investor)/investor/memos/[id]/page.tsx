@@ -209,12 +209,12 @@ export default function InvestorMemoDetailPage() {
     setExpandedSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
   }
 
-  function handleDecisionMade(decision: "approved" | "rejected" | "approved_conditional") {
+  function handleDecisionMade(decision: "interested" | "not_now" | "pass") {
     // Show success toast based on decision type
     const toastMessages = {
-      approved: { title: "Memo Approved", description: "The realtor has been notified of your approval." },
-      rejected: { title: "Memo Rejected", description: "The realtor has been notified of your decision." },
-      approved_conditional: { title: "Conditional Approval", description: "The realtor has been notified of your conditions." },
+      interested: { title: "Marked Interested", description: "The realtor has been notified." },
+      not_now: { title: "Marked Not Now", description: "The realtor has been notified." },
+      pass: { title: "Marked Pass", description: "The realtor has been notified." },
     }
     const { title, description } = toastMessages[decision]
     toast.success(title, { description })
