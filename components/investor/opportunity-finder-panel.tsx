@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea, ScrollAreaViewport } from "@/components/ui/scroll-area"
 import { playMessageSound } from "@/lib/sounds"
 
 type Message = { role: "user" | "assistant"; content: string; isTyping?: boolean }
@@ -166,7 +165,7 @@ export function OpportunityFinderPanel({
   }
 
   return (
-    <Card className={cn("flex flex-col", className)}>
+    <Card className={cn("flex min-h-0 flex-col", className)}>
       <CardHeader className="border-b bg-gradient-to-r from-green-50 to-amber-50 dark:from-green-950/30 dark:to-amber-950/30 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -184,64 +183,69 @@ export function OpportunityFinderPanel({
             AI Beta
           </Badge>
         </div>
+        <p className="mt-2 text-xs text-gray-600">
+          Helps you find buy opportunities that fit your mandate, compare them with market signals, and prioritize what to review with your advisor.
+        </p>
       </CardHeader>
 
-      <ScrollArea className="flex-1">
-        <ScrollAreaViewport ref={scrollRef} className="h-[400px] p-4">
-          {messages.length === 0 ? (
-            <div className="space-y-6">
+      <div
+        ref={scrollRef}
+        className="h-[400px] flex-1 overflow-y-auto overscroll-contain p-4 touch-pan-y"
+      >
+        {messages.length === 0 ? (
+          <div className="space-y-6">
               {/* Welcome message */}
-              <div className="text-center space-y-2 py-4">
-                <div className="inline-flex items-center justify-center p-3 rounded-full bg-gradient-to-br from-green-100 to-amber-100 dark:from-green-900/30 dark:to-amber-900/30">
-                  <Sparkles className="size-6 text-amber-600" />
-                </div>
-                <h3 className="font-medium">Find Your Next Investment</h3>
-                <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                  Ask me to find opportunities using natural language. I&apos;ll search with DLD data, market news, and AI scoring.
-                </p>
+            <div className="text-center space-y-2 py-4">
+              <div className="inline-flex items-center justify-center p-3 rounded-full bg-gradient-to-br from-green-100 to-amber-100 dark:from-green-900/30 dark:to-amber-900/30">
+                <Sparkles className="size-6 text-amber-600" />
               </div>
+              <h3 className="font-medium">Find Your Next Investment</h3>
+              <p className="text-sm text-gray-500 max-w-xs mx-auto">
+                Ask me to find opportunities using natural language. I&apos;ll search with DLD data, market news, and AI scoring.
+              </p>
+            </div>
 
-              {/* Quick filters */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quick Filters
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_FILTERS.map((filter) => (
-                    <Button
-                      key={filter.label}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => sendMessage(filter.query)}
-                    >
-                      {filter.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Suggested queries */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Try Asking
-                </p>
-                <div className="grid gap-2">
-                  {SUGGESTED_QUERIES.map((query) => (
-                    <Button
-                      key={query.text}
-                      variant="ghost"
-                      className="justify-start text-left h-auto py-2.5 px-3 hover:bg-green-50 dark:hover:bg-green-950/30"
-                      onClick={() => sendMessage(query.text)}
-                    >
-                      <query.icon className="size-4 mr-2.5 text-green-600 shrink-0" />
-                      <span className="text-sm">{query.text}</span>
-                    </Button>
-                  ))}
-                </div>
+            {/* Quick filters */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Quick Filters
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {QUICK_FILTERS.map((filter) => (
+                  <Button
+                    key={filter.label}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => sendMessage(filter.query)}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
               </div>
             </div>
-          ) : (
+
+            {/* Suggested queries */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Try Asking
+              </p>
+              <div className="grid gap-2">
+                {SUGGESTED_QUERIES.map((query) => (
+                  <Button
+                    key={query.text}
+                    variant="ghost"
+                    className="justify-start text-left h-auto py-2.5 px-3 hover:bg-green-50 dark:hover:bg-green-950/30"
+                    onClick={() => sendMessage(query.text)}
+                  >
+                    <query.icon className="size-4 mr-2.5 text-green-600 shrink-0" />
+                    <span className="text-sm">{query.text}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
             <div className="space-y-4">
               {messages.map((msg, i) => (
                 <div
@@ -284,9 +288,8 @@ export function OpportunityFinderPanel({
                 </div>
               )}
             </div>
-          )}
-        </ScrollAreaViewport>
-      </ScrollArea>
+        )}
+      </div>
 
       {/* Input area */}
       <div className="border-t p-4 bg-background">

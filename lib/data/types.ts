@@ -13,6 +13,7 @@ export type InvestorRecord = {
   avatar?: string
   status: "active" | "pending" | "inactive"
   mandate?: unknown
+  description?: string
   createdAt: string
   lastContact?: string
   totalDeals: number

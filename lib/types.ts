@@ -50,6 +50,9 @@ export interface Mandate {
   minInvestment: number
   maxInvestment: number
   notes?: string
+  primaryObjectives?: string[] // e.g., ["income", "capital appreciation", "portfolio diversification"]
+  dealBreakers?: string[] // Non-negotiables that disqualify deals quickly
+  communicationExpectations?: string // Update/reporting expectations from the realtor
   
   // Enhanced mandate fields
   preferredBedrooms?: number[] // e.g., [1, 2] for 1BR and 2BR
@@ -77,6 +80,7 @@ export interface Investor {
   phone: string
   status: "active" | "pending" | "inactive"
   mandate?: Mandate
+  description?: string
   createdAt: string
   lastContact: string
   totalDeals: number

@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { ArrowUpRight, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 
 import type { Investor, Property } from "@/lib/types"
 import { getAllProperties } from "@/lib/property-store"
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button"
 
 interface InvestorRecommendedPropertiesProps {
   investor: Investor
-  onShare: (property: Property) => void
+  onShare?: (property: Property) => void
 }
 
 function formatPrice(value: number) {
@@ -27,6 +28,35 @@ export function InvestorRecommendedProperties({ investor, onShare }: InvestorRec
   }, [])
 
   const matches = React.useMemo(() => matchPropertiesToInvestor(investor, allProperties).slice(0, 3), [investor, allProperties])
+
+  const handleShare = React.useCallback(
+    async (property: Property, score: number, reasons: string[]) => {
+      try {
+        const res = await fetch(`/api/investors/${investor.id}/opportunities`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            listingId: property.id,
+            matchScore: score,
+            matchReasons: reasons.slice(0, 3),
+            sharedMessage: `Shared based on mandate match in ${property.area}.`,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || "Failed to share recommendation")
+        }
+
+        toast.success(`Shared ${property.title} with ${investor.name.split(" ")[0]}`)
+        onShare?.(property)
+      } catch (err) {
+        console.error("Failed to share recommendation:", err)
+        toast.error("Could not share recommendation")
+      }
+    },
+    [investor.id, investor.name, onShare]
+  )
 
   if (matches.length === 0) return null
 
@@ -72,7 +102,7 @@ export function InvestorRecommendedProperties({ investor, onShare }: InvestorRec
                     <ArrowUpRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button size="sm" onClick={() => onShare(property)}>
+                <Button size="sm" onClick={() => handleShare(property, score, reasons)}>
                   Share with {investor.name.split(" ")[0]}
                 </Button>
               </div>

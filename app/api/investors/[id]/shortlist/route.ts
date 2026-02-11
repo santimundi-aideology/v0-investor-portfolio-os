@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
+import { getHoldingsByInvestor } from "@/lib/db/holdings"
 
 /**
  * GET /api/investors/[id]/shortlist
@@ -40,6 +41,10 @@ export async function GET(
       return NextResponse.json({ items: [] })
     }
 
+    // Build owned listing set so acquired properties never show in recommendation feeds.
+    const holdings = await getHoldingsByInvestor(investorId)
+    const ownedListingIds = new Set(holdings.map((holding) => holding.listingId))
+
     // Fetch shortlist items with listing details
     const { data: items, error: itemsError } = await supabase
       .from("shortlist_items")
@@ -66,7 +71,12 @@ export async function GET(
 
     // Enrich with property details
     const enrichedItems = await Promise.all(
-      (items ?? []).map(async (item) => {
+      (items ?? [])
+      .filter((item) => {
+        if (!item.listing_id) return true
+        return !ownedListingIds.has(item.listing_id)
+      })
+      .map(async (item) => {
         let property: {
           title: string | null
           area: string | null
@@ -109,6 +119,8 @@ export async function GET(
           pinned: item.pinned,
           rank: item.rank,
           addedAt: item.added_at,
+          isOwned: item.listing_id ? ownedListingIds.has(item.listing_id) : false,
+          lifecycleStage: "shortlisted",
           property,
         }
       })

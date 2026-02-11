@@ -97,6 +97,10 @@ export function InvestorDashboard({
   }, [portfolioData])
 
   const holdings = React.useMemo(() => portfolioData?.holdings ?? [], [portfolioData])
+  const holdingListingIds = React.useMemo(
+    () => new Set(holdings.map((holding) => holding.listingId)),
+    [holdings],
+  )
 
   // Fetch deal rooms from API
   const { data: dealRoomsData } = useAPI<DealRoom[] | { dealRooms: DealRoom[] }>(`/api/deal-rooms?investorId=${investorId}`)
@@ -115,14 +119,16 @@ export function InvestorDashboard({
   )
   const opportunities = React.useMemo(() => {
     const items = shortlistData?.items ?? []
-    return items.map((item) => ({
+    return items
+      .filter((item) => !item.listingId || !holdingListingIds.has(item.listingId))
+      .map((item) => ({
       propertyId: item.listingId,
       score: item.matchScore ?? 50,
       reasons: item.tradeoffs?.length ? item.tradeoffs : [item.agentNotes || "Matches your mandate"],
       title: item.property?.title,
       area: item.property?.area,
     }))
-  }, [shortlistData])
+  }, [shortlistData, holdingListingIds])
 
   const valueSeries = React.useMemo(() => {
     const base = summary.totalCost || summary.totalValue
@@ -375,6 +381,11 @@ export function InvestorDashboard({
                               <div className="font-medium truncate">{p?.title ?? h.propertyId}</div>
                               <div className="text-xs text-gray-500">
                                 {p?.area ?? "—"} • <span className="capitalize">{p?.type ?? "—"}</span>
+                              </div>
+                              <div className="mt-1">
+                                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                  In Portfolio
+                                </Badge>
                               </div>
                             </div>
                           </div>
@@ -688,6 +699,9 @@ function OpportunityRow({
           <div className="flex items-center justify-between mb-2">
             <Badge variant="secondary" className="bg-white/90 text-gray-900">
               Score {score}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              Recommended
             </Badge>
             {area && <span className="text-xs text-gray-500">{area}</span>}
           </div>

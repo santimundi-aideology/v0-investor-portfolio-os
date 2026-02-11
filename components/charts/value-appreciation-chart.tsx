@@ -27,20 +27,38 @@ interface ValueAppreciationChartProps {
 
 export function ValueAppreciationChart({ data, showMarketIndex = false }: ValueAppreciationChartProps) {
   const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K`
-    return value.toLocaleString()
+    if (value >= 1000000) return `AED ${(value / 1000000).toFixed(1)}M`
+    if (value >= 1000) return `AED ${(value / 1000).toFixed(0)}K`
+    return `AED ${value.toLocaleString()}`
+  }
+
+  const formatTooltipValue = (value: number) => {
+    if (value >= 1000000) return `AED ${(value / 1000000).toFixed(2)}M`
+    if (value >= 1000) return `AED ${(value / 1000).toFixed(1)}K`
+    return `AED ${value.toLocaleString()}`
   }
 
   // Calculate appreciation percentage for tooltip
-  const latestAppreciation = data.length > 0
+  const latestAppreciation = data.length > 0 && data[data.length - 1].purchaseCost > 0
     ? ((data[data.length - 1].currentValue - data[data.length - 1].purchaseCost) / data[data.length - 1].purchaseCost * 100).toFixed(1)
     : "0"
+
+  // Compute a tight Y-axis domain so appreciation is clearly visible
+  const allValues = data.flatMap((d) => [
+    d.currentValue,
+    d.purchaseCost,
+    ...(showMarketIndex && d.marketIndex != null ? [d.marketIndex] : []),
+  ]).filter((v) => Number.isFinite(v))
+  const dataMin = allValues.length > 0 ? Math.min(...allValues) : 0
+  const dataMax = allValues.length > 0 ? Math.max(...allValues) : 0
+  const padding = Math.max((dataMax - dataMin) * 0.15, dataMax * 0.02)
+  const yMin = Math.max(0, Math.floor((dataMin - padding) / 100000) * 100000)
+  const yMax = Math.ceil((dataMax + padding) / 100000) * 100000
 
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
+        <AreaChart data={data} margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
           <defs>
             <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
@@ -63,7 +81,8 @@ export function ValueAppreciationChart({ data, showMarketIndex = false }: ValueA
             tickFormatter={formatCurrency}
             axisLine={false}
             tickLine={false}
-            width={70}
+            width={80}
+            domain={[yMin, yMax]}
           />
           <Tooltip
             contentStyle={{
@@ -75,7 +94,7 @@ export function ValueAppreciationChart({ data, showMarketIndex = false }: ValueA
             }}
             formatter={(value: number, name: string) => {
               const label = name === "currentValue" ? "Portfolio Value" : name === "purchaseCost" ? "Purchase Cost" : "Market Index"
-              return [`AED ${value.toLocaleString()}`, label]
+              return [formatTooltipValue(value), label]
             }}
             labelFormatter={(label) => `Period: ${label}`}
           />

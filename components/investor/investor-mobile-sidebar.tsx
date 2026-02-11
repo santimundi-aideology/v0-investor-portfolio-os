@@ -4,17 +4,12 @@ import { useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  BarChart3,
-  Briefcase,
-  FileText,
-  FolderKanban,
   LayoutDashboard,
   LineChart,
-  Radar,
-  Settings,
+  Sparkles,
+  User,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { VantageIcon } from "@/components/brand/logo"
@@ -24,15 +19,12 @@ interface InvestorMobileSidebarProps {
   onClose: () => void
 }
 
-// Investor-specific navigation items
+// Investor-specific navigation items (simplified: 4 main sections)
 const investorNavItems = [
   { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
-  { label: "Investments", href: "/investor/investments", icon: Briefcase },
-  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
-  { label: "Analytics", href: "/investor/analytics", icon: BarChart3 },
-  { label: "Memos", href: "/investor/memos", icon: FileText },
-  { label: "Deal Rooms", href: "/investor/deal-rooms", icon: FolderKanban },
-  { label: "Market Signals", href: "/investor/market-signals", icon: Radar },
+  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart, alsoMatch: ["/investor/analytics"] },
+  { label: "Opportunities", href: "/investor/opportunities", icon: Sparkles },
+  { label: "Profile", href: "/investor/profile", icon: User },
 ]
 
 export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarProps) {
@@ -68,7 +60,8 @@ export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarPr
                 const isActive =
                   item.href === "/investor/dashboard"
                     ? pathname === "/investor/dashboard" || pathname === "/investor"
-                    : pathname.startsWith(item.href)
+                    : pathname.startsWith(item.href) ||
+                      ((item as { alsoMatch?: string[] }).alsoMatch?.some((p: string) => pathname.startsWith(p)) ?? false)
                 const Icon = item.icon
                 return (
                   <Link
@@ -93,16 +86,7 @@ export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarPr
         </ScrollArea>
 
         <div className="border-t border-gray-200 p-4">
-          <Button
-            asChild
-            variant="ghost"
-            className="w-full justify-start text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-          >
-            <Link href="/investor/settings" onClick={onClose}>
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Link>
-          </Button>
+          <p className="text-xs text-gray-400 text-center">Vantage Investor Portal</p>
         </div>
       </SheetContent>
     </Sheet>

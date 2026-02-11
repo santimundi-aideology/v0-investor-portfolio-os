@@ -3,15 +3,12 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  BarChart3,
-  Briefcase,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  FolderKanban,
   LayoutDashboard,
   LineChart,
-  Radar,
+  Sparkles,
+  User,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,26 +21,24 @@ interface InvestorSidebarProps {
   onToggle: () => void
 }
 
-// Investor-specific navigation items
+// Investor-specific navigation items (simplified: 4 main sections)
 const investorNavItems = [
   { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
-  { label: "Investments", href: "/investor/investments", icon: Briefcase },
-  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
-  { label: "Analytics", href: "/investor/analytics", icon: BarChart3 },
-  { label: "Memos", href: "/investor/memos", icon: FileText },
-  { label: "Deal Rooms", href: "/investor/deal-rooms", icon: FolderKanban },
-  { label: "Market Signals", href: "/investor/market-signals", icon: Radar },
+  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart, alsoMatch: ["/investor/analytics"] },
+  { label: "Opportunities", href: "/investor/opportunities", icon: Sparkles },
+  { label: "Profile", href: "/investor/profile", icon: User },
 ]
 
 export function InvestorSidebar({ collapsed, onToggle }: InvestorSidebarProps) {
   const pathname = usePathname()
 
   const renderNavItem = (item: (typeof investorNavItems)[0]) => {
-    // For dashboard, exact match; for others, startsWith
+    // For dashboard, exact match; for others, startsWith (including alsoMatch paths)
     const isActive =
       item.href === "/investor/dashboard"
         ? pathname === "/investor/dashboard" || pathname === "/investor"
-        : pathname.startsWith(item.href)
+        : pathname.startsWith(item.href) ||
+          (item.alsoMatch?.some((p) => pathname.startsWith(p)) ?? false)
     const Icon = item.icon
 
     const linkContent = (

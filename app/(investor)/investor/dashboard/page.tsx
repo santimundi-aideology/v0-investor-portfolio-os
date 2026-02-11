@@ -6,19 +6,14 @@ import {
   ArrowUpRight,
   Bell,
   Building2,
-  CalendarClock,
-  CheckCircle2,
   ChevronRight,
-  FileText,
-  FolderKanban,
-  Radar,
   TrendingUp,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+
 import {
   Table,
   TableBody,
@@ -29,58 +24,17 @@ import {
 } from "@/components/ui/table"
 import { PortfolioKPICards } from "@/components/investor/portfolio-kpi-cards"
 import { InvestorAIPanel } from "@/components/investor/investor-ai-panel"
-import { PendingApprovalsCard } from "@/components/investor/pending-approvals-card"
 import { OpportunityFinderPanel } from "@/components/investor/opportunity-finder-panel"
-// LiveMarketAlert is now provided by AIWidgetProvider in the layout
 import { AllocationPieChart } from "@/components/charts/allocation-pie-chart"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
-import { FeaturedPropertiesCarousel, PropertyGalleryStrip } from "@/components/properties/featured-properties-carousel"
 import { cn } from "@/lib/utils"
 import {
   formatAED,
 } from "@/lib/real-estate"
-import { formatMarketSignalType } from "@/lib/types"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
 import { Loader2 } from "lucide-react"
-import type { DealRoom, Memo, Investor } from "@/lib/types"
-import type { MarketSignalItem } from "@/lib/types"
-
-const dealStatusClasses: Record<DealRoom["status"], string> = {
-  preparation: "bg-gray-100 text-gray-600",
-  "due-diligence": "bg-amber-50 text-amber-600 border-amber-200",
-  negotiation: "bg-blue-50 text-blue-600 border-blue-200",
-  closing: "bg-purple-50 text-purple-600 border-purple-200",
-  completed: "bg-green-50 text-green-600 border-green-200",
-}
-
-function dealStatusLabel(status: DealRoom["status"]) {
-  switch (status) {
-    case "due-diligence":
-      return "Due diligence"
-    default:
-      return status.charAt(0).toUpperCase() + status.slice(1)
-  }
-}
-
-// Next actions type
-interface NextAction {
-  id: string
-  title: string
-  description: string
-  priority: "high" | "medium" | "low"
-  dueDate?: string
-  href: string
-}
-
-// Calendar event type
-interface CalendarEvent {
-  id: string
-  title: string
-  date: string
-  time?: string
-  type: "meeting" | "deadline" | "reminder"
-}
+import type { Investor } from "@/lib/types"
 
 type PortfolioSummary = {
   propertyCount: number
@@ -138,9 +92,6 @@ export default function InvestorDashboardPage() {
 
   const holdings = React.useMemo(() => portfolioData?.holdings ?? [], [portfolioData])
 
-  // Fetch memos
-  const { data: apiMemos } = useAPI<Memo[]>("/api/investor/memos")
-
   // Fetch notifications
   const { data: notificationsResponse } = useAPI<{ notifications: Array<{ id: string; title: string; read_at: string | null; created_at: string; metadata?: Record<string, unknown> }> }>("/api/notifications")
   const apiNotifications = React.useMemo(() => {
@@ -154,16 +105,43 @@ export default function InvestorDashboardPage() {
     }))
   }, [notificationsResponse])
 
-  // Fetch market signals
-  const { data: signalsResponse } = useAPI<{ signals: MarketSignalItem[] }>("/api/market-signals")
-  const apiSignals = React.useMemo(() => signalsResponse?.signals ?? [], [signalsResponse])
-
   // Fetch portfolio forecast for real chart data
   const { data: forecastData } = useAPI<{
     historicalPortfolioValue: { date: string; totalValue: number; totalRent: number }[]
     scenarios: { name: string; value: { monthly: { month: string; value: number }[] }; income: { monthly: { month: string; netIncome: number }[] } }[]
     currentMetrics: { totalMonthlyIncome: number }
   }>(scopedInvestorId ? "/api/investor/forecast/portfolio" : null)
+
+  // Fetch recommendations
+  const { data: recommendationsData } = useAPI<{
+    opportunities: Array<{
+      id: string
+      listingId: string
+      status: string
+      decision: string
+      sharedByName: string | null
+      sharedAt: string
+      matchScore: number | null
+      memoId: string | null
+      property: {
+        title: string | null
+        area: string | null
+        type: string | null
+        price: number | null
+        imageUrl: string | null
+      } | null
+    }>
+    counts: { recommended: number; interested: number; veryInterested: number; pipeline: number }
+  }>("/api/investor/opportunities")
+
+  const newRecommendations = React.useMemo(
+    () =>
+      (recommendationsData?.opportunities ?? []).filter(
+        (o) => o.decision === "pending" && o.status === "recommended"
+      ),
+    [recommendationsData]
+  )
+  const recCounts = recommendationsData?.counts
 
   const isLoading = investorLoading || portfolioLoading
 
@@ -244,90 +222,8 @@ export default function InvestorDashboardPage() {
       .slice(0, 5)
   }, [holdings])
 
-  // No deal_rooms table yet - always empty
-  const dealRooms: DealRoom[] = []
-
-  // Pending memos for review
-  const pendingMemos = React.useMemo(() => {
-    return (apiMemos ?? []).map((m) => ({
-      id: m.id,
-      title: m.title,
-      propertyTitle: m.propertyTitle,
-      createdAt: m.createdAt,
-      status: m.status,
-      propertyPrice: undefined as number | undefined,
-      propertyArea: undefined as string | undefined,
-      expiresIn: m.status === "review" ? "48 hours" : undefined,
-    }))
-  }, [apiMemos])
-
-  // Market signals relevant to portfolio
-  const relevantSignals = React.useMemo(() => {
-    const areas = new Set(holdings.map((h) => h.property?.area))
-    return (apiSignals ?? [])
-      .filter((s) => areas.has(s.geoName) || s.investorMatches)
-      .slice(0, 4)
-  }, [holdings, apiSignals])
-
   // Latest notifications
   const latestNotifications = React.useMemo(() => (apiNotifications ?? []).slice(0, 4), [apiNotifications])
-
-  // Next actions
-  const nextActions: NextAction[] = React.useMemo(
-    () => [
-      {
-        id: "1",
-        title: "Review investment memo",
-        description: "Marina Tower Office Suite awaits your approval",
-        priority: "high",
-        dueDate: "Today",
-        href: "/investor/memos/memo-1",
-      },
-      {
-        id: "2",
-        title: "Complete questionnaire",
-        description: "Update your investment preferences",
-        priority: "medium",
-        href: "/investor/profile",
-      },
-      {
-        id: "3",
-        title: "Schedule portfolio review",
-        description: "Quarterly review with your advisor",
-        priority: "low",
-        dueDate: "Next week",
-        href: "/investor/meetings",
-      },
-    ],
-    []
-  )
-
-  // Calendar events
-  const calendarEvents: CalendarEvent[] = React.useMemo(
-    () => [
-      {
-        id: "1",
-        title: "Portfolio Review Call",
-        date: "Jan 28, 2026",
-        time: "10:00 AM",
-        type: "meeting",
-      },
-      {
-        id: "2",
-        title: "Memo Approval Deadline",
-        date: "Jan 30, 2026",
-        type: "deadline",
-      },
-      {
-        id: "3",
-        title: "Property Viewing",
-        date: "Feb 2, 2026",
-        time: "2:00 PM",
-        type: "meeting",
-      },
-    ],
-    []
-  )
 
   // KPI data for the cards
   const kpiData = React.useMemo(
@@ -343,16 +239,6 @@ export default function InvestorDashboardPage() {
     }),
     [summary, valueSeries, incomeSeries]
   )
-
-  const handleMemoApprove = React.useCallback((memoId: string) => {
-    console.log("Approving memo:", memoId)
-    // In production, this would call an API
-  }, [])
-
-  const handleMemoReject = React.useCallback((memoId: string) => {
-    console.log("Rejecting memo:", memoId)
-    // In production, this would call an API
-  }, [])
 
   if (isLoading) {
     return (
@@ -442,11 +328,64 @@ export default function InvestorDashboardPage() {
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_360px]">
           {/* Left Column - Main Content */}
           <div className="space-y-6">
-            {/* Featured Properties Carousel */}
-            <FeaturedPropertiesCarousel
-              properties={[]}
-              title="Featured Opportunities"
-            />
+            {/* Recommendations Summary */}
+            {(newRecommendations.length > 0 || (recCounts && recCounts.recommended > 0)) && (
+              <Card className="border-primary/20 bg-gradient-to-r from-emerald-50/50 to-amber-50/50">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <TrendingUp className="size-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">
+                          {newRecommendations.length} New Recommendation{newRecommendations.length !== 1 ? "s" : ""}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Your advisor has shared properties matching your mandate
+                        </p>
+                      </div>
+                    </div>
+                    <Button asChild>
+                      <Link href="/investor/opportunities">
+                        Review All
+                        <ChevronRight className="ml-1 size-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                  {newRecommendations.length > 0 && (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {newRecommendations.slice(0, 3).map((rec) => (
+                        <Link
+                          key={rec.id}
+                          href={`/investor/opportunities/${rec.id}`}
+                          className="rounded-lg border bg-white p-3 transition-all hover:shadow-sm hover:border-primary/30"
+                        >
+                          <div className="flex items-center gap-3">
+                            {rec.property?.imageUrl ? (
+                              <div className="h-10 w-14 rounded overflow-hidden shrink-0">
+                                <img src={rec.property.imageUrl} alt="" className="h-full w-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="h-10 w-14 rounded bg-muted flex items-center justify-center shrink-0">
+                                <Building2 className="size-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{rec.property?.title ?? "Property"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {rec.property?.area ?? "—"}
+                                {rec.property?.price ? ` · AED ${(rec.property.price / 1_000_000).toFixed(1)}M` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Opportunity Finder - Featured prominently */}
             <OpportunityFinderPanel
@@ -509,6 +448,11 @@ export default function InvestorDashboardPage() {
                                   {p?.area ?? "—"} •{" "}
                                   <span className="capitalize">{p?.type ?? "—"}</span>
                                 </div>
+                                <div className="mt-1">
+                                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                    In Portfolio
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
                           </TableCell>
@@ -557,171 +501,10 @@ export default function InvestorDashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Two Column Grid - Deals & Memos */}
-            <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-              {/* Active Deals */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FolderKanban className="size-4 text-primary" />
-                      <CardTitle className="text-base">Active Deals</CardTitle>
-                    </div>
-                    <Button variant="outline" size="sm" asChild className="min-h-[44px] sm:min-h-0">
-                      <Link href="/investor/deal-rooms">View All</Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {dealRooms.length > 0 ? (
-                    dealRooms.slice(0, 3).map((d) => (
-                      <div
-                        key={d.id}
-                        className="flex items-center justify-between rounded-lg border p-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{d.title}</p>
-                          <p className="text-xs text-gray-500">
-                            {d.propertyTitle}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={dealStatusClasses[d.status]}
-                        >
-                          {dealStatusLabel(d.status)}
-                        </Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-6 text-center text-sm text-gray-500">
-                      No active deals
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Pending Approvals */}
-              <PendingApprovalsCard
-                memos={pendingMemos}
-                onApprove={handleMemoApprove}
-                onReject={handleMemoReject}
-              />
-            </div>
-
-            {/* Market Signals */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Radar className="size-4 text-primary" />
-                    <CardTitle className="text-base">
-                      Market Signals
-                    </CardTitle>
-                  </div>
-                  <Button variant="outline" size="sm" asChild className="w-full sm:w-auto min-h-[44px] sm:min-h-0">
-                    <Link href="/investor/market-signals">View All</Link>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {relevantSignals.length > 0 ? (
-                    relevantSignals.map((s) => (
-                      <div
-                        key={s.id}
-                        className="rounded-lg border bg-card p-3 transition-shadow hover:shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium">
-                              {formatMarketSignalType(s.type)}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {s.geoName} • {s.segment}
-                            </p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "shrink-0 capitalize",
-                              s.severity === "urgent"
-                                ? "border-rose-500/30 bg-rose-500/10 text-rose-700"
-                                : s.severity === "watch"
-                                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                                  : "border-border"
-                            )}
-                          >
-                            {s.severity}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2 text-sm">
-                          <span className="font-medium">{s.currentValueLabel}</span>
-                          {s.deltaPct && (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                s.deltaPct > 0
-                                  ? "text-emerald-600"
-                                  : "text-rose-600"
-                              )}
-                            >
-                              {s.deltaPct > 0 ? "+" : ""}
-                              {(s.deltaPct * 100).toFixed(1)}%
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="col-span-2 py-6 text-center text-sm text-gray-500">
-                      No relevant market signals
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Right Sidebar */}
           <div className="space-y-4 sm:space-y-6">
-            {/* Next Actions */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-primary" />
-                  <CardTitle className="text-base">Next Actions</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {nextActions.map((action) => (
-                  <Link
-                    key={action.id}
-                    href={action.href}
-                    className="block rounded-lg border p-3 transition-all hover:border-primary hover:shadow-sm active:bg-gray-100/50 min-h-[44px]"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium">{action.title}</p>
-                        <p className="mt-0.5 text-xs text-gray-500">
-                          {action.description}
-                        </p>
-                      </div>
-                      {action.priority === "high" && (
-                        <Badge className="shrink-0 bg-rose-500">Urgent</Badge>
-                      )}
-                    </div>
-                    {action.dueDate && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Due: {action.dueDate}
-                      </p>
-                    )}
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-
             {/* Notifications */}
             <Card>
               <CardHeader className="pb-3">
@@ -751,45 +534,6 @@ export default function InvestorDashboardPage() {
                     )}
                   </Link>
                 ))}
-              </CardContent>
-            </Card>
-
-            {/* Calendar */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <CalendarClock className="size-4 text-primary" />
-                  <CardTitle className="text-base">Upcoming</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {calendarEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="flex items-start gap-3 rounded-lg border p-3"
-                  >
-                    <div
-                      className={cn(
-                        "mt-0.5 size-2 shrink-0 rounded-full",
-                        event.type === "meeting"
-                          ? "bg-blue-500"
-                          : event.type === "deadline"
-                            ? "bg-rose-500"
-                            : "bg-amber-500"
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{event.title}</p>
-                      <p className="text-xs text-gray-500">
-                        {event.date}
-                        {event.time && ` • ${event.time}`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" className="w-full min-h-[44px]">
-                  View Calendar
-                </Button>
               </CardContent>
             </Card>
 

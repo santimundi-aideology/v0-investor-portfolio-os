@@ -19,7 +19,10 @@ function mapListingRow(row: Record<string, unknown>): ListingRecord {
     expectedRent: row.expected_rent ?? undefined,
     currency: row.currency ?? undefined,
     handoverDate: row.handover_date ?? undefined,
-    imageUrl: row.image_url ?? undefined,
+    imageUrl: (() => {
+      const attachments = row.attachments as Array<{ type?: string; url?: string }> | null
+      return attachments?.find(a => a.type?.startsWith("image"))?.url
+    })() ?? undefined,
     createdAt: row.created_at,
   }
 }

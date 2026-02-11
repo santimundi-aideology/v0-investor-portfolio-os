@@ -12,6 +12,7 @@ import { getExternalDataForProperty } from "../external/external-data-context"
 import { getFullNewsContext, getNewsForArea } from "../external/news-fetcher"
 import { compressInvestorContext } from "../compression/compress-context"
 // Hot opportunities are now fetched from real listings in Supabase
+import { getHoldingsByInvestor } from "@/lib/db/holdings"
 import type {
   SearchOpportunitiesInput,
   GetAreaMarketDataInput,
@@ -97,6 +98,8 @@ async function executeSearchOpportunities(
   }
   
   const limit = Math.min(args.limit ?? 5, 10)
+  const holdings = await getHoldingsByInvestor(investor.id)
+  const ownedListingIds = new Set(holdings.map((holding) => holding.listingId))
   
   // Use the full scoring pipeline
   const result = await scoreOpportunitiesForInvestor({
@@ -118,30 +121,35 @@ async function executeSearchOpportunities(
   const hotOpportunities = getFilteredHotOpportunities(args, investor)
   
   // Combine scored opportunities with hot opportunities
-  const scoredOpps = result.opportunities.slice(0, limit).map(o => ({
-    id: o.property.id,
-    title: o.property.title,
-    area: o.property.area,
-    type: o.property.type,
-    price: o.property.price,
-    priceFormatted: formatPrice(o.property.price),
-    yield: o.property.roi,
-    bedrooms: o.property.bedrooms,
-    size: o.property.size,
-    // Scoring
-    score: o.combinedScore,
-    tier: o.tier,
-    // AI insights
-    headline: o.aiScore?.headline ?? null,
-    reasoning: o.aiScore?.reasoning ?? null,
-    keyStrengths: o.aiScore?.keyStrengths ?? o.ruleReasons.slice(0, 2),
-    considerations: o.aiScore?.considerations ?? [],
-  }))
+  const scoredOpps = result.opportunities
+    .filter((opportunity) => !ownedListingIds.has(opportunity.property.id))
+    .slice(0, limit)
+    .map(o => ({
+      id: o.property.id,
+      title: o.property.title,
+      area: o.property.area,
+      type: o.property.type,
+      price: o.property.price,
+      priceFormatted: formatPrice(o.property.price),
+      yield: o.property.roi,
+      bedrooms: o.property.bedrooms,
+      size: o.property.size,
+      // Scoring
+      score: o.combinedScore,
+      tier: o.tier,
+      // AI insights
+      headline: o.aiScore?.headline ?? null,
+      reasoning: o.aiScore?.reasoning ?? null,
+      keyStrengths: o.aiScore?.keyStrengths ?? o.ruleReasons.slice(0, 2),
+      considerations: o.aiScore?.considerations ?? [],
+    }))
   
   // If we have fewer than limit results, add hot opportunities
   const combinedOpps = [...scoredOpps]
   if (scoredOpps.length < limit && hotOpportunities.length > 0) {
-    const hotToAdd = hotOpportunities.slice(0, limit - scoredOpps.length)
+    const hotToAdd = hotOpportunities
+      .filter((hotOpportunity) => !ownedListingIds.has(hotOpportunity.id))
+      .slice(0, limit - scoredOpps.length)
     combinedOpps.push(...hotToAdd.map(h => ({
       id: h.id,
       title: h.title,

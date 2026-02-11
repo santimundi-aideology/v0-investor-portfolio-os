@@ -122,9 +122,11 @@ function generateValueHistory(holdings: EnhancedHolding[], range: TimeRange) {
   const months = monthsMap[range]
   const data = []
   
+  if (holdings.length === 0) return []
+  
   const totalPurchase = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
   const totalCurrent = holdings.reduce((sum, h) => sum + h.currentValue, 0)
-  const appreciationRate = (totalCurrent - totalPurchase) / totalPurchase / months
+  const appreciationRate = totalPurchase > 0 ? (totalCurrent - totalPurchase) / totalPurchase / months : 0
   
   const now = new Date()
   for (let i = months; i >= 0; i--) {
@@ -151,6 +153,8 @@ function generateRentalHistory(holdings: EnhancedHolding[], range: TimeRange) {
   const monthsMap: Record<TimeRange, number> = { "3m": 3, "6m": 6, "1y": 12, "all": 24 }
   const months = monthsMap[range]
   const data = []
+  
+  if (holdings.length === 0) return []
   
   const monthlyRent = holdings.reduce((sum, h) => sum + h.monthlyRent, 0)
   const avgOccupancy = holdings.reduce((sum, h) => sum + h.occupancyRate, 0) / holdings.length
@@ -279,6 +283,9 @@ export default function InvestorAnalyticsPage() {
 
   // Calculate summary stats for rental income
   const rentalStats = React.useMemo(() => {
+    if (rentalHistory.length === 0) {
+      return { totalGross: 0, totalNet: 0, totalExpenses: 0, avgOccupancy: 0, trend: 0 }
+    }
     const totalGross = rentalHistory.reduce((sum, r) => sum + r.grossRent, 0)
     const totalNet = rentalHistory.reduce((sum, r) => sum + r.netRent, 0)
     const totalExpenses = rentalHistory.reduce((sum, r) => sum + r.expenses, 0)
@@ -287,28 +294,41 @@ export default function InvestorAnalyticsPage() {
     // Calculate trend (last 3 months vs previous 3)
     const recent = rentalHistory.slice(-3)
     const previous = rentalHistory.slice(-6, -3)
-    const recentAvg = recent.reduce((sum, r) => sum + r.netRent, 0) / recent.length
+    const recentAvg = recent.length > 0
+      ? recent.reduce((sum, r) => sum + r.netRent, 0) / recent.length
+      : 0
     const previousAvg = previous.length > 0 
       ? previous.reduce((sum, r) => sum + r.netRent, 0) / previous.length 
       : recentAvg
     const trend = previousAvg > 0 ? ((recentAvg - previousAvg) / previousAvg) * 100 : 0
     
-    return { totalGross, totalNet, totalExpenses, avgOccupancy, trend }
+    return { totalGross, totalNet, totalExpenses, avgOccupancy: Number.isFinite(avgOccupancy) ? avgOccupancy : 0, trend: Number.isFinite(trend) ? trend : 0 }
   }, [rentalHistory])
 
   // Calculate average metrics for comparison
-  const avgMetrics = React.useMemo(() => ({
-    yield: propertyComparison.reduce((sum, p) => sum + p.yield, 0) / propertyComparison.length,
-    appreciation: propertyComparison.reduce((sum, p) => sum + p.appreciation, 0) / propertyComparison.length,
-    occupancy: propertyComparison.reduce((sum, p) => sum + p.occupancy, 0) / propertyComparison.length,
-  }), [propertyComparison])
+  const avgMetrics = React.useMemo(() => {
+    const len = propertyComparison.length || 1 // avoid division by zero
+    return {
+      yield: propertyComparison.reduce((sum, p) => sum + p.yield, 0) / len,
+      appreciation: propertyComparison.reduce((sum, p) => sum + p.appreciation, 0) / len,
+      occupancy: propertyComparison.reduce((sum, p) => sum + p.occupancy, 0) / len,
+    }
+  }, [propertyComparison])
 
-  if (isLoading) {
+  if (isLoading || !portfolioData) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="mx-auto size-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm text-muted-foreground">Loading analytics...</p>
+      <div className="space-y-6 p-4 sm:p-6">
+        {/* Section Tabs */}
+        <div className="flex gap-1 border-b border-gray-200">
+          <Link href="/investor/portfolio" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Holdings</Link>
+          <Link href="/investor/analytics" className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary">Analytics</Link>
+          <Link href="/investor/payments" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Payments</Link>
+        </div>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="mx-auto size-8 animate-spin text-primary" />
+            <p className="mt-3 text-sm text-muted-foreground">Loading analytics...</p>
+          </div>
         </div>
       </div>
     )
@@ -316,6 +336,28 @@ export default function InvestorAnalyticsPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      {/* Section Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <Link
+          href="/investor/portfolio"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Holdings
+        </Link>
+        <Link
+          href="/investor/analytics"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
+        >
+          Analytics
+        </Link>
+        <Link
+          href="/investor/payments"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Payments
+        </Link>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -564,7 +606,9 @@ export default function InvestorAnalyticsPage() {
                 <div className="text-sm text-gray-500">Total Expenses</div>
                 <div className="mt-1 text-2xl font-bold text-red-600">{formatAED(rentalStats.totalExpenses)}</div>
                 <div className="text-xs text-gray-500">
-                  {((rentalStats.totalExpenses / rentalStats.totalGross) * 100).toFixed(0)}% of gross
+                  {rentalStats.totalGross > 0
+                    ? `${((rentalStats.totalExpenses / rentalStats.totalGross) * 100).toFixed(0)}% of gross`
+                    : "N/A"}
                 </div>
               </CardContent>
             </Card>

@@ -2,17 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +11,6 @@ import { cn } from "@/lib/utils"
 import { formatAED } from "@/lib/real-estate"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
-import { useIsMobile } from "@/lib/hooks/use-media-query"
 
 type ScenarioName = "bear" | "base" | "bull"
 
@@ -92,7 +80,6 @@ export function PortfolioForecastSection() {
   const [selectedScenarios, setSelectedScenarios] = React.useState<Set<ScenarioName>>(
     new Set(["bear", "base", "bull"])
   )
-  const isMobile = useIsMobile()
 
   const toggleScenario = (name: ScenarioName) => {
     setSelectedScenarios((prev) => {
@@ -131,44 +118,6 @@ export function PortfolioForecastSection() {
       </Card>
     )
   }
-
-  // Build combined chart data for portfolio value forecast
-  const valueChartData = forecast.scenarios[0].value.monthly.map((_, i) => {
-    const point: Record<string, unknown> = {
-      month: forecast.scenarios[0].value.monthly[i].month,
-    }
-    for (const scenario of forecast.scenarios) {
-      if (selectedScenarios.has(scenario.name)) {
-        point[scenario.name] = scenario.value.monthly[i].value
-      }
-    }
-    return point
-  })
-
-  // Build combined chart for rental income
-  const incomeChartData = forecast.scenarios[0].income.monthly.map((_, i) => {
-    const point: Record<string, unknown> = {
-      month: forecast.scenarios[0].income.monthly[i].month,
-    }
-    for (const scenario of forecast.scenarios) {
-      if (selectedScenarios.has(scenario.name)) {
-        point[scenario.name] = scenario.income.monthly[i].netIncome
-      }
-    }
-    return point
-  })
-
-  // Historical + forecast combined
-  const combinedData = [
-    ...forecast.historicalPortfolioValue.map(h => ({
-      month: h.date,
-      historical: h.totalValue,
-    })),
-    ...valueChartData.map(d => ({
-      ...d,
-      historical: undefined as number | undefined,
-    })),
-  ]
 
   return (
     <div className="space-y-6">
@@ -237,156 +186,6 @@ export function PortfolioForecastSection() {
             </Card>
           ))}
       </div>
-
-      {/* Portfolio Value Forecast Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Portfolio Value Projection</CardTitle>
-          <CardDescription>
-            Historical portfolio value transitioning into 12-month forecast scenarios
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[280px] sm:h-[320px] w-full touch-pan-y">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={combinedData} margin={{ left: 0, right: 0, top: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={isMobile ? 10 : 11}
-                  interval={isMobile ? 3 : 2}
-                  tickFormatter={(v) => {
-                    const d = new Date(v + "-01")
-                    return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-                  }}
-                />
-                <YAxis hide />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid hsl(var(--border))",
-                    fontSize: "12px",
-                    backgroundColor: "hsl(var(--background))",
-                  }}
-                  formatter={(value: number, name: string) => {
-                    if (name === "historical") return [formatAED(value), "Actual"]
-                    return [formatAED(value), scenarioLabels[name as ScenarioName] ?? name]
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="historical"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2.5}
-                  dot={false}
-                  connectNulls={false}
-                />
-                {(["bear", "base", "bull"] as const)
-                  .filter((n) => selectedScenarios.has(n))
-                  .map((name) => (
-                    <Line
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      stroke={scenarioColors[name]}
-                      strokeWidth={name === "base" ? 2.5 : 1.5}
-                      strokeDasharray={name === "base" ? undefined : "5 5"}
-                      dot={false}
-                      connectNulls={false}
-                    />
-                  ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-4 mt-2">
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-4 h-0.5 bg-primary" />
-              <span className="text-muted-foreground">Historical</span>
-            </div>
-            {(["bear", "base", "bull"] as const)
-              .filter((n) => selectedScenarios.has(n))
-              .map((name) => (
-                <div key={name} className="flex items-center gap-2 text-xs">
-                  <div className="w-4 h-0.5" style={{ backgroundColor: scenarioColors[name] }} />
-                  <span className="text-muted-foreground">{scenarioLabels[name]}</span>
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Rental Income Forecast */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Rental Income Forecast</CardTitle>
-          <CardDescription>
-            Monthly net rental income projections across all holdings
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[280px] sm:h-[320px] w-full touch-pan-y">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={incomeChartData} margin={{ left: isMobile ? -10 : 0, right: 0, top: 10, bottom: 10 }}>
-                <defs>
-                  {(["bear", "base", "bull"] as const).map((name) => (
-                    <linearGradient key={name} id={`income-grad-${name}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={scenarioColors[name]} stopOpacity={0.15} />
-                      <stop offset="95%" stopColor={scenarioColors[name]} stopOpacity={0} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={isMobile ? 10 : 11}
-                  interval={isMobile ? 2 : 1}
-                  tickFormatter={(v) => {
-                    const d = new Date(v + "-01")
-                    return d.toLocaleDateString("en-US", { month: "short" })
-                  }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={isMobile ? 10 : 11}
-                  width={isMobile ? 40 : 55}
-                  tickFormatter={(v) => `${Math.round(v / 1000)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid hsl(var(--border))",
-                    fontSize: "12px",
-                    backgroundColor: "hsl(var(--background))",
-                  }}
-                  formatter={(value: number, name: string) => [
-                    formatAED(value),
-                    scenarioLabels[name as ScenarioName] ?? name,
-                  ]}
-                />
-                {(["bear", "base", "bull"] as const)
-                  .filter((n) => selectedScenarios.has(n))
-                  .map((name) => (
-                    <Area
-                      key={name}
-                      type="monotone"
-                      dataKey={name}
-                      stroke={scenarioColors[name]}
-                      fillOpacity={1}
-                      fill={`url(#income-grad-${name})`}
-                      strokeWidth={name === "base" ? 2.5 : 1.5}
-                      dot={false}
-                    />
-                  ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Holdings breakdown */}
       <Card>

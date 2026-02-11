@@ -221,6 +221,10 @@ function buildContextText(context: AIContext, includeMarket: boolean, includeMan
     if (context.investor.company) {
       sections.push(`- Company: ${context.investor.company}`)
     }
+    if (context.investor.description) {
+      sections.push(`- About & Investment Goals:`)
+      sections.push(`  ${context.investor.description}`)
+    }
     if (context.investor.mandate && !includeMandate) {
       // Brief mandate summary when not doing full mandate analysis
       const mandate = context.investor.mandate as Record<string, unknown>
@@ -461,6 +465,11 @@ export function buildPageContext(pagePath?: string): string {
     "/dashboard": "User is viewing the main dashboard with portfolio overview and key metrics.",
     "/memos": "User is viewing or creating investment memos for specific properties.",
     "/recommendations": "User is viewing AI-generated property recommendations.",
+    "/investor/dashboard": "Investor is viewing their personal dashboard with portfolio KPIs, new recommendations, and holdings overview.",
+    "/investor/portfolio": "Investor is viewing their owned property holdings with market data, valuations, and AI recommendations.",
+    "/investor/analytics": "Investor is viewing portfolio analytics including value appreciation, rental income trends, and property comparisons.",
+    "/investor/opportunities": "Investor is reviewing properties recommended by their advisor. They can indicate interest level and chat about each opportunity.",
+    "/investor/profile": "Investor is viewing and editing their profile, investment mandate, and preferences.",
   }
 
   // Check for exact match first
@@ -468,9 +477,12 @@ export function buildPageContext(pagePath?: string): string {
     return contextMap[pagePath]
   }
 
-  // Check for pattern matches (e.g., /investor/memos/[id])
+  // Check for pattern matches (e.g., /investor/memos/[id], /investor/opportunities/[id])
   if (pagePath.startsWith("/investor/memos/")) {
     return "Investor is reviewing a specific investment memo and may have questions about the deal, assumptions, scenarios, or evidence. Help them understand the memo content and make an informed decision."
+  }
+  if (pagePath.startsWith("/investor/opportunities/")) {
+    return "Investor is reviewing a specific opportunity recommended by their advisor. They may ask about the property details, market conditions, risks, expected returns, or want to compare it with other options. Help them evaluate the opportunity."
   }
 
   return ""

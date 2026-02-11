@@ -62,6 +62,7 @@ export async function updateInvestorDb(id: string, patch: Partial<InvestorRecord
   if (patch.assignedAgentId !== undefined) payload.assigned_agent_id = patch.assignedAgentId
   if (patch.ownerUserId !== undefined) payload.owner_user_id = patch.ownerUserId
   if (patch.avatar !== undefined) payload.avatar = patch.avatar
+  if (patch.description !== undefined) payload.description = patch.description
 
   const { data, error } = await supabase.from("investors").update(payload).eq("id", id).select("*").maybeSingle()
   if (error) throw error
@@ -85,6 +86,7 @@ function mapRow(row: Record<string, unknown>): InvestorRecord {
     phone: (row.phone as string) ?? undefined,
     status: row.status as InvestorRecord["status"],
     mandate: (row.mandate as InvestorRecord["mandate"]) ?? undefined,
+    description: (row.description as string) ?? undefined,
     createdAt: row.created_at as string,
     lastContact: (row.last_contact as string) ?? undefined,
     totalDeals: (row.total_deals as number) ?? 0,

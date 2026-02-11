@@ -166,7 +166,10 @@ export function PipelineView({ approvedMemos, activeDeals }: PipelineViewProps) 
                           </p>
                         )}
                         <Badge variant="outline" className="mt-1 bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
-                          Approved
+                          Memo Approved
+                        </Badge>
+                        <Badge variant="outline" className="mt-1 text-[10px] uppercase tracking-wide">
+                          Shortlisted
                         </Badge>
                       </div>
                     </div>
@@ -224,8 +227,16 @@ export function PipelineView({ approvedMemos, activeDeals }: PipelineViewProps) 
                       </div>
 
                       <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                            In Deal
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {statusInfo.label}
+                          </Badge>
+                        </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{statusInfo.label}</span>
+                          <span className="text-muted-foreground">Progress</span>
                           <span className="font-medium">{statusInfo.progress}%</span>
                         </div>
                         <Progress value={statusInfo.progress} className="h-1.5" />

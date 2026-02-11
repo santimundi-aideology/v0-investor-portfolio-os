@@ -30,6 +30,20 @@ function parseTagsInput(value: string): string[] {
     .slice(0, MAX_TAGS)
 }
 
+function parseCommaList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function parseNumberList(value: string): number[] {
+  return value
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((num) => !Number.isNaN(num))
+}
+
 export function EditInvestorProfileDialog({ investor }: { investor: Investor }) {
   const [isHydrated, setIsHydrated] = React.useState(false)
   React.useEffect(() => setIsHydrated(true), [])
@@ -47,15 +61,15 @@ export function EditInvestorProfileDialog({ investor }: { investor: Investor }) 
     setDraft((prev) => ({
       ...prev,
       mandate: {
-        strategy: prev.mandate?.strategy ?? "",
-        investmentHorizon: prev.mandate?.investmentHorizon ?? "",
-        yieldTarget: prev.mandate?.yieldTarget ?? "",
-        riskTolerance: prev.mandate?.riskTolerance ?? "medium",
-        preferredAreas: prev.mandate?.preferredAreas ?? [],
-        propertyTypes: prev.mandate?.propertyTypes ?? [],
-        minInvestment: prev.mandate?.minInvestment ?? 0,
-        maxInvestment: prev.mandate?.maxInvestment ?? 0,
-        notes: prev.mandate?.notes,
+        strategy: "",
+        investmentHorizon: "",
+        yieldTarget: "",
+        riskTolerance: "medium",
+        preferredAreas: [],
+        propertyTypes: [],
+        minInvestment: 0,
+        maxInvestment: 0,
+        ...prev.mandate,
         ...updates,
       },
     }))
@@ -235,8 +249,14 @@ export function EditInvestorProfileDialog({ investor }: { investor: Investor }) 
             />
           </div>
 
-          <div className="rounded-lg border p-4">
-            <div className="mb-3 text-sm font-semibold">Mandate (snapshot)</div>
+          <div className="rounded-lg border p-4 space-y-5">
+            <div className="mb-1">
+              <div className="text-sm font-semibold">Mandate (detailed)</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Capture strategic goals, constraints, and execution preferences so realtors can act faster.
+              </p>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Strategy</Label>
@@ -252,6 +272,23 @@ export function EditInvestorProfileDialog({ investor }: { investor: Investor }) 
                   value={draft.mandate?.investmentHorizon ?? ""}
                   onChange={(e) => setMandate({ investmentHorizon: e.target.value })}
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label>Decision timeline</Label>
+                <Select
+                  value={draft.mandate?.decisionTimeline ?? "flexible"}
+                  onValueChange={(v) => setMandate({ decisionTimeline: v as NonNullable<Investor["mandate"]>["decisionTimeline"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="immediate">Immediate</SelectItem>
+                    <SelectItem value="1-2_weeks">1-2 weeks</SelectItem>
+                    <SelectItem value="1_month">1 month</SelectItem>
+                    <SelectItem value="flexible">Flexible</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Risk tolerance</Label>
@@ -285,6 +322,244 @@ export function EditInvestorProfileDialog({ investor }: { investor: Investor }) 
                   onChange={(e) => setMandate({ maxInvestment: Number(e.target.value || 0) })}
                 />
               </div>
+              <div className="grid gap-2">
+                <Label>Min size (sqft)</Label>
+                <Input
+                  inputMode="numeric"
+                  value={draft.mandate?.minSize?.toString() ?? ""}
+                  onChange={(e) => setMandate({ minSize: parseOptionalNumber(e.target.value) })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Max size (sqft)</Label>
+                <Input
+                  inputMode="numeric"
+                  value={draft.mandate?.maxSize?.toString() ?? ""}
+                  onChange={(e) => setMandate({ maxSize: parseOptionalNumber(e.target.value) })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Max service charge (AED/sqft)</Label>
+                <Input
+                  inputMode="numeric"
+                  value={draft.mandate?.maxServiceCharge?.toString() ?? ""}
+                  onChange={(e) => setMandate({ maxServiceCharge: parseOptionalNumber(e.target.value) })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Leverage appetite</Label>
+                <Select
+                  value={draft.mandate?.leverageAppetite ?? "moderate"}
+                  onValueChange={(v) => setMandate({ leverageAppetite: v as NonNullable<Investor["mandate"]>["leverageAppetite"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No leverage</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="moderate">Moderate</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Primary objectives (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.primaryObjectives ?? []).join(", ")}
+                  onChange={(e) => setMandate({ primaryObjectives: parseCommaList(e.target.value) })}
+                  placeholder="Income generation, capital appreciation, diversification"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Preferred areas (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.preferredAreas ?? []).join(", ")}
+                  onChange={(e) => setMandate({ preferredAreas: parseCommaList(e.target.value) })}
+                  placeholder="Dubai Marina, Downtown, Business Bay"
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>Property types (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.propertyTypes ?? []).join(", ")}
+                  onChange={(e) => setMandate({ propertyTypes: parseCommaList(e.target.value) })}
+                  placeholder="Apartment, Villa, Townhouse"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Preferred bedrooms (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.preferredBedrooms ?? []).join(", ")}
+                  onChange={(e) => setMandate({ preferredBedrooms: parseNumberList(e.target.value) })}
+                  placeholder="1, 2, 3"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Preferred views (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.preferredViews ?? []).join(", ")}
+                  onChange={(e) => setMandate({ preferredViews: parseCommaList(e.target.value) })}
+                  placeholder="Sea, Golf, Marina"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Preferred developers (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.developerPreferences ?? []).join(", ")}
+                  onChange={(e) => setMandate({ developerPreferences: parseCommaList(e.target.value) })}
+                  placeholder="Emaar, Nakheel, DAMAC"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Deal breakers (comma separated)</Label>
+                <Input
+                  value={(draft.mandate?.dealBreakers ?? []).join(", ")}
+                  onChange={(e) => setMandate({ dealBreakers: parseCommaList(e.target.value) })}
+                  placeholder="No off-plan, no tenanted assets, no high service charge"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Furnished preference</Label>
+                <Select
+                  value={draft.mandate?.furnishedPreference ?? "any"}
+                  onValueChange={(v) => setMandate({ furnishedPreference: v as NonNullable<Investor["mandate"]>["furnishedPreference"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="furnished">Furnished</SelectItem>
+                    <SelectItem value="unfurnished">Unfurnished</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Completion status</Label>
+                <Select
+                  value={draft.mandate?.completionStatus ?? "any"}
+                  onValueChange={(v) => setMandate({ completionStatus: v as NonNullable<Investor["mandate"]>["completionStatus"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="ready">Ready</SelectItem>
+                    <SelectItem value="off_plan">Off-plan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Tenant requirements</Label>
+                <Select
+                  value={draft.mandate?.tenantRequirements ?? "any"}
+                  onValueChange={(v) => setMandate({ tenantRequirements: v as NonNullable<Investor["mandate"]>["tenantRequirements"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="vacant">Vacant</SelectItem>
+                    <SelectItem value="tenanted">Tenanted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Payment plan</Label>
+                <Select
+                  value={
+                    draft.mandate?.paymentPlanRequired === true
+                      ? "required"
+                      : draft.mandate?.paymentPlanRequired === false
+                        ? "not_required"
+                        : "any"
+                  }
+                  onValueChange={(v) =>
+                    setMandate({
+                      paymentPlanRequired: v === "any" ? undefined : v === "required",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="required">Required</SelectItem>
+                    <SelectItem value="not_required">Not required</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Due diligence depth</Label>
+                <Select
+                  value={draft.mandate?.dueDiligenceLevel ?? "standard"}
+                  onValueChange={(v) => setMandate({ dueDiligenceLevel: v as NonNullable<Investor["mandate"]>["dueDiligenceLevel"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="extensive">Extensive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Relationship model</Label>
+                <Select
+                  value={
+                    draft.mandate?.exclusiveDeals
+                      ? "exclusive"
+                      : draft.mandate?.coInvestmentOpen
+                        ? "co_investment"
+                        : "standard"
+                  }
+                  onValueChange={(v) =>
+                    setMandate({
+                      exclusiveDeals: v === "exclusive",
+                      coInvestmentOpen: v === "co_investment",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="co_investment">Open to co-investment</SelectItem>
+                    <SelectItem value="exclusive">Exclusive / off-market only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Communication expectations</Label>
+              <Textarea
+                value={draft.mandate?.communicationExpectations ?? ""}
+                onChange={(e) => setMandate({ communicationExpectations: e.target.value })}
+                placeholder="Weekly WhatsApp updates, monthly PDF summary, immediate alerts on high-fit deals..."
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Mandate notes</Label>
+              <Textarea
+                value={draft.mandate?.notes ?? ""}
+                onChange={(e) => setMandate({ notes: e.target.value })}
+                placeholder="Additional context, approvals, sensitivities, and negotiation constraints..."
+              />
             </div>
           </div>
         </div>

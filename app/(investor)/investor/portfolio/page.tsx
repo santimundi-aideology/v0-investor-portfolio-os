@@ -148,7 +148,7 @@ export default function InvestorPortfolioPage() {
         setLoading(true)
         setError(null)
         if (!investorId) return
-        const res = await fetch(`/api/portfolio/${investorId}`)
+        const res = await fetch(`/api/portfolio/${investorId}?t=${Date.now()}`, { cache: 'no-store' })
         if (!res.ok) throw new Error("Failed to load portfolio")
         const data = await res.json()
         setSummary(data.summary)
@@ -244,7 +244,7 @@ export default function InvestorPortfolioPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Portfolio Holdings</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Portfolio</h1>
           <p className="text-sm sm:text-base text-gray-500">
             {summary.propertyCount} properties with live market data
             {summary.dataSource === "mock" && (
@@ -252,6 +252,28 @@ export default function InvestorPortfolioPage() {
             )}
           </p>
         </div>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <Link
+          href="/investor/portfolio"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
+        >
+          Holdings
+        </Link>
+        <Link
+          href="/investor/analytics"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Analytics
+        </Link>
+        <Link
+          href="/investor/payments"
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Payments
+        </Link>
       </div>
 
       {/* KPI Cards - Enhanced with real data */}

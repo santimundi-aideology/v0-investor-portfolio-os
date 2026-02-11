@@ -6,9 +6,13 @@ import {
   ArrowLeft,
   Briefcase,
   Loader2,
+  MapPin,
+  Sparkles,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InvestmentsSummaryHeader } from "@/components/investor/investments-summary-header"
 import { InvestmentTimeline } from "@/components/investor/investment-timeline"
@@ -75,6 +79,35 @@ type MemoSummary = {
   propertyArea?: string
 }
 
+type ShortlistResponse = {
+  items: Array<{
+    id: string
+    listingId: string
+    matchScore: number | null
+    matchExplanation: string | null
+    tradeoffs: string[]
+    agentNotes: string | null
+    rank: number | null
+    addedAt: string
+    property: {
+      title: string | null
+      area: string | null
+      type: string | null
+      price: number | null
+      size: number | null
+      bedrooms: number | null
+      imageUrl: string | null
+      status: string | null
+    } | null
+  }>
+}
+
+function formatCurrency(amount: number) {
+  if (amount >= 1_000_000) return `AED ${(amount / 1_000_000).toFixed(1)}M`
+  if (amount >= 1_000) return `AED ${(amount / 1_000).toFixed(0)}K`
+  return `AED ${amount.toLocaleString()}`
+}
+
 export default function InvestorInvestmentsPage() {
   const { scopedInvestorId } = useApp()
 
@@ -95,7 +128,12 @@ export default function InvestorInvestmentsPage() {
     }
   )
 
-  const isLoading = portfolioLoading || dealsLoading || memosLoading
+  // Fetch shortlist-backed recommendations
+  const { data: shortlistData, isLoading: shortlistLoading } = useAPI<ShortlistResponse>(
+    scopedInvestorId ? `/api/investors/${scopedInvestorId}/shortlist` : null
+  )
+
+  const isLoading = portfolioLoading || dealsLoading || memosLoading || shortlistLoading
 
   // Calculate summary metrics
   const summaryMetrics = React.useMemo(() => {
@@ -171,6 +209,43 @@ export default function InvestorInvestmentsPage() {
   const activeDealsData = React.useMemo(() => {
     return dealRooms.filter((d) => d.status !== "completed")
   }, [dealRooms])
+
+  const recommendationsData = React.useMemo(() => {
+    const shortlistItems = shortlistData?.items ?? []
+    const holdingsListingIds = new Set(
+      (portfolioData?.holdings ?? []).map((holding) => holding.listingId).filter(Boolean)
+    )
+    const approvedMemoListingIds = new Set(
+      memos
+        .filter((memo) => memo.state === "approved")
+        .map((memo) => memo.listingId)
+        .filter((listingId): listingId is string => Boolean(listingId))
+    )
+
+    return shortlistItems
+      .filter((item) => item.listingId && !holdingsListingIds.has(item.listingId))
+      .filter((item) => !approvedMemoListingIds.has(item.listingId))
+      .map((item) => ({
+        id: item.id,
+        listingId: item.listingId,
+        title: item.property?.title || "Recommended property",
+        area: item.property?.area || "Area not specified",
+        type: item.property?.type || "property",
+        price: item.property?.price ?? 0,
+        matchScore: item.matchScore ?? 0,
+        rationale:
+          item.matchExplanation ||
+          item.agentNotes ||
+          item.tradeoffs?.[0] ||
+          "Matches your current investment mandate.",
+        addedAt: item.addedAt,
+      }))
+  }, [shortlistData, portfolioData, memos])
+
+  const holdingsCount = portfolioData?.holdings.length ?? 0
+  const recommendationsCount = recommendationsData.length
+  const pipelineCount = approvedMemosData.length + activeDealsData.length
+  const allInvestmentsCount = holdingsCount + recommendationsCount + pipelineCount
 
   // Create timeline items
   const timelineItems = React.useMemo(() => {
@@ -310,13 +385,16 @@ export default function InvestorInvestmentsPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="all" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="all">All Investments</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="all">All Investments ({allInvestmentsCount})</TabsTrigger>
             <TabsTrigger value="holdings">
-              Portfolio ({portfolioData?.holdings.length ?? 0})
+              Portfolio ({holdingsCount})
+            </TabsTrigger>
+            <TabsTrigger value="recommendations">
+              Recommendations ({recommendationsCount})
             </TabsTrigger>
             <TabsTrigger value="pipeline">
-              Pipeline ({approvedMemosData.length + activeDealsData.length})
+              Pipeline ({pipelineCount})
             </TabsTrigger>
           </TabsList>
 
@@ -329,6 +407,63 @@ export default function InvestorInvestmentsPage() {
               holdings={portfolioData?.holdings ?? []}
               mandateYieldTarget={8.5}
             />
+          </TabsContent>
+
+          <TabsContent value="recommendations" className="space-y-4">
+            {recommendationsData.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-10 text-center">
+                <Sparkles className="mx-auto size-8 text-muted-foreground/60" />
+                <p className="mt-3 text-sm font-medium">No recommendations right now</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  New opportunities will appear here once they match your mandate and are not already in your portfolio or pipeline.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {recommendationsData.map((recommendation) => (
+                  <Link
+                    key={recommendation.id}
+                    href={`/properties/${recommendation.listingId}`}
+                    className="block"
+                  >
+                    <Card className="h-full transition-all hover:border-primary/50 hover:shadow-md">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate font-semibold">{recommendation.title}</h3>
+                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="size-3" />
+                              <span className="truncate">{recommendation.area}</span>
+                            </div>
+                          </div>
+                          <Badge variant="secondary">Score {recommendation.matchScore}</Badge>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge variant="outline" className="capitalize">
+                            {recommendation.type}
+                          </Badge>
+                          <Badge variant="outline" className="bg-primary/5 text-primary">
+                            Recommended
+                          </Badge>
+                        </div>
+
+                        <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                          {recommendation.rationale}
+                        </p>
+
+                        <div className="mt-4 flex items-center justify-between text-sm">
+                          <span className="font-semibold">{formatCurrency(recommendation.price)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Added {new Date(recommendation.addedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-6">

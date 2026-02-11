@@ -144,9 +144,14 @@ export function HoldingsGrid({ holdings, mandateYieldTarget = 8.5 }: HoldingsGri
 
               {/* Property Type */}
               <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="capitalize text-xs">
-                  {holding.property?.type || "property"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="capitalize text-xs">
+                    {holding.property?.type || "property"}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                    In Portfolio
+                  </Badge>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"

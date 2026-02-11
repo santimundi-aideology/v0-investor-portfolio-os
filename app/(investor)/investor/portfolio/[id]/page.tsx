@@ -23,7 +23,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { HoldingDetailCard } from "@/components/investor/holding-detail-card"
+import { HoldingPaymentMilestones } from "@/components/investor/payment-milestones"
 import { HoldingPerformanceChart } from "@/components/investor/holding-performance-chart"
 import { HoldingForecastChart } from "@/components/investor/holding-forecast-chart"
 import { cn } from "@/lib/utils"
@@ -372,6 +374,40 @@ export default function HoldingDetailPage() {
             monthsHeld={incomeData.months}
           />
 
+          {/* What-if analysis widget */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Sparkles className="size-5 text-primary" />
+                What-If Analysis
+              </CardTitle>
+              <CardDescription>
+                Ask AI to stress test different scenarios for this property before making a decision.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <AskAIBankerWidget
+                agentId="portfolio_advisor"
+                title="What-If Analysis"
+                description="Run scenario analysis for this specific holding"
+                suggestedQuestions={[
+                  `What happens to net yield if monthly rent drops by 10% for ${property.title}?`,
+                  `If occupancy falls from ${(holding.occupancyRate * 100).toFixed(0)}% to 85%, how does annual net income change?`,
+                  `What if I sell ${property.title} in 12 months vs hold it for 3 years?`,
+                  `How would a 1.5% interest rate increase affect returns if I refinance this asset?`,
+                  `What capex plan could increase rent by 8-12% in this location?`,
+                ]}
+                pagePath={`/investor/portfolio/${holdingId}`}
+                scopedInvestorId={investorId}
+                propertyId={property.id}
+                variant="inline"
+              />
+              <p className="text-xs text-muted-foreground">
+                Tip: include specific assumptions (rent, vacancy, expenses, financing) to get more precise scenario outputs.
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Performance Charts - Full width on mobile */}
           <Tabs defaultValue="value" className="w-full">
             <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
@@ -530,6 +566,9 @@ export default function HoldingDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Payment Milestones */}
+          <HoldingPaymentMilestones holdingId={holdingId} />
 
           {/* Market Signals */}
           {marketSignals.length > 0 && (

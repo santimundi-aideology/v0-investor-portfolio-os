@@ -8,6 +8,7 @@ import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 import { MemoPDFDocument } from "@/components/memos/memo-pdf-document"
 import { IntakeReportPdfDocument } from "@/components/memos/intake-report-pdf-document"
 import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
+import { getHoldingsByInvestor, type PropertyHolding } from "@/lib/db/holdings"
 
 function formatCurrency(value?: number | null) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "N/A"
@@ -23,6 +24,11 @@ function formatPercent(value?: number | null) {
   // For stored decimal rates (e.g. 0.12), convert to %
   const pct = value <= 1 ? value * 100 : value
   return `${pct.toFixed(1)}%`
+}
+
+function formatCompactPercent(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "N/A"
+  return `${(value * 100).toFixed(1)}%`
 }
 
 function getCurrentContent(memo: any): Record<string, any> | null {
@@ -72,6 +78,7 @@ function buildIntakePayloadFromMemo(
   memo: any,
   investor: any,
   listing: any,
+  holdings: PropertyHolding[],
 ): IntakeReportPayload | null {
   const content = getCurrentContent(memo)
   const analysis = content?.analysis
@@ -91,6 +98,25 @@ function buildIntakePayloadFromMemo(
   const rb = analysis?.financialAnalysis?.returnBridge
   const growth = analysis?.growth
   const mapCoords = content?.source?.coordinates as { lat?: number; lng?: number } | undefined
+  const isCurrentListingOwned = Boolean(listing?.id && holdings.some((holding) => holding.listingId === listing.id))
+  const ownedHolding = isCurrentListingOwned
+    ? holdings.find((holding) => holding.listingId === listing.id)
+    : null
+  const portfolioCount = holdings.length
+  const totalPurchaseCost = holdings.reduce((sum, holding) => sum + holding.purchasePrice, 0)
+  const totalCurrentValue = holdings.reduce((sum, holding) => sum + holding.currentValue, 0)
+  const averageOccupancyRate =
+    holdings.length > 0
+      ? holdings.reduce((sum, holding) => sum + holding.occupancyRate, 0) / holdings.length
+      : null
+  const topHoldings = holdings
+    .slice()
+    .sort((a, b) => b.currentValue - a.currentValue)
+    .slice(0, 3)
+    .map((holding) => {
+      const holdingLabel = holding.listingId ? `Listing ${holding.listingId.slice(0, 8)}` : "Unknown listing"
+      return `${holdingLabel} • Cost ${formatCurrency(holding.purchasePrice)} • Value ${formatCurrency(holding.currentValue)}`
+    })
 
   const sections: IntakeReportPayload["sections"] = [
     {
@@ -123,6 +149,42 @@ function buildIntakePayloadFromMemo(
       title: "Executive Summary",
       body: typeof analysis?.summary === "string" ? analysis.summary : undefined,
       bullets: Array.isArray(analysis?.keyPoints) ? analysis.keyPoints : undefined,
+    },
+    {
+      title: "Recommended Candidate Status",
+      body: isCurrentListingOwned
+        ? "This opportunity is now classified as an acquired holding and should be managed in Portfolio surfaces."
+        : "This opportunity is currently a recommended candidate and has not been acquired into Portfolio.",
+      keyValues: [
+        {
+          label: "Recommendation Lane",
+          value: isCurrentListingOwned ? "In Portfolio (Acquired)" : "Recommended Candidate",
+        },
+        {
+          label: "Portfolio Overlap",
+          value: isCurrentListingOwned ? "Yes - already owned" : "No - candidate only",
+        },
+        ...(ownedHolding
+          ? [
+              { label: "Purchase Date", value: ownedHolding.purchaseDate || "N/A" },
+              { label: "Purchase Cost", value: formatCurrency(ownedHolding.purchasePrice) },
+              { label: "Current Value", value: formatCurrency(ownedHolding.currentValue) },
+            ]
+          : []),
+      ],
+    },
+    {
+      title: "Portfolio Holdings Snapshot",
+      keyValues: [
+        { label: "Total Holdings", value: String(portfolioCount) },
+        { label: "Total Purchase Cost", value: formatCurrency(totalPurchaseCost) },
+        { label: "Current Portfolio Value", value: formatCurrency(totalCurrentValue) },
+        {
+          label: "Average Occupancy",
+          value: averageOccupancyRate === null ? "N/A" : formatCompactPercent(averageOccupancyRate),
+        },
+      ],
+      bullets: topHoldings,
     },
     {
       title: "Market Analysis",
@@ -306,10 +368,13 @@ export async function GET(
       throw err
     }
 
-    const listing = memo.listingId ? await getListingById(memo.listingId) : null
+    const [listing, holdings] = await Promise.all([
+      memo.listingId ? getListingById(memo.listingId) : Promise.resolve(null),
+      getHoldingsByInvestor(memoInvestorId),
+    ])
 
     // Use the premium intake-style PDF whenever structured analysis exists.
-    const intakePayload = buildIntakePayloadFromMemo(memo, investor, listing)
+    const intakePayload = buildIntakePayloadFromMemo(memo, investor, listing, holdings)
     const pdfBuffer = intakePayload
       ? await renderToBuffer(<IntakeReportPdfDocument payload={intakePayload} />)
       : await renderToBuffer(

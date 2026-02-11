@@ -106,6 +106,9 @@ const s = StyleSheet.create({
   calloutGold: { borderLeftWidth: 3, borderLeftColor: Brand.gold, paddingLeft: 14, paddingTop: 10, paddingBottom: 10, marginBottom: 20, backgroundColor: Brand.goldLight },
   calloutLabel: { fontSize: 7, textTransform: "uppercase", letterSpacing: 1.5, color: C.light, marginBottom: 4 },
   calloutText: { fontSize: 10.5, color: C.dark, lineHeight: 1.5 },
+  calloutMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 3 },
+  calloutMetaLabel: { fontSize: 7, color: C.light, textTransform: "uppercase", letterSpacing: 0.4 },
+  calloutMetaValue: { fontSize: 8, color: C.dark, fontFamily: "Helvetica-Bold", maxWidth: "62%", textAlign: "right" },
 
   /* --- metrics --- */
   metricsRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 8 },
@@ -556,6 +559,8 @@ export function IntakeReportPdfDocument({ payload }: Props) {
   const strSec = findSection(payload, ["strategy", "execution"])
   const rskSec = findSection(payload, ["risk"])
   const finRec = findSection(payload, ["final recommendation"])
+  const recommendedStatusSec = findSection(payload, ["recommended candidate status", "recommendation lane"])
+  const portfolioSnapshotSec = findSection(payload, ["portfolio holdings snapshot", "portfolio snapshot", "owned holdings"])
 
   const hlBullets = bullets(execSec?.bullets).slice(0, 6)
   const locBullets = bullets(locSec?.bullets).slice(0, 6)
@@ -744,6 +749,37 @@ export function IntakeReportPdfDocument({ payload }: Props) {
             <FactorBar label="Market Timing" value={payload.factors.marketTiming ?? 0} />
             <FactorBar label="Portfolio Fit" value={payload.factors.portfolioFit ?? 0} />
             <FactorBar label="Risk Alignment" value={payload.factors.riskAlignment ?? 0} />
+          </View>
+        ) : null}
+
+        {(recommendedStatusSec || portfolioSnapshotSec) ? (
+          <View style={{ marginBottom: 14 }} wrap={false}>
+            <Text style={s.label}>Lifecycle Classification</Text>
+            {recommendedStatusSec ? (
+              <View style={s.calloutGold}>
+                <Text style={s.calloutLabel}>Recommended Candidate</Text>
+                <Text style={s.calloutText}>
+                  {trim(recommendedStatusSec.body, 220) || "This report item is currently tracked in recommendations."}
+                </Text>
+                {(recommendedStatusSec.keyValues ?? []).slice(0, 3).map((item, i) => (
+                  <View key={`rec-kv-${i}`} style={s.calloutMetaRow}>
+                    <Text style={s.calloutMetaLabel}>{item.label}</Text>
+                    <Text style={s.calloutMetaValue}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {portfolioSnapshotSec ? (
+              <View style={s.callout}>
+                <Text style={s.calloutLabel}>Already Purchased Holdings</Text>
+                {(portfolioSnapshotSec.keyValues ?? []).slice(0, 4).map((item, i) => (
+                  <View key={`portfolio-kv-${i}`} style={s.calloutMetaRow}>
+                    <Text style={s.calloutMetaLabel}>{item.label}</Text>
+                    <Text style={s.calloutMetaValue}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
         ) : null}
 

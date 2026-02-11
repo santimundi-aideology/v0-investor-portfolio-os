@@ -28,9 +28,9 @@ interface RentalIncomeChartProps {
 
 export function RentalIncomeChart({ data, showExpenses = true }: RentalIncomeChartProps) {
   const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K`
-    return value.toLocaleString()
+    if (value >= 1000000) return `AED ${(value / 1000000).toFixed(1)}M`
+    if (value >= 1000) return `AED ${(value / 1000).toFixed(0)}K`
+    return `AED ${value.toLocaleString()}`
   }
 
   return (
@@ -50,7 +50,7 @@ export function RentalIncomeChart({ data, showExpenses = true }: RentalIncomeCha
             tickFormatter={formatCurrency}
             axisLine={false}
             tickLine={false}
-            width={60}
+            width={80}
           />
           <YAxis
             yAxisId="right"

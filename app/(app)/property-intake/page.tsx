@@ -1159,6 +1159,21 @@ function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation:
         bullets: analysis.keyPoints,
       },
       {
+        title: "Recommended Candidate Status",
+        body: "This property is being evaluated as a recommended candidate and is not marked as an acquired holding.",
+        keyValues: [
+          { label: "Recommendation Lane", value: "Recommended Candidate" },
+          { label: "Portfolio Overlap", value: "No - candidate only" },
+        ],
+      },
+      {
+        title: "Portfolio Holdings Snapshot",
+        keyValues: [
+          { label: "Total Holdings", value: "N/A in intake context" },
+          { label: "Current Portfolio Value", value: "N/A in intake context" },
+        ],
+      },
+      {
         title: "Neighborhood Analysis",
         body: analysis.neighborhood.profile,
         keyValues: [
@@ -1344,6 +1359,21 @@ function buildOffplanIntakeReportPayload(
       {
         title: "Project Highlights",
         bullets: memo.projectHighlights,
+      },
+      {
+        title: "Recommended Candidate Status",
+        body: "This off-plan unit is tracked as a recommended candidate pending acquisition.",
+        keyValues: [
+          { label: "Recommendation Lane", value: "Recommended Candidate" },
+          { label: "Portfolio Overlap", value: "No - candidate only" },
+        ],
+      },
+      {
+        title: "Portfolio Holdings Snapshot",
+        keyValues: [
+          { label: "Total Holdings", value: "N/A in intake context" },
+          { label: "Current Portfolio Value", value: "N/A in intake context" },
+        ],
       },
       {
         title: "Developer Assessment",

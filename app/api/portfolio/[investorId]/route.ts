@@ -4,6 +4,8 @@ import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
 import { getHoldingsByInvestor, getPortfolioSummary } from "@/lib/db/holdings"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/portfolio/[investorId]
  * Returns portfolio holdings enriched with DLD market data
@@ -29,11 +31,17 @@ export async function GET(
         try {
           const { data: listingData } = await supabase
             .from("listings")
-            .select("title, area, type, size, bedrooms, bathrooms")
+            .select("title, area, type, size, bedrooms, bathrooms, attachments")
             .eq("id", holding.listingId)
             .maybeSingle()
           if (listingData) {
-            property = listingData
+            const attachments = listingData.attachments as Array<{ type?: string; url?: string }> | null
+            const imageUrl = attachments?.find((a) => a.type?.startsWith("image"))?.url
+            
+            property = {
+              ...listingData,
+              imageUrl
+            }
           }
         } catch {
           // Listing may not exist

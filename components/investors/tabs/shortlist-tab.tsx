@@ -50,6 +50,9 @@ export function ShortlistTab({ items }: ShortlistTabProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                Shortlisted
+              </Badge>
               <Badge variant="outline" className={statusColors[item.status]}>
                 {item.status.replace("-", " ")}
               </Badge>
