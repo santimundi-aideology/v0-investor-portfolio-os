@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { toast } from "sonner"
 import {
   AlertCircle,
   ArrowRight,
@@ -144,9 +145,15 @@ export default function PropertyIntakePage() {
 }
 
 function PropertyIntakeContent() {
+  // Defer client-only rendering so Radix Tabs IDs match between SSR and client
+  // (useIntakeStore hydrates from sessionStorage, causing id mismatch otherwise)
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => setMounted(true), [])
+
   // Fetch investors for matching panel
   const { data: investorsData } = useAPI<Investor[]>("/api/investors")
   const investors = investorsData ?? []
+  const [isSharingMemo, setIsSharingMemo] = React.useState(false)
 
   // All state comes from the persistent store
   const {
@@ -216,6 +223,229 @@ function PropertyIntakeContent() {
   // Determine if we should show reset button
   const showPortalReset = step !== "input" && step !== "saved"
   const showOffplanReset = offplanStep !== "upload" && offplanStep !== "saved"
+
+  const handleShareMemoToInvestors = React.useCallback(
+    async (investorIds: string[]) => {
+      if (!savedMemoId) {
+        toast.error("Save the memo first", {
+          description: "Create the IC memo before sharing it with investors.",
+        })
+        return
+      }
+
+      if (investorIds.length === 0) return
+
+      setIsSharingMemo(true)
+      try {
+        // Load the saved memo so we can duplicate its latest content
+        // into investor-linked memo records.
+        const memoRes = await fetch(`/api/memos/${savedMemoId}`, { cache: "no-store" })
+        const memoPayload = await memoRes.json().catch(() => ({}))
+        if (!memoRes.ok) {
+          throw new Error(
+            (memoPayload as { error?: string }).error || "Failed to load saved memo before sharing",
+          )
+        }
+
+        const raw = memoPayload as Record<string, unknown>
+        const versions = Array.isArray(raw.versions)
+          ? (raw.versions as Array<Record<string, unknown>>)
+          : []
+        const latestVersion = [...versions].sort(
+          (a, b) => Number(b.version ?? 0) - Number(a.version ?? 0),
+        )[0]
+        const latestContent = latestVersion?.content
+
+        if (!latestContent || typeof latestContent !== "object") {
+          throw new Error("Saved memo content is missing")
+        }
+
+        const listingIdCandidate =
+          (typeof raw.listingId === "string" && raw.listingId) ||
+          (typeof raw.listing_id === "string" && raw.listing_id) ||
+          undefined
+        const uuidLike =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+        let resolvedListingId =
+          listingIdCandidate && uuidLike.test(listingIdCandidate)
+            ? listingIdCandidate
+            : undefined
+
+        // Property-intake often starts from portal links with non-UUID external IDs.
+        // Investor opportunities require a real listings.id, so create one when absent.
+        if (!resolvedListingId) {
+          const structured = latestContent as Record<string, unknown>
+          const contentProperty = structured.property as
+            | Record<string, unknown>
+            | undefined
+          const contentSource = structured.source as
+            | Record<string, unknown>
+            | undefined
+          const rawType = String(contentProperty?.type ?? "").toLowerCase()
+          const mappedType = rawType.includes("office") ||
+            rawType.includes("retail") ||
+            rawType.includes("warehouse")
+            ? "commercial"
+            : rawType.includes("land")
+              ? "land"
+              : rawType.includes("mixed")
+                ? "mixed-use"
+                : "residential"
+
+          const listingRes = await fetch("/api/listings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: String(contentProperty?.title ?? "Property"),
+              area: contentProperty?.area ? String(contentProperty.area) : undefined,
+              address:
+                contentProperty?.subArea && contentProperty?.area
+                  ? `${String(contentProperty.subArea)}, ${String(contentProperty.area)}`
+                  : contentProperty?.area
+                    ? String(contentProperty.area)
+                    : undefined,
+              type: mappedType,
+              status: "available",
+              price:
+                typeof contentProperty?.price === "number"
+                  ? contentProperty.price
+                  : typeof (structured as Record<string, unknown>).numbers ===
+                        "object" &&
+                      (structured as Record<string, unknown>).numbers !== null
+                    ? Number(
+                        ((structured as Record<string, unknown>).numbers as Record<string, unknown>)
+                          .askingPrice ?? 0,
+                      ) || undefined
+                    : undefined,
+              size:
+                typeof contentProperty?.size === "number"
+                  ? contentProperty.size
+                  : undefined,
+              bedrooms:
+                typeof contentProperty?.bedrooms === "number"
+                  ? contentProperty.bedrooms
+                  : undefined,
+              bathrooms:
+                typeof contentProperty?.bathrooms === "number"
+                  ? contentProperty.bathrooms
+                  : undefined,
+              developer: contentSource?.developer
+                ? String(contentSource.developer)
+                : undefined,
+              expectedRent:
+                typeof (structured as Record<string, unknown>).numbers ===
+                    "object" &&
+                  (structured as Record<string, unknown>).numbers !== null
+                  ? Number(
+                      ((structured as Record<string, unknown>).numbers as Record<string, unknown>)
+                        .estimatedMonthlyRent ?? 0,
+                    ) * 12 || undefined
+                  : undefined,
+              currency: "AED",
+              handoverDate: contentSource?.handoverDate
+                ? String(contentSource.handoverDate)
+                : undefined,
+            }),
+          })
+
+          const listingPayload = await listingRes.json().catch(() => ({}))
+          if (!listingRes.ok) {
+            throw new Error(
+              (listingPayload as { error?: string }).error ||
+                "Failed to create listing for investor opportunity",
+            )
+          }
+          resolvedListingId = (listingPayload as { id?: string }).id
+        }
+
+        if (!resolvedListingId) {
+          throw new Error("Could not resolve a listing to create investor opportunities")
+        }
+
+        const results = await Promise.allSettled(
+          investorIds.map(async (investorId) => {
+            const memoCreateRes = await fetch("/api/memos", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                investorId,
+                listingId: resolvedListingId,
+                content: latestContent,
+                state: "sent",
+              }),
+            })
+            const memoCreatePayload = await memoCreateRes.json().catch(() => ({}))
+            if (!memoCreateRes.ok) {
+              throw new Error(
+                (memoCreatePayload as { error?: string }).error ||
+                  `Failed to share memo with investor ${investorId}`,
+              )
+            }
+
+            const createdMemoId =
+              (memoCreatePayload as { id?: string; memo?: { id?: string } }).id ||
+              (memoCreatePayload as { id?: string; memo?: { id?: string } }).memo?.id
+
+            const oppRes = await fetch(`/api/investors/${investorId}/opportunities`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                listingId: resolvedListingId,
+                sharedMessage: notes || "Shared from Property Intake",
+                memoId: createdMemoId,
+                status: "recommended",
+              }),
+            })
+            const oppPayload = await oppRes.json().catch(() => ({}))
+            if (!oppRes.ok) {
+              throw new Error(
+                (oppPayload as { error?: string }).error ||
+                  `Failed to create opportunity for investor ${investorId}`,
+              )
+            }
+
+            return investorId
+          }),
+        )
+
+        const succeeded = results.filter((r) => r.status === "fulfilled").length
+        const failed = results.length - succeeded
+
+        if (succeeded > 0 && failed === 0) {
+          toast.success("IC memo shared", {
+            description: `Saved for ${succeeded} investor${succeeded === 1 ? "" : "s"}.`,
+          })
+        } else if (succeeded > 0) {
+          toast.warning("IC memo partially shared", {
+            description: `${succeeded} succeeded, ${failed} failed.`,
+          })
+        } else {
+          toast.error("Failed to share IC memo", {
+            description: "No investor records were updated.",
+          })
+        }
+      } catch (err) {
+        toast.error("Failed to share IC memo", {
+          description: err instanceof Error ? err.message : "Unexpected error",
+        })
+      } finally {
+        setIsSharingMemo(false)
+      }
+    },
+    [savedMemoId, notes],
+  )
+
+  if (!mounted) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Property Intake" subtitle="Evaluate properties from portals or off-plan developer brochures" />
+        <div className="flex min-h-[300px] items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -830,11 +1060,8 @@ function PropertyIntakeContent() {
                   yieldPotential: marketContext?.areaAverageYield,
                 }}
                 investors={investors}
-                onShare={(investorIds) => {
-                  console.log("Sharing with investors:", investorIds)
-                  // TODO: Implement actual sharing
-                  alert(`IC Memo shared with ${investorIds.length} investor(s)`)
-                }}
+                isSharing={isSharingMemo}
+                onShare={handleShareMemoToInvestors}
               />
 
               {step !== "saved" && (

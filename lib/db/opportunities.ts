@@ -290,6 +290,8 @@ export async function createOpportunity(input: {
   matchScore?: number
   matchReasons?: string[]
   shortlistItemId?: string
+  memoId?: string
+  status?: OpportunityStatus
 }): Promise<InvestorOpportunity | null> {
   const supabase = getSupabaseAdminClient()
 
@@ -303,6 +305,8 @@ export async function createOpportunity(input: {
           listing_id: input.listingId,
           shared_by: input.sharedBy,
           shared_message: input.sharedMessage ?? null,
+          status: input.status ?? "recommended",
+          memo_id: input.memoId ?? null,
           match_score: input.matchScore ?? null,
           match_reasons: input.matchReasons ?? [],
           shortlist_item_id: input.shortlistItemId ?? null,

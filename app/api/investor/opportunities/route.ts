@@ -36,6 +36,22 @@ export async function GET(req: Request) {
     const opportunities = await getOpportunitiesByInvestor(investorId, {
       includeAcquired: false,
     })
+    const memoIds = Array.from(
+      new Set(opportunities.map((opp) => opp.memoId).filter((memoId): memoId is string => !!memoId)),
+    )
+    const memoOwnerById = new Map<string, string | null>()
+    if (memoIds.length > 0) {
+      const { data: memoRows } = await supabase
+        .from("memos")
+        .select("id, investor_id")
+        .in("id", memoIds)
+      for (const row of memoRows ?? []) {
+        memoOwnerById.set(
+          String((row as { id?: unknown }).id),
+          ((row as { investor_id?: unknown }).investor_id as string | null) ?? null,
+        )
+      }
+    }
     const statusOverrides = new Map<string, string>()
     for (const opportunity of opportunities) {
       const validation = validateOpportunityState(opportunity)
@@ -55,6 +71,18 @@ export async function GET(req: Request) {
     // Enrich with listing details
     const enriched = await Promise.all(
       opportunities.map(async (opp) => {
+        const memoOwner = opp.memoId ? memoOwnerById.get(opp.memoId) : null
+        const safeMemoId =
+          opp.memoId && memoOwner === investorId
+            ? opp.memoId
+            : null
+
+        if (opp.memoId && !safeMemoId) {
+          console.warn(
+            `[investor/opportunities] Stripping inaccessible memo_id ${opp.memoId} from opportunity ${opp.id} for investor ${investorId}`,
+          )
+        }
+
         let property: {
           title: string | null
           area: string | null
@@ -137,7 +165,7 @@ export async function GET(req: Request) {
           sharedMessage: opp.sharedMessage,
           matchScore: opp.matchScore,
           matchReasons: opp.matchReasons,
-          memoId: opp.memoId,
+          memoId: safeMemoId,
           dealRoomId: opp.dealRoomId,
           messageCount: messageCount ?? 0,
           property,

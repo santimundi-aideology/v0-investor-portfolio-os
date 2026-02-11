@@ -140,6 +140,17 @@ export async function POST(req: Request) {
       createdBy: ctx.userId,
     })
 
+    // If the caller requests the memo be marked as sent (e.g. property-intake
+    // share flow), transition immediately so the investor can open it.
+    if (body.state === "sent" && memo.investorId) {
+      const supabase = getSupabaseAdminClient()
+      await supabase
+        .from("memos")
+        .update({ state: "sent", updated_at: new Date().toISOString() })
+        .eq("id", memo.id)
+      memo.state = "sent" as typeof memo.state
+    }
+
     const write = createAuditEventWriter()
     await write(
       AuditEvents.memoCreated({

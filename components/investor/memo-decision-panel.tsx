@@ -1,11 +1,22 @@
 "use client"
 
 import * as React from "react"
-import { Check, X, MessageSquare, Sparkles, AlertTriangle, ShieldCheck, Clock, Clock3, Loader2, CheckCircle2, ArrowRight, Heart, ThumbsDown } from "lucide-react"
+import {
+  Check,
+  AlertTriangle,
+  ShieldCheck,
+  Clock3,
+  Loader2,
+  CheckCircle2,
+  ArrowRight,
+  Heart,
+  ThumbsDown,
+  Sparkles,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -82,64 +93,15 @@ export function MemoDecisionPanel({
 }: MemoDecisionPanelProps) {
   const [showApproveDialog, setShowApproveDialog] = React.useState(false)
   const [showRejectDialog, setShowRejectDialog] = React.useState(false)
-  const [showRequestChangesDialog, setShowRequestChangesDialog] = React.useState(false)
+  const [showNotNowDialog, setShowNotNowDialog] = React.useState(false)
   const [selectedTags, setSelectedTags] = React.useState<string[]>([])
   const [comment, setComment] = React.useState("")
   const [conditionText, setConditionText] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
   const [submitted, setSubmitted] = React.useState<InvestorAction | null>(null)
-  const [aiSummary, setAiSummary] = React.useState<string | null>(null)
-  const [loadingAiSummary, setLoadingAiSummary] = React.useState(false)
 
   const canDecide = ["sent", "opened"].includes(memoState)
   const isDecided = memoState === "decided"
-
-  // Generate AI summary of key decision factors
-  React.useEffect(() => {
-    if (!currentVersion?.content || aiSummary) return
-    
-    setLoadingAiSummary(true)
-    // Simulate AI analysis based on memo content
-    const timer = setTimeout(() => {
-      const content = currentVersion.content
-      const summary = generateAiSummary(content)
-      setAiSummary(summary)
-      setLoadingAiSummary(false)
-    }, 1200)
-    
-    return () => clearTimeout(timer)
-  }, [currentVersion, aiSummary])
-
-  function generateAiSummary(content: MemoContent): string {
-    const points: string[] = []
-    
-    if (content.execSummary) {
-      points.push("Executive summary provided with clear investment thesis")
-    }
-    
-    const compsCount = content.evidence?.comps?.length ?? 0
-    if (compsCount > 0) {
-      points.push(`${compsCount} comparable properties analyzed for valuation support`)
-    }
-    
-    const assumptionsCount = content.assumptions?.length ?? 0
-    if (assumptionsCount > 0) {
-      points.push(`${assumptionsCount} key assumptions documented for transparency`)
-    }
-    
-    if (content.scenarios) {
-      const scenarioCount = Object.keys(content.scenarios).length
-      if (scenarioCount > 0) {
-        points.push(`${scenarioCount} scenario(s) modeled for risk assessment`)
-      }
-    }
-    
-    if (points.length === 0) {
-      return "This memo contains limited information. Consider requesting more details before making a decision."
-    }
-    
-    return points.join(". ") + ". Review each section carefully before proceeding."
-  }
 
   function toggleTag(tagId: string) {
     setSelectedTags((prev) =>
@@ -181,7 +143,7 @@ export function MemoDecisionPanel({
         setSubmitted(action)
         setShowApproveDialog(false)
         setShowRejectDialog(false)
-        setShowRequestChangesDialog(false)
+        setShowNotNowDialog(false)
         onDecisionMade?.(action)
       }
     } finally {
@@ -189,175 +151,154 @@ export function MemoDecisionPanel({
     }
   }
 
-  function openApproveDialog() {
+  function resetAndOpen(setter: React.Dispatch<React.SetStateAction<boolean>>) {
     setSelectedTags([])
     setComment("")
     setConditionText("")
-    setShowApproveDialog(true)
+    setter(true)
   }
 
-  function openRejectDialog() {
-    setSelectedTags([])
-    setComment("")
-    setShowRejectDialog(true)
-  }
-
-  function openRequestChangesDialog() {
-    setComment("")
-    setShowRequestChangesDialog(true)
-  }
-
+  // ── Decided state ──────────────────────────────────────────────────
   if (isDecided || submitted) {
+    const label =
+      submitted === "interested" || memoState === "decided"
+        ? "Interested"
+        : submitted === "pass"
+          ? "Pass"
+          : "Not Now"
     return (
-      <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-card">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="flex size-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-              <CheckCircle2 className="size-7 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
-                Decision Submitted
-              </h3>
-              <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80">
-                {submitted === "interested" || memoState === "decided"
-                  ? "Marked as Interested. The realtor will be notified."
-                  : submitted === "pass"
-                    ? "Marked as Pass. The realtor will be notified."
-                    : "Marked as Not Now. The realtor will be notified."}
-              </p>
-            </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle2 className="size-4 text-emerald-600" />
           </div>
-          <div className="mt-4 flex gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <a href="/investor/memos">
-                View all memos <ArrowRight className="ml-2 size-4" />
-              </a>
-            </Button>
+          <div className="text-sm">
+            <span className="font-medium text-emerald-700">Decision submitted:</span>{" "}
+            <span className="text-gray-600">{label} — realtor notified</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <Button variant="ghost" size="sm" asChild className="text-xs">
+          <a href="/investor/memos">
+            All memos <ArrowRight className="ml-1.5 size-3" />
+          </a>
+        </Button>
+      </div>
     )
   }
 
+  // ── Not ready state ────────────────────────────────────────────────
   if (!canDecide) {
     return (
-      <Card className="border-amber-200 bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="flex size-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-              <Clock className="size-7 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-amber-700 dark:text-amber-300">
-                Memo Not Ready for Decision
-              </h3>
-              <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
-                This memo is in <span className="font-medium capitalize">{memoState}</span> state. 
-                It must be sent to you before you can choose Interested, Not Now, or Pass.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 items-center justify-center rounded-full bg-amber-100">
+          <Clock3 className="size-4 text-amber-600" />
+        </div>
+        <p className="text-sm text-amber-700">
+          Memo in <span className="font-medium capitalize">{memoState}</span> state — not ready for decision
+        </p>
+      </div>
     )
   }
+
+  // ── Active decision bar ────────────────────────────────────────────
+  const trustIcon =
+    trustStatus === "verified" ? (
+      <ShieldCheck className="size-3.5 text-emerald-600" />
+    ) : trustStatus === "flagged" ? (
+      <AlertTriangle className="size-3.5 text-red-500" />
+    ) : (
+      <AlertTriangle className="size-3.5 text-amber-500" />
+    )
+
+  const trustLabel =
+    trustStatus === "verified" ? "Verified" : trustStatus === "flagged" ? "Flagged" : "Unverified"
 
   return (
     <>
-      <Card className="border-green-100 bg-white shadow-lg">
-        <CardContent className="p-6">
-          {/* Trust Badge Section */}
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <TrustBadge status={trustStatus} reason={trustReason} />
-              <span className="text-sm text-gray-500">
-                Memo v{currentVersion?.version ?? 1}
-              </span>
-            </div>
-          </div>
+      <div className="flex items-center gap-3">
+        {/* Left: trust + version pill */}
+        <div className="hidden items-center gap-2 sm:flex">
+          <Badge
+            variant="outline"
+            className={cn(
+              "gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+              trustStatus === "verified"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : trustStatus === "flagged"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+            )}
+          >
+            {trustIcon}
+            {trustLabel}
+          </Badge>
+          <span className="text-[11px] text-gray-400">v{currentVersion?.version ?? 1}</span>
+        </div>
 
-          {/* AI Summary Section */}
-          <div className="mb-6 rounded-xl border bg-gray-50 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-green-50">
-                <Sparkles className="size-4 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-foreground">AI Decision Summary</h4>
-                {loadingAiSummary ? (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
-                    <Loader2 className="size-4 animate-spin" />
-                    Analyzing memo content...
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm leading-relaxed text-gray-500">
-                    {aiSummary}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Divider */}
+        <div className="hidden h-5 w-px bg-gray-200 sm:block" />
 
-          {/* Decision Buttons */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Button
-              onClick={openApproveDialog}
-              className="h-16 text-lg font-semibold bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/25"
-              size="lg"
-            >
-              <Heart className="mr-2 size-6" />
-              Interested
-            </Button>
-            <Button
-              onClick={openRequestChangesDialog}
-              variant="outline"
-              className="h-16 text-lg font-semibold"
-              size="lg"
-            >
-              <Clock3 className="mr-2 size-5" />
-              Not Now
-            </Button>
-            <Button
-              onClick={openRejectDialog}
-              variant="destructive"
-              className="h-16 text-lg font-semibold shadow-lg shadow-destructive/25"
-              size="lg"
-            >
-              <ThumbsDown className="mr-2 size-5" />
-              Pass
-            </Button>
-          </div>
+        {/* Center: AI sparkle hint */}
+        <div className="mr-auto flex items-center gap-1.5 text-xs text-gray-500">
+          <Sparkles className="size-3.5 text-green-500" />
+          <span className="hidden md:inline">Review the analysis below, then decide</span>
+          <span className="md:hidden">Your decision</span>
+        </div>
 
-          <p className="mt-4 text-center text-xs text-gray-500">
-            Your decision will be recorded and the realtor will be notified immediately.
-          </p>
-        </CardContent>
-      </Card>
+        {/* Right: action buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => resetAndOpen(setShowApproveDialog)}
+            size="sm"
+            className="h-8 gap-1.5 rounded-full bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+          >
+            <Heart className="size-3.5" />
+            Interested
+          </Button>
+          <Button
+            onClick={() => resetAndOpen(setShowNotNowDialog)}
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 rounded-full px-4 text-xs font-semibold"
+          >
+            <Clock3 className="size-3.5" />
+            <span className="hidden sm:inline">Not Now</span>
+          </Button>
+          <Button
+            onClick={() => resetAndOpen(setShowRejectDialog)}
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 rounded-full px-3 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            <ThumbsDown className="size-3.5" />
+            <span className="hidden sm:inline">Pass</span>
+          </Button>
+        </div>
+      </div>
 
-      {/* Approve Dialog */}
+      {/* ── Interested Dialog ──────────────────────────────────────── */}
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600">
-              <Heart className="size-6" />
+              <Heart className="size-5" />
               Mark as Interested
             </DialogTitle>
             <DialogDescription>
-              Confirm your interest in this opportunity. Select the reasons that support your decision.
+              Select the reasons that support your interest in this deal.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Reason(s) for interest</label>
+              <label className="text-sm font-medium">Reasons</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {REASON_TAGS.filter((t) => POSITIVE_TAGS.includes(t.id)).map((tag) => (
                   <button
                     key={tag.id}
                     onClick={() => toggleTag(tag.id)}
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                       selectedTags.includes(tag.id)
                         ? "border-emerald-500 bg-emerald-500 text-white"
                         : "border-border bg-background hover:border-emerald-300 hover:bg-emerald-50"
@@ -370,89 +311,75 @@ export function MemoDecisionPanel({
             </div>
 
             <div>
-              <label className="text-sm font-medium">Additional comments (optional)</label>
+              <label className="text-sm font-medium">Notes for realtor (optional)</label>
               <textarea
-                className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
-                rows={3}
-                placeholder="Add any notes for the realtor..."
+                className="mt-1.5 w-full rounded-lg border bg-background p-3 text-sm"
+                rows={2}
+                placeholder="Any notes for the realtor..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
             </div>
 
-            <div className="rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 p-4 dark:bg-amber-950/30">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="size-5 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                    Conditional approval?
-                  </p>
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                    If your approval is subject to conditions, specify them below.
-                  </p>
-                  <textarea
-                    className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
-                    rows={2}
-                    placeholder="e.g., Subject to final price negotiation below AED 4.5M..."
-                    value={conditionText}
-                    onChange={(e) => setConditionText(e.target.value)}
-                  />
-                </div>
-              </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <p className="text-xs font-medium text-amber-800">Conditional?</p>
+              <textarea
+                className="mt-1.5 w-full rounded-lg border bg-background p-2.5 text-sm"
+                rows={2}
+                placeholder="e.g., Subject to price negotiation below AED 4.5M..."
+                value={conditionText}
+                onChange={(e) => setConditionText(e.target.value)}
+              />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowApproveDialog(false)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowApproveDialog(false)}>
               Cancel
             </Button>
             <Button
               onClick={() => submitDecision("approved", { action: "interested" })}
               disabled={selectedTags.length === 0 || submitting}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white"
+              size="sm"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
             >
               {submitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Submitting...
-                </>
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
               ) : (
-                <>
-                  <Check className="mr-2 size-4" />
-                  Confirm Interested
-                </>
+                <Check className="mr-1.5 size-3.5" />
               )}
+              {submitting ? "Submitting..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
+      {/* ── Pass Dialog ────────────────────────────────────────────── */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <ThumbsDown className="size-6" />
-              Mark as Pass
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <ThumbsDown className="size-5" />
+              Pass on This Opportunity
             </DialogTitle>
             <DialogDescription>
-              Please provide feedback on why this opportunity does not meet your requirements.
+              Help your realtor learn what to avoid next time.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Reason(s) for pass</label>
+              <label className="text-sm font-medium">Reasons</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {REASON_TAGS.filter((t) => NEGATIVE_TAGS.includes(t.id)).map((tag) => (
                   <button
                     key={tag.id}
                     onClick={() => toggleTag(tag.id)}
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                       selectedTags.includes(tag.id)
-                        ? "border-destructive bg-destructive text-white"
-                        : "border-border bg-background hover:border-destructive/50 hover:bg-destructive/5"
+                        ? "border-red-500 bg-red-500 text-white"
+                        : "border-border bg-background hover:border-red-300 hover:bg-red-50"
                     )}
                   >
                     {tag.label}
@@ -462,11 +389,11 @@ export function MemoDecisionPanel({
             </div>
 
             <div>
-              <label className="text-sm font-medium">Feedback for the realtor</label>
+              <label className="text-sm font-medium">Feedback</label>
               <textarea
-                className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
-                rows={4}
-                placeholder="Explain what would need to change for you to reconsider..."
+                className="mt-1.5 w-full rounded-lg border bg-background p-3 text-sm"
+                rows={3}
+                placeholder="What would need to change for you to reconsider..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
@@ -474,40 +401,36 @@ export function MemoDecisionPanel({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowRejectDialog(false)}>
               Cancel
             </Button>
             <Button
               onClick={() => submitDecision("rejected", { action: "pass" })}
               disabled={selectedTags.length === 0 || submitting}
+              size="sm"
               variant="destructive"
             >
               {submitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Submitting...
-                </>
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
               ) : (
-                <>
-                  <ThumbsDown className="mr-2 size-4" />
-                  Confirm Pass
-                </>
+                <ThumbsDown className="mr-1.5 size-3.5" />
               )}
+              {submitting ? "Submitting..." : "Confirm Pass"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Request Changes Dialog */}
-      <Dialog open={showRequestChangesDialog} onOpenChange={setShowRequestChangesDialog}>
+      {/* ── Not Now Dialog ─────────────────────────────────────────── */}
+      <Dialog open={showNotNowDialog} onOpenChange={setShowNotNowDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Clock3 className="size-6 text-green-600" />
-              Mark as Not Now
+              <Clock3 className="size-5 text-gray-600" />
+              Not Now
             </DialogTitle>
             <DialogDescription>
-              Let your realtor know you are not ready to proceed right now.
+              Let your realtor know you are not ready to proceed at this time.
             </DialogDescription>
           </DialogHeader>
 
@@ -515,85 +438,61 @@ export function MemoDecisionPanel({
             <div>
               <label className="text-sm font-medium">Optional note</label>
               <textarea
-                className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
-                rows={5}
-                placeholder="Anything your realtor should know before revisiting this opportunity..."
+                className="mt-1.5 w-full rounded-lg border bg-background p-3 text-sm"
+                rows={3}
+                placeholder="Anything your realtor should know..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
             </div>
 
-            <div className="rounded-lg bg-gray-50 p-4">
-              <h4 className="text-sm font-medium">Examples:</h4>
-              <ul className="mt-2 space-y-1 text-sm text-gray-500">
-                <li>• Revisit after current deal closes</li>
-                <li>• Share similar options next quarter</li>
-                <li>• Waiting for financing window</li>
-                <li>• Market timing is not ideal right now</li>
-              </ul>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium text-gray-500">Suggestions:</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[
+                  "Revisit after current deal closes",
+                  "Share similar options next quarter",
+                  "Waiting for financing window",
+                  "Market timing is not ideal",
+                ].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setComment(s)}
+                    className="rounded-full border px-2.5 py-1 text-[11px] text-gray-600 hover:border-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRequestChangesDialog(false)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowNotNowDialog(false)}>
               Cancel
             </Button>
             <Button
-              onClick={() => {
+              onClick={() =>
                 submitDecision("approved_conditional", {
                   action: "not_now",
                   reasonTags: ["timing"],
                   conditionText: comment.trim() || "Investor marked this memo as not now.",
                   comment,
                 })
-              }}
+              }
               disabled={submitting}
+              size="sm"
             >
               {submitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Submitting...
-                </>
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
               ) : (
-                <>
-                  <Clock3 className="mr-2 size-4" />
-                  Confirm Not Now
-                </>
+                <Clock3 className="mr-1.5 size-3.5" />
               )}
+              {submitting ? "Submitting..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
-}
-
-function TrustBadge({ status, reason }: { status: "verified" | "unknown" | "flagged"; reason?: string }) {
-  const config = {
-    verified: {
-      icon: ShieldCheck,
-      label: "Verified",
-      className: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-800",
-    },
-    unknown: {
-      icon: AlertTriangle,
-      label: "Unverified",
-      className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800",
-    },
-    flagged: {
-      icon: AlertTriangle,
-      label: "Flagged",
-      className: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800",
-    },
-  }
-
-  const { icon: Icon, label, className } = config[status]
-
-  return (
-    <Badge variant="outline" className={cn("gap-1.5 px-3 py-1.5", className)}>
-      <Icon className="size-4" />
-      {label}
-      {reason && <span className="opacity-75">• {reason}</span>}
-    </Badge>
   )
 }

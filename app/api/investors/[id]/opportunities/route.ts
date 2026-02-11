@@ -153,12 +153,16 @@ export async function POST(
       matchScore,
       matchReasons,
       shortlistItemId,
+      memoId,
+      status,
     } = body as {
       listingId?: string
       sharedMessage?: string
       matchScore?: number
       matchReasons?: string[]
       shortlistItemId?: string
+      memoId?: string
+      status?: "recommended" | "shortlisted" | "memo_review"
     }
 
     if (!listingId) {
@@ -185,6 +189,8 @@ export async function POST(
       matchScore,
       matchReasons,
       shortlistItemId,
+      memoId,
+      status,
     })
 
     if (!opportunity) {

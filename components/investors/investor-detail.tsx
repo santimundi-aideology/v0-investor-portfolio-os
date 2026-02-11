@@ -17,15 +17,10 @@ import { EditableAvatar } from "@/components/ui/editable-avatar"
 
 import type { DealRoom, Investor, Memo, Property, ShortlistItem, Task } from "@/lib/types"
 import { MandateTab } from "@/components/investors/tabs/mandate-tab"
-import { ShortlistTab } from "@/components/investors/tabs/shortlist-tab"
 import { MemosTab } from "@/components/investors/tabs/memos-tab"
-import { TasksTab } from "@/components/investors/tabs/tasks-tab"
-import { DocumentsTab } from "@/components/investors/tabs/documents-tab"
-import { RecommendationsTab } from "@/components/investors/tabs/recommendations-tab"
 import { OpportunitiesTab } from "@/components/investors/tabs/opportunities-tab"
 import { DealRoomsTab } from "@/components/investors/tabs/deal-rooms-tab"
 import { PaymentsTab } from "@/components/investors/tabs/payments-tab"
-import { InvestorAlertRules } from "@/components/investors/investor-alert-rules"
 import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
@@ -143,16 +138,11 @@ export function InvestorDetail({
         <div className="space-y-6">
           <Tabs defaultValue="opportunities" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+              <TabsTrigger value="opportunities">Pipeline</TabsTrigger>
               <TabsTrigger value="mandate">Mandate</TabsTrigger>
-              <TabsTrigger value="recommendations">Rec. Bundles</TabsTrigger>
-              <TabsTrigger value="shortlist">Shortlist ({shortlist.length})</TabsTrigger>
-              <TabsTrigger value="memos">IC Memos ({memos.length})</TabsTrigger>
+              <TabsTrigger value="memos">Opportunities ({memos.length})</TabsTrigger>
               <TabsTrigger value="dealRooms">Deal Rooms ({dealRooms.filter((d) => d.status !== "completed").length})</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
-              <TabsTrigger value="alerts">Alerts</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
 
             <TabsContent value="opportunities">
@@ -161,14 +151,6 @@ export function InvestorDetail({
 
             <TabsContent value="mandate">
               <MandateTab mandate={investor.mandate} />
-            </TabsContent>
-
-            <TabsContent value="recommendations">
-              <RecommendationsTab investor={investor} />
-            </TabsContent>
-
-            <TabsContent value="shortlist">
-              <ShortlistTab items={shortlist} />
             </TabsContent>
 
             <TabsContent value="memos">
@@ -181,18 +163,6 @@ export function InvestorDetail({
 
             <TabsContent value="payments">
               <PaymentsTab investorId={investor.id} />
-            </TabsContent>
-
-            <TabsContent value="tasks">
-              <TasksTab tasks={tasks} />
-            </TabsContent>
-
-            <TabsContent value="alerts">
-              <InvestorAlertRules investorId={investor.id} investorName={investor.name} />
-            </TabsContent>
-
-            <TabsContent value="documents">
-              <DocumentsTab />
             </TabsContent>
           </Tabs>
 
