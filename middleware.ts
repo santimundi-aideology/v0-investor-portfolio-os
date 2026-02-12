@@ -20,6 +20,7 @@ const publicRoutes = [
 // Routes that require specific roles
 const roleRoutes: Record<string, string[]> = {
   "/admin": ["super_admin"],
+  "/manager": ["manager"],
   "/team": ["super_admin", "manager"],
   "/audit-log": ["super_admin", "manager"],
 }
@@ -47,6 +48,7 @@ const featureRouteMap: Record<string, string> = {
   "/market-map": "NEXT_PUBLIC_FF_MARKET_MAP",
   "/market-compare": "NEXT_PUBLIC_FF_MARKET_COMPARE",
   "/realtor": "NEXT_PUBLIC_FF_REALTOR_OPS",
+  "/manager": "NEXT_PUBLIC_FF_MANAGER_COCKPIT",
   "/real-estate": "NEXT_PUBLIC_FF_REAL_ESTATE",
   "/team": "NEXT_PUBLIC_FF_ADMIN_PANEL",
   "/audit-log": "NEXT_PUBLIC_FF_ADMIN_PANEL",
@@ -57,6 +59,7 @@ const featureApiRouteMap: Record<string, string> = {
   "/api/deal-rooms": "NEXT_PUBLIC_FF_DEAL_ROOM",
   "/api/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
   "/api/market-signals": "NEXT_PUBLIC_FF_MARKET_SIGNALS",
+  "/api/manager": "NEXT_PUBLIC_FF_MANAGER_COCKPIT",
   "/api/jobs": "NEXT_PUBLIC_FF_DATA_INGESTION",
 }
 
@@ -144,7 +147,7 @@ export async function middleware(request: NextRequest) {
     let userRole = session.user.user_metadata?.role || "manager"
     let tenantId = session.user.user_metadata?.tenant_id || "11111111-1111-1111-1111-111111111111"
     let userId = session.user.user_metadata?.user_id || "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    let investorId = session.user.user_metadata?.investor_id
+    const investorId = session.user.user_metadata?.investor_id
     let isActive = true
 
     // Try to fetch user from database for authoritative data

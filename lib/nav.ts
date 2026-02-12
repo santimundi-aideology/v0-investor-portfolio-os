@@ -36,6 +36,7 @@ export type NavSection = {
 
 const ALL_ROLES: UserRole[] = ["owner", "admin", "realtor", "investor"]
 const ADMIN_ROLES: UserRole[] = ["owner", "admin"]
+const MANAGER_ROLES: UserRole[] = ["admin"]
 const INTERNAL_ROLES: UserRole[] = ["owner", "admin", "realtor"]
 const INVESTOR_ROLES: UserRole[] = ["investor"]
 
@@ -44,6 +45,7 @@ export const navSections: NavSection[] = [
     label: "Work",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, rolesAllowed: ALL_ROLES },
+      { label: "Manager Cockpit", href: "/manager", icon: ClipboardList, rolesAllowed: MANAGER_ROLES, featureFlag: "managerCockpit" },
       { label: "Executive Summary", href: "/executive-summary", icon: Presentation, rolesAllowed: INTERNAL_ROLES, featureFlag: "executiveSummary" },
       { label: "Real Estate", href: "/real-estate", icon: LineChart, rolesAllowed: ALL_ROLES, featureFlag: "realEstate" },
       { label: "Realtor Ops", href: "/realtor", icon: ClipboardList, rolesAllowed: INTERNAL_ROLES, featureFlag: "realtorOps" },

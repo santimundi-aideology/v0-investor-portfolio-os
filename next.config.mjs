@@ -50,6 +50,12 @@ const nextConfig = {
     // TODO: Dedicate a PR to fix remaining null-safety issues and remove this flag.
     ignoreBuildErrors: true,
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "100mb",
+    },
+    proxyClientMaxBodySize: "100mb",
+  },
 }
 
 export default withSentryConfig(nextConfig, {

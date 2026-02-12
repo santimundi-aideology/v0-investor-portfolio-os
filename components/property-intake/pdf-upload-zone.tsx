@@ -21,6 +21,7 @@ interface ExtractionResult {
   confidence: string
   fileCount: number
   model: string
+  brochureImages?: string[]
 }
 
 interface PdfUploadZoneProps {
@@ -35,7 +36,7 @@ export function PdfUploadZone({
   onFilesExtracted,
   onError,
   isProcessing = false,
-  maxFiles = 5,
+  maxFiles = 10,
   maxSizeMB = 10,
 }: PdfUploadZoneProps) {
   const [files, setFiles] = React.useState<UploadedFile[]>([])
@@ -132,34 +133,104 @@ export function PdfUploadZone({
         prev.map((f) => ({ ...f, status: "uploading" as const, progress: 0 }))
       )
 
-      const formData = new FormData()
+      // ── 1. Start rendering PDF pages as images (runs in parallel with extraction) ──
+      const renderPromise = (async (): Promise<string[]> => {
+        try {
+          const { renderBrochurePages } = await import("@/lib/pdf-page-renderer")
+          const rawFiles = files.map((f) => f.file)
+          const blobs = await renderBrochurePages(rawFiles, { totalMax: 6, scale: 1.5, quality: 0.8 })
+          if (blobs.length === 0) return []
+
+          // Upload rendered images to Supabase Storage
+          const imgForm = new FormData()
+          blobs.forEach((blob) => imgForm.append("images", blob, "page.jpg"))
+          const uploadRes = await fetch("/api/property-intake/upload-brochure-images", {
+            method: "POST",
+            body: imgForm,
+          })
+          if (!uploadRes.ok) return []
+          const { urls } = await uploadRes.json()
+          return urls ?? []
+        } catch (e) {
+          console.warn("[pdf-upload-zone] Brochure image rendering/upload failed (non-fatal):", e)
+          return []
+        }
+      })()
+
+      // ── 2. Text extraction via Claude (existing flow) ──
+      // Batch files into chunks to avoid body size limits (~20MB per request)
+      const MAX_BATCH_BYTES = 18 * 1024 * 1024 // 18MB per batch
+      const batches: File[][] = []
+      let currentBatch: File[] = []
+      let currentSize = 0
+
       for (const { file } of files) {
-        formData.append("files", file)
+        if (currentBatch.length > 0 && currentSize + file.size > MAX_BATCH_BYTES) {
+          batches.push(currentBatch)
+          currentBatch = []
+          currentSize = 0
+        }
+        currentBatch.push(file)
+        currentSize += file.size
+      }
+      if (currentBatch.length > 0) batches.push(currentBatch)
+
+      let lastResult: any = null
+
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+        const batch = batches[batchIdx]
+        const progressBase = Math.round((batchIdx / batches.length) * 80)
+
+        setFiles((prev) =>
+          prev.map((f) => ({ ...f, progress: progressBase }))
+        )
+
+        const formData = new FormData()
+        for (const file of batch) {
+          formData.append("files", file)
+        }
+
+        const response = await fetch("/api/property-intake/parse-pdf", {
+          method: "POST",
+          body: formData,
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to parse PDFs")
+        }
+
+        // Merge results: keep the last batch's result (API merges all files in a batch)
+        if (!lastResult) {
+          lastResult = data
+        } else {
+          // Merge units from subsequent batches
+          if (data.units && Array.isArray(data.units)) {
+            lastResult.units = [...(lastResult.units || []), ...data.units]
+          }
+          // Update stats if available
+          if (data.stats) {
+            lastResult.stats = {
+              ...lastResult.stats,
+              totalUnits: (lastResult.stats?.totalUnits || 0) + (data.stats.totalUnits || 0),
+            }
+          }
+        }
       }
 
-      const response = await fetch("/api/property-intake/parse-pdf", {
-        method: "POST",
-        body: formData,
-      })
-
-      // Simulate progress
-      setFiles((prev) =>
-        prev.map((f) => ({ ...f, progress: 50 }))
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to parse PDFs")
-      }
+      // ── 3. Wait for image rendering to finish and merge ──
+      const brochureImages = await renderPromise
 
       // Update to success
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: "success" as const, progress: 100 }))
       )
 
-      // Return full extraction result from Claude Opus
-      onFilesExtracted(data as ExtractionResult)
+      // Return full extraction result from Claude Opus + brochure images
+      if (lastResult) {
+        onFilesExtracted({ ...lastResult, brochureImages } as ExtractionResult)
+      }
     } catch (error) {
       setFiles((prev) =>
         prev.map((f) => ({

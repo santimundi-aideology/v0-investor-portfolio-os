@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import OpenAI from "openai"
+import Anthropic from "@anthropic-ai/sdk"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { propertyEvaluationSchema } from "@/lib/validation/schemas"
 import { validateRequest } from "@/lib/validation/helpers"
@@ -378,14 +378,38 @@ async function getMarketContext(area: string, propertyType: string, bedrooms: nu
   }
 }
 
-// AI-powered evaluation using OpenAI
+/**
+ * Robustly extract a JSON object from a string that may contain markdown or trailing text.
+ */
+function extractJSON(raw: string): any {
+  try { return JSON.parse(raw) } catch { /* continue */ }
+  const start = raw.indexOf("{")
+  if (start === -1) throw new Error("No JSON object found in response")
+  let depth = 0, inString = false, escape = false
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i]
+    if (escape) { escape = false; continue }
+    if (ch === "\\") { escape = true; continue }
+    if (ch === '"' && !escape) { inString = !inString; continue }
+    if (inString) continue
+    if (ch === "{") depth++
+    if (ch === "}") { depth--; if (depth === 0) { try { return JSON.parse(raw.slice(start, i + 1)) } catch { /* continue */ } } }
+  }
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (match) { try { return JSON.parse(match[0]) } catch { /* continue */ } }
+  throw new Error("Failed to parse JSON from AI response")
+}
+
+// AI-powered evaluation using Claude Sonnet
 async function evaluateWithAI(
   property: PropertyData,
   marketContext: MarketContext
 ): Promise<EvaluationResult> {
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY || "",
   })
+  // Use Sonnet for evaluation (faster + cheaper); Opus stays for extraction
+  const CLAUDE_MODEL = process.env.ANTHROPIC_EVAL_MODEL || "claude-sonnet-4-20250514"
 
   const estimatedAnnualRent = property.price * (marketContext.areaAverageYield / 100)
   const estimatedMonthlyRent = estimatedAnnualRent / 12
@@ -512,28 +536,29 @@ SCORING GUIDELINES:
 Be specific and reference actual numbers in your analysis. Include specific data points in strengths/considerations.`
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    // Use streaming for reliable completion of long responses
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 16000,
+      system: "You are a senior real estate investment analyst. Provide accurate, data-driven analysis. Always respond with valid JSON only — no explanation or markdown.",
       messages: [
-        {
-          role: "system",
-          content: "You are a senior real estate investment analyst. Provide accurate, data-driven analysis. Always respond with valid JSON.",
-        },
         {
           role: "user",
           content: prompt,
         },
       ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
     })
 
-    const content = completion.choices[0]?.message?.content
+    const completion = await stream.finalMessage()
+
+    const textBlock = completion.content.find(block => block.type === "text")
+    const content = textBlock && textBlock.type === "text" ? textBlock.text : null
     if (!content) {
       throw new Error("No response from AI")
     }
 
-    const result = JSON.parse(content)
+    // Extract JSON from potential markdown wrapping — use balanced brace matching
+    const result = extractJSON(content)
 
     // If AI didn't return full analysis, create it from the response
     if (!result.analysis) {

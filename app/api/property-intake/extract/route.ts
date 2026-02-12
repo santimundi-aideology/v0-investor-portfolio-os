@@ -458,8 +458,9 @@ IMPORTANT RULES:
 10. DO NOT make up data - use null if information is not found`
 
   try {
-    const response = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
+    // Use streaming to avoid SDK timeout for long-running Opus requests
+    const stream = anthropic.messages.stream({
+      model: process.env.ANTHROPIC_MODEL || "claude-opus-4-20250514",
       max_tokens: 2000,
       messages: [
         {
@@ -469,6 +470,8 @@ IMPORTANT RULES:
       ],
       system: systemPrompt,
     })
+
+    const response = await stream.finalMessage()
 
     const textContent = response.content.find(block => block.type === 'text')
     if (!textContent || textContent.type !== 'text') {

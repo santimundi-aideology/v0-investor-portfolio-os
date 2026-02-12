@@ -4,6 +4,7 @@
 
 export const features = {
   executiveSummary: process.env.NEXT_PUBLIC_FF_EXECUTIVE_SUMMARY === "true",
+  managerCockpit: process.env.NEXT_PUBLIC_FF_MANAGER_COCKPIT === "true",
   marketReport: process.env.NEXT_PUBLIC_FF_MARKET_REPORT === "true",
   roiCalculator: process.env.NEXT_PUBLIC_FF_ROI_CALCULATOR === "true",
   dealRoom: process.env.NEXT_PUBLIC_FF_DEAL_ROOM === "true",

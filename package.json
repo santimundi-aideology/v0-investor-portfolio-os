@@ -64,6 +64,7 @@
     "next": "16.0.10",
     "next-themes": "^0.4.6",
     "openai": "^6.15.0",
+    "pdfjs-dist": "^5.4.624",
     "playwright": "^1.58.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.0",

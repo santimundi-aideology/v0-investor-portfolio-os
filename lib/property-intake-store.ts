@@ -7,6 +7,7 @@ import type {
   OffPlanPaymentPlan,
   OffPlanEvaluationResult,
   OffPlanExtractionResult,
+  PaymentMilestone,
 } from "@/lib/types"
 import type {
   CashFlowTable,
@@ -195,7 +196,7 @@ export interface MarketContext {
 }
 
 export type Step = "input" | "extracting" | "extracted" | "evaluating" | "evaluated" | "saving" | "saved"
-export type OffPlanStep = "upload" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
+export type OffPlanStep = "input" | "upload" | "extracted" | "selecting" | "evaluating" | "evaluated" | "saving" | "saved"
 
 // ---------------------------------------------------------------------------
 // State shape
@@ -214,9 +215,12 @@ export interface IntakeState {
   notes: string
   savedMemoId: string | null
   scoreRevealComplete: boolean
+  /** True when the portal extraction detected an off-plan property */
+  offplanDetected: boolean
 
   // Off-Plan flow
   offplanStep: OffPlanStep
+  offplanUrl: string
   offplanError: string | null
   offplanProject: OffPlanProject | null
   offplanUnits: OffPlanUnit[]
@@ -225,6 +229,8 @@ export interface IntakeState {
   selectedOffplanUnits: OffPlanUnit[]
   offplanEvaluation: OffPlanEvaluationResult | null
   offplanSavedMemoId: string | null
+  /** Rendered page images from uploaded PDF brochures (Supabase Storage URLs) */
+  offplanBrochureImages: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -243,8 +249,10 @@ const INITIAL_STATE: IntakeState = {
   notes: "",
   savedMemoId: null,
   scoreRevealComplete: false,
+  offplanDetected: false,
 
-  offplanStep: "upload",
+  offplanStep: "input",
+  offplanUrl: "",
   offplanError: null,
   offplanProject: null,
   offplanUnits: [],
@@ -253,6 +261,7 @@ const INITIAL_STATE: IntakeState = {
   selectedOffplanUnits: [],
   offplanEvaluation: null,
   offplanSavedMemoId: null,
+  offplanBrochureImages: [],
 }
 
 // ---------------------------------------------------------------------------
@@ -301,6 +310,10 @@ function hydrate() {
     if (parsed && typeof parsed === "object") {
       // Merge persisted state on top of defaults so new fields get defaults
       state = { ...INITIAL_STATE, ...parsed, error: null, offplanError: null }
+      // If a step was stuck in a loading state (e.g. browser closed mid-fetch),
+      // reset back to the input state so the user isn't permanently stuck.
+      if (state.step === "extracting") state.step = "input"
+      if (state.offplanStep === "upload") state.offplanStep = "input"
     }
   } catch {
     // corrupt data — ignore, keep defaults
@@ -345,6 +358,24 @@ export function setOffplanError(err: string | null) {
   update({ offplanError: err })
 }
 
+export function setOffplanUrl(url: string) {
+  update({ offplanUrl: url })
+}
+
+/** Dismiss the off-plan detection banner without switching */
+export function dismissOffplanDetected() {
+  update({ offplanDetected: false })
+}
+
+/** Switch to the Off-Plan tab, carrying the current portal URL over */
+export function switchToOffplanWithUrl() {
+  const portalUrl = state.url
+  // Reset portal state
+  resetPortal()
+  // Switch tab and pre-fill off-plan URL
+  update({ activeTab: "offplan", offplanUrl: portalUrl })
+}
+
 // ---------------------------------------------------------------------------
 // Portal flow actions
 // ---------------------------------------------------------------------------
@@ -364,10 +395,38 @@ export async function extractProperty(url: string, pageContent?: string) {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || "Failed to extract property")
-    update({ property: data.property, step: "extracted" })
+    const isOffplan = data.property?.completionStatus === "off_plan" || data.property?.completionStatus === "under_construction"
+    update({ property: data.property, step: "extracted", offplanDetected: isOffplan })
   } catch (err) {
     update({
       error: err instanceof Error ? err.message : "Failed to extract property",
+      step: "input",
+    })
+  }
+}
+
+/**
+ * Parse a built-property PDF brochure and load the extracted data.
+ */
+export async function parseBuiltPdf(file: File) {
+  update({ error: null, step: "extracting" })
+
+  try {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const res = await fetch("/api/property-intake/parse-built-pdf", {
+      method: "POST",
+      body: formData,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || "Failed to parse PDF")
+
+    const isOffplan = data.property?.completionStatus === "off_plan" || data.property?.completionStatus === "under_construction"
+    update({ property: data.property, step: "extracted", offplanDetected: isOffplan })
+  } catch (err) {
+    update({
+      error: err instanceof Error ? err.message : "Failed to parse PDF",
       step: "input",
     })
   }
@@ -434,12 +493,140 @@ export function resetPortal() {
     notes: "",
     savedMemoId: null,
     scoreRevealComplete: false,
+    offplanDetected: false,
   })
 }
 
 // ---------------------------------------------------------------------------
 // Off-Plan flow actions
 // ---------------------------------------------------------------------------
+
+/**
+ * Bridge: Extract a property from a portal URL and convert it into the
+ * off-plan data model (OffPlanProject + OffPlanUnit + OffPlanPaymentPlan).
+ */
+export async function extractPropertyForOffplan(url: string, pageContent?: string) {
+  if (!url.trim()) {
+    update({ offplanError: "Please enter a property URL" })
+    return
+  }
+  update({ offplanError: null, offplanStep: "upload" }) // reuse "upload" step for loading state
+
+  try {
+    const res = await fetch("/api/property-intake/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, pageContent }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || "Failed to extract property")
+
+    const extracted: ExtractedProperty = data.property
+
+    // --- Bridge ExtractedProperty -> OffPlan data model ---
+    const sizeSqft = extracted.size ?? 800
+    const price = extracted.price ?? 0
+    const pricePerSqft = extracted.pricePerSqft ?? (sizeSqft > 0 ? Math.round(price / sizeSqft) : 0)
+
+    const project: OffPlanProject = {
+      projectName: extracted.buildingName || extracted.title || "Off-Plan Project",
+      developer: extracted.developer || "Unknown Developer",
+      location: {
+        area: extracted.area || "Dubai",
+        subArea: extracted.subArea ?? undefined,
+        landmark: undefined,
+        coordinates: extracted.coordinates ?? undefined,
+      },
+      completionDate: extracted.handoverDate || "TBC",
+      totalLevels: extracted.buildingFloors ?? 0,
+      totalUnits: 0,
+      propertyType: "residential",
+      amenities: extracted.amenities || [],
+      description: extracted.description || "",
+    }
+
+    const unit: OffPlanUnit = {
+      unitNumber: extracted.referenceNumber || "Unit 1",
+      level: 0,
+      type: extracted.propertyType || "Apartment",
+      sizeSqft,
+      pricePerSqft,
+      totalPrice: price,
+      views: undefined,
+      parking: extracted.parking ?? undefined,
+      status: "available",
+    }
+
+    // Build a payment plan from extracted data or use sensible defaults
+    const pp = extracted.paymentPlan
+    const milestones: PaymentMilestone[] = []
+    let constructionPercent = 0
+    let postHandoverPercent = 0
+
+    if (pp) {
+      if (pp.downPaymentPercent) {
+        milestones.push({ milestone: 1, description: "Down Payment / Booking", percentage: pp.downPaymentPercent, timing: "On booking" })
+        constructionPercent += pp.downPaymentPercent
+      }
+      if (pp.preHandoverPercent) {
+        milestones.push({ milestone: 2, description: "During Construction", percentage: pp.preHandoverPercent, timing: "During construction" })
+        constructionPercent += pp.preHandoverPercent
+      }
+      if (pp.handoverPercent) {
+        milestones.push({ milestone: 3, description: "On Handover", percentage: pp.handoverPercent, timing: "On completion" })
+        constructionPercent += pp.handoverPercent
+      }
+      if (pp.postHandoverPercent) {
+        milestones.push({ milestone: 4, description: "Post-Handover", percentage: pp.postHandoverPercent, timing: "Post handover" })
+        postHandoverPercent = pp.postHandoverPercent
+      }
+    }
+
+    if (milestones.length === 0) {
+      // Default 60/40 plan
+      milestones.push(
+        { milestone: 1, description: "Down Payment", percentage: 20, timing: "On booking" },
+        { milestone: 2, description: "During Construction", percentage: 40, timing: "During construction" },
+        { milestone: 3, description: "On Handover", percentage: 40, timing: "On completion" },
+      )
+      constructionPercent = 60
+      postHandoverPercent = 40
+    }
+
+    const paymentPlan: OffPlanPaymentPlan = {
+      milestones,
+      dldFeePercent: 4,
+      totalPercent: 100,
+      postHandoverPercent,
+      constructionPercent: constructionPercent || (100 - postHandoverPercent),
+    }
+
+    update({
+      offplanError: null,
+      // Store the original extracted property so images + details are available
+      property: extracted,
+      offplanProject: project,
+      offplanUnits: [unit],
+      offplanPaymentPlan: paymentPlan,
+      offplanStats: {
+        totalUnits: 1,
+        availableUnits: 1,
+        soldUnits: 0,
+        reservedUnits: 0,
+        priceRange: { min: price, max: price },
+        sizeRange: { min: sizeSqft, max: sizeSqft },
+        avgPricePerSqft: pricePerSqft,
+      },
+      selectedOffplanUnits: [unit],
+      offplanStep: "extracted",
+    })
+  } catch (err) {
+    update({
+      offplanError: err instanceof Error ? err.message : "Failed to extract property",
+      offplanStep: "input",
+    })
+  }
+}
 
 export function handlePdfExtracted(result: {
   project: unknown
@@ -448,6 +635,7 @@ export function handlePdfExtracted(result: {
   stats: unknown
   confidence: string
   model: string
+  brochureImages?: string[]
 }) {
   update({
     offplanError: null,
@@ -455,6 +643,7 @@ export function handlePdfExtracted(result: {
     offplanUnits: result.units as OffPlanUnit[],
     offplanPaymentPlan: result.paymentPlan as OffPlanPaymentPlan,
     offplanStats: result.stats as OffPlanExtractionResult["stats"],
+    offplanBrochureImages: result.brochureImages ?? [],
     offplanStep: "extracted",
   })
   console.log(`Data extracted using ${result.model} with ${result.confidence} confidence`)
@@ -524,7 +713,8 @@ export async function saveOffplanMemo(notes: string) {
 
 export function resetOffplan() {
   update({
-    offplanStep: "upload",
+    offplanStep: "input",
+    offplanUrl: "",
     offplanError: null,
     offplanProject: null,
     offplanUnits: [],
@@ -533,6 +723,7 @@ export function resetOffplan() {
     selectedOffplanUnits: [],
     offplanEvaluation: null,
     offplanSavedMemoId: null,
+    offplanBrochureImages: [],
   })
 }
 

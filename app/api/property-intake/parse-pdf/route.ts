@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
+import Anthropic from "@anthropic-ai/sdk"
 import { extractText } from "unpdf"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
 })
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-20250514"
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a real estate data extraction specialist. Your task is to extract structured data from off-plan property brochures and availability sheets from Dubai developers.
 
@@ -81,7 +82,16 @@ Set confidence to:
  */
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData()
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch (parseErr) {
+      console.error("[parse-pdf] FormData parse error:", parseErr)
+      return NextResponse.json(
+        { error: "Failed to parse body as FormData. Files may be too large — try uploading fewer or smaller PDFs (max 20MB each)." },
+        { status: 413 }
+      )
+    }
     
     // Get all files from the form data
     const files: File[] = []
@@ -109,7 +119,7 @@ export async function POST(req: NextRequest) {
     
     // Validate files
     const maxFileSize = 20 * 1024 * 1024 // 20MB per file
-    const maxFiles = 5
+    const maxFiles = 10
     
     if (files.length > maxFiles) {
       return NextResponse.json(
@@ -163,17 +173,14 @@ export async function POST(req: NextRequest) {
       ? combinedText.slice(0, maxLength) + "\n\n[... text truncated for processing ...]"
       : combinedText
     
-    console.log(`Analyzing ${files.length} PDF(s) with GPT-4o...`)
+    console.log(`Analyzing ${files.length} PDF(s) with Claude Opus...`)
     
-    // Use GPT-4o to analyze the extracted text
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    // Use streaming to avoid SDK timeout for long-running Opus requests
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
       max_tokens: 16000,
+      system: EXTRACTION_SYSTEM_PROMPT,
       messages: [
-        {
-          role: "system",
-          content: EXTRACTION_SYSTEM_PROMPT,
-        },
         {
           role: "user",
           content: `Please analyze the following text extracted from off-plan property brochure(s) and availability sheet(s) from Dubai developers. Extract all project details, unit information, and payment plan data.
@@ -190,18 +197,21 @@ Extract all data and return as JSON.`,
         },
       ],
     })
+
+    const response = await stream.finalMessage()
     
     // Extract text content from response
-    const textContent = response.choices[0]?.message?.content
+    const textBlock = response.content.find(block => block.type === "text")
+    const textContent = textBlock && textBlock.type === "text" ? textBlock.text : null
     if (!textContent) {
-      throw new Error("No response from GPT-4o")
+      throw new Error("No response from Claude")
     }
     
     // Parse JSON from response
     const jsonMatch = textContent.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      console.error("GPT-4o response:", textContent)
-      throw new Error("Could not extract JSON from GPT-4o response")
+      console.error("Claude response:", textContent)
+      throw new Error("Could not extract JSON from Claude response")
     }
     
     const extracted = JSON.parse(jsonMatch[0])
@@ -244,7 +254,7 @@ Extract all data and return as JSON.`,
       extractedAt: new Date().toISOString(),
       confidence: extracted.confidence || "medium",
       fileCount: files.length,
-      model: "gpt-4o",
+      model: CLAUDE_MODEL,
     })
   } catch (error) {
     console.error("PDF analysis error:", error)

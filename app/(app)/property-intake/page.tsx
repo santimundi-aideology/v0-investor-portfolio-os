@@ -8,9 +8,12 @@ import {
   AlertCircle,
   ArrowRight,
   Building2,
+  Calendar,
   CheckCircle2,
+  Clock,
   ExternalLink,
   FileText,
+  HardHat,
   Loader2,
   MapPin,
   Sparkles,
@@ -56,10 +59,15 @@ import {
   setSelectedOffplanUnits,
   setPortalError,
   setOffplanError,
+  setOffplanUrl,
+  dismissOffplanDetected,
+  switchToOffplanWithUrl,
   extractProperty,
+  parseBuiltPdf,
   evaluateProperty,
   saveMemo,
   resetPortal,
+  extractPropertyForOffplan,
   handlePdfExtracted,
   evaluateOffplan,
   saveOffplanMemo,
@@ -135,6 +143,76 @@ function buildStaticMapUrl(
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
+/**
+ * Timer that shows elapsed time and an estimated progress bar during IC memo generation.
+ */
+function EvaluationTimer({ estimatedSeconds = 30, area, isOffplan }: { estimatedSeconds?: number; area?: string; isOffplan?: boolean }) {
+  const [elapsed, setElapsed] = React.useState(0)
+
+  React.useEffect(() => {
+    const t0 = Date.now()
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - t0) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Countdown: show remaining time
+  const remaining = Math.max(0, estimatedSeconds - elapsed)
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
+  const timeStr = remaining > 0
+    ? minutes > 0 ? `~${minutes}:${seconds.toString().padStart(2, "0")} remaining` : `~${seconds}s remaining`
+    : "Almost done..."
+
+  // Progress: ramps quickly to 90% then slows down (never hits 100% until done)
+  const rawProgress = elapsed / estimatedSeconds
+  const progress = Math.min(95, rawProgress < 0.9 ? rawProgress * 100 : 90 + (rawProgress - 0.9) * 50)
+
+  const areaName = area || "the area"
+
+  // Descriptive phases explaining what the AI is doing
+  const phases = isOffplan ? [
+    { at: 0, title: "Reading property & developer data", detail: "Parsing unit specs, payment plan milestones, and developer track record" },
+    { at: 4, title: "Scoring investment factors", detail: "Evaluating developer credibility, location premium, payment plan, and appreciation potential" },
+    { at: 8, title: "Analyzing location", detail: `Checking ${areaName} market grade, rental yields, and neighborhood growth trends` },
+    { at: 13, title: "Building financial projections", detail: "Calculating completion value, post-handover rental income, operating expenses, and ROI on equity" },
+    { at: 18, title: "Running scenario analysis", detail: "Modeling upside, base, and downside cases with varying rent, occupancy, and exit prices" },
+    { at: 22, title: "Querying DLD transaction database", detail: `Fetching comparable sales and rental data from Dubai Land Department for ${areaName}` },
+    { at: 27, title: "Assessing risks", detail: "Evaluating construction delay risk, market exposure, developer stability, and liquidity" },
+    { at: 31, title: "Writing investment thesis", detail: "Synthesizing all data into a comprehensive IC memo with strategy and recommendation" },
+    { at: 38, title: "Finalizing report", detail: "Assembling cash flow tables, growth projections, and comparable analysis" },
+  ] : [
+    { at: 0, title: "Reading extracted property data", detail: "Parsing price, size, location, condition, and listing details" },
+    { at: 4, title: "Analyzing neighborhood", detail: `Evaluating ${areaName} market dynamics — supply, demand, absorption, and tenant profile` },
+    { at: 8, title: "Running growth projections", detail: `Calculating 1Y, 3Y, and 5Y value estimates using ${areaName} historical appreciation trends` },
+    { at: 13, title: "Building financial model", detail: "Computing return bridge: DLD fees, mortgage, equity invested, NOI, cap rate, and IRR" },
+    { at: 18, title: "Estimating operating expenses", detail: "Service charges, property management (5%), maintenance reserve (1%), and insurance" },
+    { at: 22, title: "Querying DLD transaction database", detail: `Fetching real comparable sales from Dubai Land Department for ${areaName}` },
+    { at: 27, title: "Running scenario analysis", detail: "Modeling upside, base, and downside cases — varying rent, occupancy, and exit price" },
+    { at: 31, title: "Writing investment thesis", detail: "Synthesizing market data and financials into a recommendation with risks and strategy" },
+    { at: 38, title: "Finalizing IC memo", detail: "Assembling all sections: cash flow table, comparables, scenarios, and final recommendation" },
+  ]
+
+  const currentPhase = phases.filter((p) => elapsed >= p.at).pop() ?? phases[0]
+
+  return (
+    <div className="w-full space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium text-gray-700">{currentPhase.title}</span>
+        <span className="tabular-nums text-gray-400">{timeStr}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+        <div
+          className="h-full rounded-full bg-green-500 transition-all duration-1000 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="text-xs text-gray-400">{currentPhase.detail}</p>
+    </div>
+  )
+}
+
 export default function PropertyIntakePage() {
   return (
     <>
@@ -168,7 +246,9 @@ function PropertyIntakeContent() {
     notes,
     savedMemoId,
     scoreRevealComplete,
+    offplanDetected,
     offplanStep,
+    offplanUrl,
     offplanError,
     offplanProject,
     offplanUnits,
@@ -177,6 +257,7 @@ function PropertyIntakeContent() {
     selectedOffplanUnits,
     offplanEvaluation,
     offplanSavedMemoId,
+    offplanBrochureImages,
   } = useIntakeStore()
 
   // Handle paste event for extracting page content
@@ -209,6 +290,11 @@ function PropertyIntakeContent() {
     () => (property && evaluation ? buildPortalIntakeReportPayload(property, evaluation, enhancedPdfData) : undefined),
     [property, evaluation, enhancedPdfData],
   )
+  // Resolve images: prefer portal-extracted images, fall back to rendered brochure pages
+  const resolvedOffplanImages = React.useMemo(
+    () => (property?.images && property.images.length > 0 ? property.images : offplanBrochureImages),
+    [property?.images, offplanBrochureImages],
+  )
   const offplanReportPayload = React.useMemo(
     () =>
       offplanProject && selectedOffplanUnits[0] && offplanPaymentPlan && offplanEvaluation
@@ -217,13 +303,15 @@ function PropertyIntakeContent() {
             selectedOffplanUnits[0],
             offplanPaymentPlan,
             offplanEvaluation,
+            property ?? undefined,
+            resolvedOffplanImages,
           )
         : undefined,
-    [offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits],
+    [offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits, property, resolvedOffplanImages],
   )
   // Determine if we should show reset button
   const showPortalReset = step !== "input" && step !== "saved"
-  const showOffplanReset = offplanStep !== "upload" && offplanStep !== "saved"
+  const showOffplanReset = offplanStep !== "input" && offplanStep !== "upload" && offplanStep !== "saved"
 
   const handleShareMemoToInvestors = React.useCallback(
     async (investorIds: string[]) => {
@@ -440,7 +528,7 @@ function PropertyIntakeContent() {
   if (!mounted) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Property Intake" subtitle="Evaluate properties from portals or off-plan developer brochures" />
+        <PageHeader title="Property Intake" subtitle="Evaluate built or off-plan properties from URLs or developer brochures" />
         <div className="flex min-h-[300px] items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -452,7 +540,7 @@ function PropertyIntakeContent() {
     <div className="space-y-6">
       <PageHeader
         title="Property Intake"
-        subtitle="Evaluate properties from portals or off-plan developer brochures"
+        subtitle="Evaluate built or off-plan properties from URLs or developer brochures"
         primaryAction={
           (activeTab === "portal" && showPortalReset) ? (
             <div className="flex items-center gap-2">
@@ -484,20 +572,20 @@ function PropertyIntakeContent() {
       <Tabs id="property-intake-tabs" value={activeTab} onValueChange={(v) => setActiveTab(v as "portal" | "offplan")} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="portal" className="flex items-center gap-2">
-            <ExternalLink className="h-4 w-4" />
-            Portal URL
+            <Building2 className="h-4 w-4" />
+            Built Properties
           </TabsTrigger>
           <TabsTrigger value="offplan" className="flex items-center gap-2">
-            <Upload className="h-4 w-4" />
-            Off-Plan Brochure
+            <HardHat className="h-4 w-4" />
+            Off-Plan
           </TabsTrigger>
         </TabsList>
 
-        {/* Portal URL Tab */}
+        {/* Built Properties Tab */}
         <TabsContent value="portal" className="space-y-6">
           {/* Step indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className={step === "input" || step === "extracting" ? "font-semibold text-green-600" : ""}>1. Paste URL</span>
+            <span className={step === "input" || step === "extracting" ? "font-semibold text-green-600" : ""}>1. Enter Property</span>
             <ArrowRight className="h-4 w-4" />
             <span className={step === "extracted" || step === "evaluating" ? "font-semibold text-green-600" : ""}>2. Extract Data</span>
             <ArrowRight className="h-4 w-4" />
@@ -515,58 +603,122 @@ function PropertyIntakeContent() {
         </Card>
       )}
 
-      {/* Step 1: URL Input */}
+      {/* Step 1: URL or PDF Input */}
       {(step === "input" || step === "extracting") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ExternalLink className="h-5 w-5 text-green-600" />
-              Enter Property URL
-            </CardTitle>
-            <CardDescription>
-              Paste a link from Bayut, PropertyFinder, or Dubizzle
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="url">Property URL</Label>
-              <Input
-                id="url"
-                type="url"
-                placeholder="https://www.bayut.com/property/details-123456.html"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={step === "extracting"}
-              />
-            </div>
-            <Button onClick={() => extractProperty(url)} disabled={step === "extracting" || !url.trim()} className="w-full">
-              {step === "extracting" ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Extracting with AI...</>
-              ) : (
-                <><Building2 className="mr-2 h-4 w-4" />Extract Property</>
-              )}
-            </Button>
-            
-            {/* Alternative extraction method */}
-            {error && error.includes("blocking") && (
-              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <h4 className="font-medium text-amber-800 mb-2">Alternative: Copy Page Content</h4>
-                <ol className="text-sm text-amber-700 space-y-1 mb-3">
-                  <li>1. Open the Bayut listing in a new tab</li>
-                  <li>2. Press <kbd className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">Ctrl+A</kbd> to select all</li>
-                  <li>3. Press <kbd className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">Ctrl+C</kbd> to copy</li>
-                  <li>4. Click the button below</li>
-                </ol>
-                <Button 
-                  variant="outline" 
-                  onClick={handlePasteContent}
-                  className="w-full border-amber-300 text-amber-700 hover:bg-amber-100"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Extract from Clipboard
-                </Button>
+        <div className="space-y-4">
+          {/* URL Input */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ExternalLink className="h-5 w-5 text-green-600" />
+                Enter Property URL
+              </CardTitle>
+              <CardDescription>
+                Paste a link from Bayut, PropertyFinder, or Dubizzle
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="url">Property URL</Label>
+                <Input
+                  id="url"
+                  type="url"
+                  placeholder="https://www.bayut.com/property/details-123456.html"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={step === "extracting"}
+                />
               </div>
-            )}
+              <div className="flex gap-2">
+                <Button onClick={() => extractProperty(url)} disabled={step === "extracting" || !url.trim()} className="flex-1">
+                  {step === "extracting" ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Extracting with AI...</>
+                  ) : (
+                    <><Building2 className="mr-2 h-4 w-4" />Extract Property</>
+                  )}
+                </Button>
+                {step === "extracting" && (
+                  <Button variant="outline" onClick={resetPortal}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+              
+              {/* Alternative extraction method */}
+              {error && error.includes("blocking") && (
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <h4 className="font-medium text-amber-800 mb-2">Alternative: Copy Page Content</h4>
+                  <ol className="text-sm text-amber-700 space-y-1 mb-3">
+                    <li>1. Open the Bayut listing in a new tab</li>
+                    <li>2. Press <kbd className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">Ctrl+A</kbd> to select all</li>
+                    <li>3. Press <kbd className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">Ctrl+C</kbd> to copy</li>
+                    <li>4. Click the button below</li>
+                  </ol>
+                  <Button 
+                    variant="outline" 
+                    onClick={handlePasteContent}
+                    className="w-full border-amber-300 text-amber-700 hover:bg-amber-100"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Extract from Clipboard
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or upload a PDF</span>
+            </div>
+          </div>
+
+          {/* PDF Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-green-600" />
+                Upload Property Brochure
+              </CardTitle>
+              <CardDescription>
+                Upload a single-property PDF brochure or sales document. AI will extract the property details.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BuiltPropertyPdfUpload
+                onFileSelected={parseBuiltPdf}
+                isProcessing={step === "extracting"}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Off-plan detection banner */}
+      {offplanDetected && step === "extracted" && property && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="flex items-center justify-between gap-4 py-4">
+            <div className="flex items-center gap-3">
+              <HardHat className="h-5 w-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800">Off-plan property detected</p>
+                <p className="text-sm text-amber-700">
+                  This property appears to be off-plan / under construction. For a more accurate analysis with payment plan projections and handover timeline, use the Off-Plan tab.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={dismissOffplanDetected} className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                Continue here
+              </Button>
+              <Button size="sm" onClick={switchToOffplanWithUrl} className="bg-amber-600 hover:bg-amber-700 text-white">
+                Switch to Off-Plan
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -720,13 +872,18 @@ function PropertyIntakeContent() {
                       <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy, Risks & Recommendation</span></li>
                     </ul>
                   </div>
-                  <Button onClick={evaluateProperty} disabled={step === "evaluating"} className="w-full" size="lg">
-                    {step === "evaluating" ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
-                    ) : (
-                      <><Sparkles className="mr-2 h-4 w-4" />Generate IC Memo</>
-                    )}
-                  </Button>
+                  {step === "evaluating" ? (
+                    <div className="w-full space-y-3">
+                      <Button disabled className="w-full" size="lg">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...
+                      </Button>
+                      <EvaluationTimer estimatedSeconds={35} area={property?.area} />
+                    </div>
+                  ) : (
+                    <Button onClick={evaluateProperty} className="w-full" size="lg">
+                      <Sparkles className="mr-2 h-4 w-4" />Generate IC Memo
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -1199,13 +1356,13 @@ function PropertyIntakeContent() {
       )}
         </TabsContent>
 
-        {/* Off-Plan Brochure Tab */}
+        {/* Off-Plan Tab */}
         <TabsContent value="offplan" className="space-y-6">
           {/* Off-Plan Step indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className={offplanStep === "upload" ? "font-semibold text-green-600" : ""}>1. Upload Brochure</span>
+            <span className={offplanStep === "upload" || offplanStep === "input" ? "font-semibold text-green-600" : ""}>1. Enter Property</span>
             <ArrowRight className="h-4 w-4" />
-            <span className={offplanStep === "extracted" || offplanStep === "selecting" ? "font-semibold text-green-600" : ""}>2. Review & Select Unit</span>
+            <span className={offplanStep === "extracted" || offplanStep === "selecting" ? "font-semibold text-green-600" : ""}>2. Review Property</span>
             <ArrowRight className="h-4 w-4" />
             <span className={offplanStep === "evaluating" || offplanStep === "evaluated" || offplanStep === "saving" ? "font-semibold text-green-600" : ""}>3. AI Evaluation</span>
             <ArrowRight className="h-4 w-4" />
@@ -1222,80 +1379,342 @@ function PropertyIntakeContent() {
             </Card>
           )}
 
-          {/* Off-Plan Step 1: Upload */}
-          {offplanStep === "upload" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-green-600" />
-                  Upload Developer Brochure
-                </CardTitle>
-                <CardDescription>
-                  Upload PDF brochures from developers including availability sheets and sales offers.
-                  Claude Opus 4.5 will analyze them directly.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PdfUploadZone
-                  onFilesExtracted={handlePdfExtracted}
-                  onError={setOffplanError}
-                  maxSizeMB={20}
-                />
-              </CardContent>
-            </Card>
+          {/* Off-Plan Step 1: URL or PDF Upload */}
+          {(offplanStep === "input" || offplanStep === "upload") && (
+            <div className="space-y-4">
+              {/* URL Input */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ExternalLink className="h-5 w-5 text-green-600" />
+                    Enter Off-Plan Property URL
+                  </CardTitle>
+                  <CardDescription>
+                    Paste a link from Bayut, PropertyFinder, or Dubizzle for an off-plan / under-construction property
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="offplan-url">Property URL</Label>
+                    <Input
+                      id="offplan-url"
+                      type="url"
+                      placeholder="https://www.bayut.com/property/details-123456.html"
+                      value={offplanUrl}
+                      onChange={(e) => setOffplanUrl(e.target.value)}
+                      disabled={offplanStep === "upload"}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => extractPropertyForOffplan(offplanUrl)}
+                      disabled={offplanStep === "upload" || !offplanUrl.trim()}
+                      className="flex-1"
+                    >
+                      {offplanStep === "upload" ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Extracting with AI...</>
+                      ) : (
+                        <><HardHat className="mr-2 h-4 w-4" />Extract Off-Plan Property</>
+                      )}
+                    </Button>
+                    {offplanStep === "upload" && (
+                      <Button variant="outline" onClick={resetOffplan}>
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or upload a PDF</span>
+                </div>
+              </div>
+
+              {/* PDF Upload */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Upload className="h-5 w-5 text-green-600" />
+                    Upload Developer Brochure
+                  </CardTitle>
+                  <CardDescription>
+                    Upload PDF brochures from developers including availability sheets and sales offers.
+                    Claude Opus 4.5 will analyze them directly.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PdfUploadZone
+                    onFilesExtracted={handlePdfExtracted}
+                    onError={setOffplanError}
+                    maxSizeMB={20}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* Off-Plan Step 2: Project Overview & Unit Selection */}
           {(offplanStep === "extracted" || offplanStep === "selecting" || offplanStep === "evaluating") && offplanProject && offplanPaymentPlan && (
             <div className="space-y-6">
-              <OffPlanProjectOverview
-                project={offplanProject}
-                paymentPlan={offplanPaymentPlan}
-                stats={offplanStats || undefined}
-              />
 
-              <UnitSelectionTable
-                units={offplanUnits}
-                selectedUnits={selectedOffplanUnits}
-                onSelectionChange={setSelectedOffplanUnits}
-                maxSelection={5}
-              />
+              {/* ── Single-unit layout (URL extraction) ── */}
+              {offplanUnits.length <= 1 && selectedOffplanUnits.length === 1 ? (
+                <div className="space-y-6">
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Left: Property Card */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle>{offplanProject.projectName}</CardTitle>
+                            <CardDescription className="flex items-center gap-1 mt-1">
+                              <Building2 className="h-4 w-4" />
+                              by {offplanProject.developer}
+                            </CardDescription>
+                          </div>
+                          <Badge variant="outline" className="capitalize">{offplanProject.propertyType}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Property image (from original extracted property) */}
+                        {property && property.images.length > 0 ? (
+                          <div className="relative h-48 overflow-hidden rounded-lg bg-muted">
+                            <Image
+                              src={property.images[0]}
+                              alt={offplanProject.projectName}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, 600px"
+                              unoptimized
+                              onError={(e) => {
+                                const parent = e.currentTarget.parentElement
+                                if (parent) {
+                                  e.currentTarget.style.display = "none"
+                                  parent.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="relative h-48 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                          </div>
+                        )}
 
-              {/* Multi-Unit Comparison */}
-              {selectedOffplanUnits.length >= 2 && offplanProject && offplanPaymentPlan && (
-                <OffPlanUnitComparison
-                  project={offplanProject}
-                  units={selectedOffplanUnits}
-                  paymentPlan={offplanPaymentPlan}
-                  onSelectBest={(unit) => setSelectedOffplanUnits([unit])}
-                />
-              )}
+                        {/* Key details grid */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div><span className="text-gray-500">Price</span><div className="font-semibold">AED {selectedOffplanUnits[0].totalPrice.toLocaleString()}</div></div>
+                          <div><span className="text-gray-500">Price/sqft</span><div className="font-semibold">AED {selectedOffplanUnits[0].pricePerSqft.toLocaleString()}</div></div>
+                          <div><span className="text-gray-500">Size</span><div className="font-semibold">{selectedOffplanUnits[0].sizeSqft.toLocaleString()} sqft</div></div>
+                          <div><span className="text-gray-500">Type</span><div className="font-semibold">{selectedOffplanUnits[0].type}</div></div>
+                          <div>
+                            <span className="text-gray-500">Location</span>
+                            <div className="font-semibold">
+                              {offplanProject.location.area}
+                              {offplanProject.location.subArea && `, ${offplanProject.location.subArea}`}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Completion</span>
+                            <div className="font-semibold flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                              {offplanProject.completionDate || "TBC"}
+                            </div>
+                          </div>
+                          {offplanProject.developer && (
+                            <div><span className="text-gray-500">Developer</span><div className="font-semibold">{offplanProject.developer}</div></div>
+                          )}
+                          {offplanProject.totalLevels > 0 && (
+                            <div><span className="text-gray-500">Building Floors</span><div className="font-semibold">{offplanProject.totalLevels}</div></div>
+                          )}
+                          {selectedOffplanUnits[0].parking != null && selectedOffplanUnits[0].parking > 0 && (
+                            <div><span className="text-gray-500">Parking</span><div className="font-semibold">{selectedOffplanUnits[0].parking} {selectedOffplanUnits[0].parking === 1 ? "space" : "spaces"}</div></div>
+                          )}
+                          {selectedOffplanUnits[0].views && (
+                            <div><span className="text-gray-500">Views</span><div className="font-semibold">{selectedOffplanUnits[0].views}</div></div>
+                          )}
+                        </div>
 
-              {/* Evaluate Button */}
-              <div className="flex justify-end gap-4">
-                <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"}>
-                  Start Over
-                </Button>
-                <Button
-                  onClick={evaluateOffplan}
-                  disabled={selectedOffplanUnits.length === 0 || offplanStep === "evaluating"}
-                  size="lg"
-                >
-                  {offplanStep === "evaluating" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating IC Memo...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {selectedOffplanUnits.length > 1
-                        ? `Compare & Evaluate ${selectedOffplanUnits.length} Units`
-                        : "Generate Off-Plan IC Memo"}
-                    </>
+                        {/* Amenities */}
+                        {offplanProject.amenities.length > 0 && (
+                          <div className="text-sm">
+                            <span className="text-gray-500">Amenities</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {offplanProject.amenities.slice(0, 12).map((a, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">{a}</Badge>
+                              ))}
+                              {offplanProject.amenities.length > 12 && (
+                                <Badge variant="secondary" className="text-xs">+{offplanProject.amenities.length - 12} more</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Payment Plan summary */}
+                        <div className="text-sm">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" /> Payment Plan
+                          </span>
+                          <div className="mt-2 space-y-1.5">
+                            {offplanPaymentPlan.milestones.map((m, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">{m.description}</span>
+                                <Badge variant="secondary" className="text-xs">{m.percentage}%</Badge>
+                              </div>
+                            ))}
+                            {offplanPaymentPlan.dldFeePercent > 0 && (
+                              <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t">
+                                <span>DLD Registration Fee</span>
+                                <span>{offplanPaymentPlan.dldFeePercent}% (on SPA signing)</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Original listing link */}
+                        {property?.listingUrl && (
+                          <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
+                            View original listing<ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Right: AI evaluation panel */}
+                    <div className="space-y-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-green-600" />
+                            AI Evaluation
+                          </CardTitle>
+                          <CardDescription>Off-plan investment analysis powered by AI</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="rounded-lg border bg-gray-50 p-4">
+                            <h4 className="font-semibold">What will be generated:</h4>
+                            <ul className="mt-2 space-y-2 text-sm text-gray-600">
+                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Executive Summary & Investment Thesis</span></li>
+                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Cash Flow Projection & Payment Schedule</span></li>
+                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Future Value Outlook & Risk Assessment</span></li>
+                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy & Recommendation</span></li>
+                            </ul>
+                          </div>
+                          {offplanStep === "evaluating" ? (
+                            <div className="w-full space-y-3">
+                              <Button disabled className="w-full" size="lg">
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...
+                              </Button>
+                              <EvaluationTimer estimatedSeconds={35} area={offplanProject?.location.area} isOffplan />
+                            </div>
+                          ) : (
+                            <Button onClick={evaluateOffplan} className="w-full" size="lg">
+                              <Sparkles className="mr-2 h-4 w-4" />Generate Off-Plan IC Memo
+                            </Button>
+                          )}
+                          <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"} className="w-full">
+                            Start Over
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      {/* CMA Panel - DLD comparable data */}
+                      {property && (
+                        <CMAPanel
+                          area={property.area}
+                          propertyType={property.propertyType}
+                          bedrooms={property.bedrooms}
+                          sizeSqft={property.size}
+                          askingPrice={property.price}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ── Multi-unit layout (PDF brochure) ── */
+                <>
+                  {/* Brochure page images rendered from uploaded PDFs */}
+                  {offplanBrochureImages.length > 0 && (
+                    <div className="grid gap-2" style={{ gridTemplateColumns: offplanBrochureImages.length === 1 ? "1fr" : offplanBrochureImages.length === 2 ? "1fr 1fr" : "2fr 1fr 1fr" }}>
+                      {offplanBrochureImages.slice(0, 5).map((img, idx) => (
+                        <div key={idx} className={`relative overflow-hidden rounded-lg bg-muted ${idx === 0 && offplanBrochureImages.length >= 3 ? "row-span-2" : ""}`} style={{ height: idx === 0 ? (offplanBrochureImages.length >= 3 ? "320px" : "200px") : "156px" }}>
+                          <Image
+                            src={img}
+                            alt={`${offplanProject.projectName} brochure - page ${idx + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 600px"
+                            unoptimized
+                            onError={(e) => {
+                              const parent = e.currentTarget.parentElement
+                              if (parent) {
+                                e.currentTarget.style.display = "none"
+                                parent.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'
+                              }
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </Button>
-              </div>
+
+                  <OffPlanProjectOverview
+                    project={offplanProject}
+                    paymentPlan={offplanPaymentPlan}
+                    stats={offplanStats || undefined}
+                  />
+
+                  <UnitSelectionTable
+                    units={offplanUnits}
+                    selectedUnits={selectedOffplanUnits}
+                    onSelectionChange={setSelectedOffplanUnits}
+                    maxSelection={5}
+                  />
+
+                  {/* Multi-Unit Comparison */}
+                  {selectedOffplanUnits.length >= 2 && offplanProject && offplanPaymentPlan && (
+                    <OffPlanUnitComparison
+                      project={offplanProject}
+                      units={selectedOffplanUnits}
+                      paymentPlan={offplanPaymentPlan}
+                      onSelectBest={(unit) => setSelectedOffplanUnits([unit])}
+                    />
+                  )}
+
+                  {/* Evaluate Button */}
+                  <div className="space-y-3">
+                    <div className="flex justify-end gap-4">
+                      <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"}>
+                        Start Over
+                      </Button>
+                      <Button
+                        onClick={evaluateOffplan}
+                        disabled={selectedOffplanUnits.length === 0 || offplanStep === "evaluating"}
+                        size="lg"
+                      >
+                        {offplanStep === "evaluating" ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            {selectedOffplanUnits.length > 1
+                              ? `Compare & Evaluate ${selectedOffplanUnits.length} Units`
+                              : "Generate Off-Plan IC Memo"}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {offplanStep === "evaluating" && <EvaluationTimer estimatedSeconds={35} area={offplanProject?.location.area} isOffplan />}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1311,10 +1730,58 @@ function PropertyIntakeContent() {
               onReset={resetOffplan}
               isSaving={offplanStep === "saving"}
               savedMemoId={offplanSavedMemoId}
+              propertyImages={resolvedOffplanImages}
             />
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+/** Simple single-file PDF upload for built-property brochures */
+function BuiltPropertyPdfUpload({ onFileSelected, isProcessing }: { onFileSelected: (file: File) => void; isProcessing: boolean }) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [fileName, setFileName] = React.useState<string | null>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      return
+    }
+    setFileName(file.name)
+    onFileSelected(file)
+  }
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+        isProcessing ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400 hover:bg-green-50/50 cursor-pointer"
+      }`}
+      onClick={() => !isProcessing && fileInputRef.current?.click()}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={isProcessing}
+      />
+      {isProcessing ? (
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <p className="text-sm font-medium text-green-700">Analyzing {fileName || "PDF"}...</p>
+          <p className="text-xs text-muted-foreground">Extracting property details with AI</p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <Upload className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm font-medium">Drop a PDF here or click to browse</p>
+          <p className="text-xs text-muted-foreground">Single property brochure or sales document (max 20 MB)</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -1556,173 +2023,248 @@ function buildOffplanIntakeReportPayload(
   project: OffPlanProject,
   selectedUnit: OffPlanUnit,
   paymentPlan: OffPlanPaymentPlan,
-  evaluation: OffPlanEvaluationResult,
+  evaluation: OffPlanEvaluationResult & { enhancedPdfData?: any },
+  extractedProperty?: ExtractedProperty,
+  brochureImages?: string[],
 ): IntakeReportPayload {
   const memo = evaluation.memoContent
-  const baseGrowthRate = Math.max(2.5, Math.min(10, memo.financialProjections.expectedAppreciation / 5))
-  const baselineValue = memo.financialProjections.estimatedCompletionValue
-  const projected3Y = Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 3))
-  const projected5Y = Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 5))
-  const purchase = selectedUnit.totalPrice
-  const dld = Math.round(purchase * 0.04)
-  const broker = Math.round(purchase * 0.02)
-  const renovation = 0
-  const totalProjectCost = purchase + dld + broker + renovation
-  const mortgage = Math.round(purchase * 0.7)
-  const equityInvested = totalProjectCost - mortgage
-  const annualInterest = Math.round(mortgage * 0.035)
-  const netSaleProceeds = projected5Y - mortgage
-  const netProfit = netSaleProceeds - equityInvested - annualInterest * 5
-  const roiOnEquity = equityInvested > 0 ? (netProfit / equityInvested) * 100 : 0
+  const enhanced = evaluation.enhancedPdfData
+  const rb = enhanced?.returnBridge
+  const gr = enhanced?.growth
 
-  return {
+  // Use enhanced data when available, fall back to computed values
+  const baseGrowthRate = gr?.annualGrowthBase ?? Math.max(2.5, Math.min(10, memo.financialProjections.expectedAppreciation / 5))
+  const baselineValue = memo.financialProjections.estimatedCompletionValue
+  const projected3Y = gr?.projectedValue3Y ?? Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 3))
+  const projected5Y = gr?.projectedValue5Y ?? Math.round(baselineValue * Math.pow(1 + baseGrowthRate / 100, 5))
+  const purchase = selectedUnit.totalPrice
+  const dld = rb?.dldFee ?? Math.round(purchase * 0.04)
+  const broker = rb?.brokerFee ?? Math.round(purchase * 0.02)
+  const totalProjectCost = rb?.totalProjectCost ?? (purchase + dld + broker)
+  const equityInvested = rb?.equityInvested ?? totalProjectCost
+  const resalePrice = rb?.resalePrice ?? projected5Y
+  const netProfit = rb?.netProfitAfterInterest ?? Math.round(resalePrice - equityInvested)
+  const roiOnEquity = rb?.roiOnEquityPct ?? (equityInvested > 0 ? (netProfit / equityInvested) * 100 : 0)
+
+  const sections: IntakeReportPayload["sections"] = [
+    {
+      title: "Project Snapshot",
+      keyValues: [
+        { label: "Project", value: project.projectName },
+        { label: "Developer", value: project.developer },
+        { label: "Location", value: `${project.location.area}${project.location.subArea ? `, ${project.location.subArea}` : ""}` },
+        { label: "Completion", value: project.completionDate },
+        { label: "Selected Unit", value: `${selectedUnit.unitNumber} (${selectedUnit.type})` },
+        { label: "Unit Size", value: `${selectedUnit.sizeSqft.toLocaleString()} sq ft` },
+        { label: "Price / sq ft", value: formatCurrency(selectedUnit.pricePerSqft) },
+        { label: "Unit Price", value: formatCurrency(selectedUnit.totalPrice) },
+      ],
+    },
+    {
+      title: "Project Highlights",
+      bullets: memo.projectHighlights,
+    },
+    {
+      title: "Recommended Candidate Status",
+      body: "This off-plan unit is tracked as a recommended candidate pending acquisition.",
+      keyValues: [
+        { label: "Recommendation Lane", value: "Recommended Candidate" },
+        { label: "Portfolio Overlap", value: "No - candidate only" },
+      ],
+    },
+    {
+      title: "Portfolio Holdings Snapshot",
+      keyValues: [
+        { label: "Total Holdings", value: "N/A in intake context" },
+        { label: "Current Portfolio Value", value: "N/A in intake context" },
+      ],
+    },
+    {
+      title: "Developer Assessment",
+      body: memo.developerAssessment.trackRecordSummary,
+      keyValues: [
+        { label: "Developer Score", value: `${memo.developerAssessment.score}/100` },
+        { label: "Developer Grade", value: memo.developerAssessment.grade },
+        { label: "Financial Stability", value: memo.developerAssessment.financialStability || "N/A" },
+      ],
+      bullets: [
+        ...memo.developerAssessment.strengths.map((s) => `Strength: ${s}`),
+        ...memo.developerAssessment.concerns.map((c) => `Concern: ${c}`),
+      ],
+    },
+    {
+      title: "Location Analysis",
+      body: memo.locationAnalysis.areaProfile,
+      keyValues: [{ label: "Location Grade", value: memo.locationAnalysis.grade }],
+      bullets: [
+        ...memo.locationAnalysis.highlights,
+        ...Object.entries(memo.locationAnalysis.proximity).map(([k, v]) => `${k}: ${v}`),
+      ],
+    },
+    {
+      title: "Payment Plan Analysis",
+      body: memo.paymentPlanAnalysis.summary,
+      keyValues: [
+        { label: "During Construction", value: `${paymentPlan.constructionPercent}%` },
+        { label: "On Completion", value: `${paymentPlan.postHandoverPercent}%` },
+        { label: "DLD Fee", value: `${paymentPlan.dldFeePercent}%` },
+        { label: "Attractiveness Score", value: `${memo.paymentPlanAnalysis.attractivenessScore}/100` },
+      ],
+      bullets: memo.paymentPlanAnalysis.insights,
+    },
+    {
+      title: "Financial Projections",
+      keyValues: [
+        { label: "Purchase Price", value: formatCurrency(memo.financialProjections.purchasePrice) },
+        { label: "Completion Value", value: formatCurrency(memo.financialProjections.estimatedCompletionValue) },
+        { label: "Expected Appreciation", value: `${memo.financialProjections.expectedAppreciation.toFixed(1)}%` },
+        { label: "Expected Gain", value: formatCurrency(memo.financialProjections.expectedAppreciationAed) },
+        { label: "Estimated Annual Rent", value: formatCurrency(memo.financialProjections.estimatedAnnualRent) },
+        { label: "Gross Yield", value: `${memo.financialProjections.projectedRentalYieldGross}%` },
+        { label: "Net Yield", value: `${memo.financialProjections.projectedRentalYieldNet}%` },
+      ],
+    },
+  ]
+
+  // Operating Expenses section (from enhanced data)
+  if (enhanced?.operatingExpenses) {
+    const opex = enhanced.operatingExpenses
+    sections.push({
+      title: "Annual Operating Expenses (Post-Completion)",
+      keyValues: [
+        { label: "Service Charge", value: formatCurrency(opex.serviceCharge) },
+        { label: "Property Management (5%)", value: formatCurrency(opex.managementFee) },
+        { label: "Maintenance Reserve (1%)", value: formatCurrency(opex.maintenanceReserve) },
+        { label: "Insurance (0.1%)", value: formatCurrency(opex.insurance) },
+        { label: "Total Annual Expenses", value: formatCurrency(opex.totalAnnual) },
+        { label: "Gross Rent", value: formatCurrency(opex.grossRent) },
+        { label: "Net Rent", value: formatCurrency(opex.netRent) },
+      ],
+      bullets: opex.notes ? [opex.notes] : [],
+    })
+  }
+
+  // Future Value Outlook section
+  sections.push({
+    title: "Future Value Outlook",
+    body: gr?.narrative ?? `${project.location.area} (${memo.locationAnalysis.grade} grade) shows favorable long-term tendencies. Under a base case of ${baseGrowthRate.toFixed(1)}% annual growth from completion value, 5-year estimated value is ${formatCurrency(projected5Y)}.`,
+    keyValues: [
+      { label: "Value at Completion", value: formatCurrency(baselineValue) },
+      { label: "Projected Value (1Y)", value: formatCurrency(gr?.projectedValue1Y ?? Math.round(baselineValue * (1 + baseGrowthRate / 100))) },
+      { label: "Projected Value (3Y)", value: formatCurrency(projected3Y) },
+      { label: "Projected Value (5Y)", value: formatCurrency(projected5Y) },
+      { label: "Conservative Growth", value: `${(gr?.annualGrowthConservative ?? Math.max(0.5, baseGrowthRate - 2)).toFixed(1)}% / year` },
+      { label: "Base Growth Rate", value: `${baseGrowthRate.toFixed(1)}% / year` },
+      { label: "Upside Growth", value: `${(gr?.annualGrowthUpside ?? baseGrowthRate + 2.5).toFixed(1)}% / year` },
+    ],
+    bullets: [
+      ...(gr?.drivers ?? memo.locationAnalysis.highlights.slice(0, 3)),
+      ...(gr?.sensitivities ?? memo.keyStrengths.slice(0, 2)),
+    ],
+  })
+
+  // ROI on Equity Bridge section
+  sections.push({
+    title: "ROI on Equity Bridge",
+    keyValues: [
+      { label: "Purchase price", value: formatCurrency(purchase) },
+      { label: "DLD fee", value: formatCurrency(dld) },
+      { label: "DLD fee rate", value: `${(rb?.dldRatePct ?? paymentPlan.dldFeePercent).toFixed(1)}%` },
+      { label: "Broker fee", value: formatCurrency(broker) },
+      { label: "Broker fee rate", value: `${(rb?.brokerFeePct ?? 2).toFixed(1)}%` },
+      { label: "Total project cost", value: formatCurrency(totalProjectCost) },
+      { label: "Equity invested", value: formatCurrency(equityInvested) },
+      { label: "Resale price (5Y post-completion)", value: formatCurrency(resalePrice) },
+      { label: "Net profit", value: formatCurrency(netProfit) },
+      { label: "ROI on equity", value: `${roiOnEquity.toFixed(1)}%` },
+    ],
+    bullets: [rb?.assumptions ?? "Off-plan: full equity investment. 5-year post-completion hold."],
+  })
+
+  // Scenario Analysis (from enhanced data)
+  if (enhanced?.scenarios && enhanced.scenarios.length > 0) {
+    sections.push({
+      title: "Scenario Analysis",
+      bullets: enhanced.scenarios.map(
+        (s: any) => `${s.label}: Annual rent ${formatCurrency(s.annualRent)} @ ${s.occupancy}% occupancy → Exit ${formatCurrency(s.exitPrice)} → IRR ${s.fiveYearIrr}% → Net Profit ${formatCurrency(s.netProfit)}`,
+      ),
+    })
+  }
+
+  // Strategy section (from enhanced data)
+  if (enhanced?.strategy) {
+    sections.push({
+      title: "Investment Strategy",
+      body: enhanced.strategy.plan,
+      keyValues: [
+        { label: "Hold Period", value: `${enhanced.strategy.holdPeriod} years (incl. construction)` },
+        { label: "Exit Strategy", value: enhanced.strategy.exit },
+      ],
+      bullets: enhanced.strategy.focusPoints,
+    })
+  }
+
+  // Market Comparables (use enhanced DLD data when available)
+  if (enhanced?.comparables && enhanced.comparables.length > 0) {
+    sections.push({
+      title: "Market Comparables",
+      bullets: enhanced.comparables.map(
+        (comp: any) =>
+          `${comp.name} — ${formatCurrency(comp.price)} (${comp.pricePerSqft > 0 ? `AED ${comp.pricePerSqft.toLocaleString()}/sqft` : "N/A"}) — ${comp.date} [${comp.source || "AI"}]${comp.note ? ` — ${comp.note}` : ""}`,
+      ),
+    })
+  } else {
+    sections.push({
+      title: "Market Comparables",
+      bullets: memo.marketComparables.map(
+        (comp) =>
+          `${comp.project} (${comp.completionStatus}) - ${formatCurrency(comp.pricePerSqft)} / sq ft${comp.note ? ` - ${comp.note}` : ""}`,
+      ),
+    })
+  }
+
+  // Risk Assessment
+  sections.push({
+    title: "Risk Assessment",
+    body: `Overall risk level: ${memo.overallRiskLevel.toUpperCase()}`,
+    bullets: memo.riskAssessment.map((risk) => `${risk.category} (${risk.level}): ${risk.description} | Mitigation: ${risk.mitigation}`),
+  })
+
+  // Investment Thesis and Recommendation
+  sections.push({
+    title: "Investment Thesis and Recommendation",
+    body: memo.investmentThesis,
+    bullets: [
+      ...memo.keyStrengths.map((strength) => `Strength: ${strength}`),
+      ...memo.keyConsiderations.map((consideration) => `Consideration: ${consideration}`),
+      `Recommendation: ${memo.recommendation.decision}`,
+      memo.recommendation.reasoning,
+      ...(memo.recommendation.conditions || []),
+      ...(memo.recommendation.suggestedNegotiationPoints || []),
+    ],
+  })
+
+  // Build the payload with enhanced cash flow and comparable data
+  const payload: IntakeReportPayload = {
     title: `Off-Plan IC Opportunity Report - ${project.projectName}`,
     subtitle: `${selectedUnit.unitNumber} | ${project.location.area}`,
     generatedAt: memo.generatedAt || new Date().toISOString(),
     score: `${evaluation.overallScore}/100`,
     recommendation: `${evaluation.recommendation} (${memo.recommendation.decision})`,
     summary: `${evaluation.headline}. ${memo.projectSummary}`,
-    coverImageUrl: undefined,
-    galleryImageUrls: [],
+    coverImageUrl: extractedProperty?.coverImageUrl ?? extractedProperty?.images?.[0] ?? brochureImages?.[0] ?? undefined,
+    galleryImageUrls: (extractedProperty?.images && extractedProperty.images.length > 0) ? extractedProperty.images : (brochureImages ?? []),
     mapImageUrl: undefined,
-    sections: [
-      {
-        title: "Project Snapshot",
-        keyValues: [
-          { label: "Project", value: project.projectName },
-          { label: "Developer", value: project.developer },
-          { label: "Location", value: `${project.location.area}${project.location.subArea ? `, ${project.location.subArea}` : ""}` },
-          { label: "Completion", value: project.completionDate },
-          { label: "Selected Unit", value: `${selectedUnit.unitNumber} (${selectedUnit.type})` },
-          { label: "Unit Size", value: `${selectedUnit.sizeSqft.toLocaleString()} sq ft` },
-          { label: "Price / sq ft", value: formatCurrency(selectedUnit.pricePerSqft) },
-          { label: "Unit Price", value: formatCurrency(selectedUnit.totalPrice) },
-        ],
-      },
-      {
-        title: "Project Highlights",
-        bullets: memo.projectHighlights,
-      },
-      {
-        title: "Recommended Candidate Status",
-        body: "This off-plan unit is tracked as a recommended candidate pending acquisition.",
-        keyValues: [
-          { label: "Recommendation Lane", value: "Recommended Candidate" },
-          { label: "Portfolio Overlap", value: "No - candidate only" },
-        ],
-      },
-      {
-        title: "Portfolio Holdings Snapshot",
-        keyValues: [
-          { label: "Total Holdings", value: "N/A in intake context" },
-          { label: "Current Portfolio Value", value: "N/A in intake context" },
-        ],
-      },
-      {
-        title: "Developer Assessment",
-        body: memo.developerAssessment.trackRecordSummary,
-        keyValues: [
-          { label: "Developer Score", value: `${memo.developerAssessment.score}/100` },
-          { label: "Developer Grade", value: memo.developerAssessment.grade },
-          { label: "Financial Stability", value: memo.developerAssessment.financialStability || "N/A" },
-        ],
-        bullets: [
-          ...memo.developerAssessment.strengths.map((s) => `Strength: ${s}`),
-          ...memo.developerAssessment.concerns.map((c) => `Concern: ${c}`),
-        ],
-      },
-      {
-        title: "Location Analysis",
-        body: memo.locationAnalysis.areaProfile,
-        keyValues: [{ label: "Location Grade", value: memo.locationAnalysis.grade }],
-        bullets: [
-          ...memo.locationAnalysis.highlights,
-          ...Object.entries(memo.locationAnalysis.proximity).map(([k, v]) => `${k}: ${v}`),
-        ],
-      },
-      {
-        title: "Payment Plan Analysis",
-        body: memo.paymentPlanAnalysis.summary,
-        keyValues: [
-          { label: "During Construction", value: `${paymentPlan.constructionPercent}%` },
-          { label: "On Completion", value: `${paymentPlan.postHandoverPercent}%` },
-          { label: "DLD Fee", value: `${paymentPlan.dldFeePercent}%` },
-          { label: "Attractiveness Score", value: `${memo.paymentPlanAnalysis.attractivenessScore}/100` },
-        ],
-        bullets: memo.paymentPlanAnalysis.insights,
-      },
-      {
-        title: "Financial Projections",
-        keyValues: [
-          { label: "Purchase Price", value: formatCurrency(memo.financialProjections.purchasePrice) },
-          { label: "Completion Value", value: formatCurrency(memo.financialProjections.estimatedCompletionValue) },
-          { label: "Expected Appreciation", value: `${memo.financialProjections.expectedAppreciation.toFixed(1)}%` },
-          { label: "Expected Gain", value: formatCurrency(memo.financialProjections.expectedAppreciationAed) },
-          { label: "Estimated Annual Rent", value: formatCurrency(memo.financialProjections.estimatedAnnualRent) },
-          { label: "Gross Yield", value: `${memo.financialProjections.projectedRentalYieldGross}%` },
-          { label: "Net Yield", value: `${memo.financialProjections.projectedRentalYieldNet}%` },
-        ],
-      },
-      {
-        title: "Future Value Outlook",
-        body: `${project.location.area} (${memo.locationAnalysis.grade} grade) shows favorable long-term tendencies. Under a base case of ${baseGrowthRate.toFixed(1)}% annual growth from completion value, 5-year estimated value is ${formatCurrency(projected5Y)}.`,
-        keyValues: [
-          { label: "Value at Completion", value: formatCurrency(baselineValue) },
-          { label: "Projected Value (3Y)", value: formatCurrency(projected3Y) },
-          { label: "Projected Value (5Y)", value: formatCurrency(projected5Y) },
-          { label: "Base Growth Rate", value: `${baseGrowthRate.toFixed(1)}% / year` },
-        ],
-        bullets: [
-          ...memo.locationAnalysis.highlights.slice(0, 3),
-          ...memo.keyStrengths.slice(0, 2),
-        ],
-      },
-      {
-        title: "ROI on Equity Bridge",
-        keyValues: [
-          { label: "Purchase price", value: formatCurrency(purchase) },
-          { label: "DLD fee", value: formatCurrency(dld) },
-          { label: "DLD fee rate", value: `${paymentPlan.dldFeePercent.toFixed(1)}%` },
-          { label: "Broker fee", value: formatCurrency(broker) },
-          { label: "Broker fee rate", value: "2.0%" },
-          { label: "Renovation", value: formatCurrency(renovation) },
-          { label: "Total project cost", value: formatCurrency(totalProjectCost) },
-          { label: "Mortgage amount", value: formatCurrency(mortgage) },
-          { label: "Mortgage LTV", value: "70.0%" },
-          { label: "Equity invested", value: formatCurrency(equityInvested) },
-          { label: "Annual interest", value: formatCurrency(annualInterest) },
-          { label: "Interest rate", value: "3.5%" },
-          { label: "Resale price", value: formatCurrency(projected5Y) },
-          { label: "Net sale proceeds after mortgage repayment", value: formatCurrency(netSaleProceeds) },
-          { label: "Net profit (after interest)", value: formatCurrency(netProfit) },
-          { label: "ROI on equity", value: `${roiOnEquity.toFixed(1)}%` },
-        ],
-        bullets: ["Assumes 70% LTV, 3.5% annual interest, and 5-year hold period."],
-      },
-      {
-        title: "Market Comparables",
-        bullets: memo.marketComparables.map(
-          (comp) =>
-            `${comp.project} (${comp.completionStatus}) - ${formatCurrency(comp.pricePerSqft)} / sq ft${comp.note ? ` - ${comp.note}` : ""}`,
-        ),
-      },
-      {
-        title: "Risk Assessment",
-        body: `Overall risk level: ${memo.overallRiskLevel.toUpperCase()}`,
-        bullets: memo.riskAssessment.map((risk) => `${risk.category} (${risk.level}): ${risk.description} | Mitigation: ${risk.mitigation}`),
-      },
-      {
-        title: "Investment Thesis and Recommendation",
-        body: memo.investmentThesis,
-        bullets: [
-          ...memo.keyStrengths.map((strength) => `Strength: ${strength}`),
-          ...memo.keyConsiderations.map((consideration) => `Consideration: ${consideration}`),
-          `Recommendation: ${memo.recommendation.decision}`,
-          memo.recommendation.reasoning,
-          ...(memo.recommendation.conditions || []),
-          ...(memo.recommendation.suggestedNegotiationPoints || []),
-        ],
-      },
-    ],
+    sections,
   }
+
+  // Attach enhanced PDF data for PDF rendering
+  if (enhanced) {
+    payload.cashFlowTable = enhanced.cashFlowTable
+    payload.operatingExpenses = enhanced.operatingExpenses
+    payload.scenarios = enhanced.scenarios
+    payload.comparables = enhanced.comparables
+  }
+
+  return payload
 }
