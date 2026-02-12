@@ -8,6 +8,19 @@ import type {
   OffPlanEvaluationResult,
   OffPlanExtractionResult,
 } from "@/lib/types"
+import type {
+  CashFlowTable,
+  OperatingExpenses,
+  ScenarioRow,
+  ComparableTransaction,
+} from "@/lib/pdf/intake-report"
+
+export interface EnhancedPdfData {
+  cashFlowTable: CashFlowTable
+  operatingExpenses: OperatingExpenses
+  scenarios: ScenarioRow[]
+  comparables: ComparableTransaction[]
+}
 
 // ---------------------------------------------------------------------------
 // Types (previously local to page.tsx)
@@ -197,6 +210,7 @@ export interface IntakeState {
   property: ExtractedProperty | null
   evaluation: EvaluationResult | null
   marketContext: MarketContext | null
+  enhancedPdfData: EnhancedPdfData | null
   notes: string
   savedMemoId: string | null
   scoreRevealComplete: boolean
@@ -225,6 +239,7 @@ const INITIAL_STATE: IntakeState = {
   property: null,
   evaluation: null,
   marketContext: null,
+  enhancedPdfData: null,
   notes: "",
   savedMemoId: null,
   scoreRevealComplete: false,
@@ -374,6 +389,7 @@ export async function evaluateProperty() {
     update({
       evaluation: data.evaluation,
       marketContext: data.marketContext,
+      enhancedPdfData: data.enhancedPdfData ?? null,
       step: "evaluated",
     })
   } catch (err) {
@@ -414,6 +430,7 @@ export function resetPortal() {
     property: null,
     evaluation: null,
     marketContext: null,
+    enhancedPdfData: null,
     notes: "",
     savedMemoId: null,
     scoreRevealComplete: false,

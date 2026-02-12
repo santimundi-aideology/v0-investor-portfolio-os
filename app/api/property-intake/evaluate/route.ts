@@ -682,6 +682,410 @@ function buildReturnBridge(
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Enhanced PDF data builders (Feedback #1-#4)                        */
+/* ------------------------------------------------------------------ */
+
+import type {
+  CashFlowTable,
+  CashFlowRow,
+  OperatingExpenses,
+  ScenarioRow,
+  ComparableTransaction,
+} from "@/lib/pdf/intake-report"
+
+interface EnhancedPdfData {
+  cashFlowTable: CashFlowTable
+  operatingExpenses: OperatingExpenses
+  scenarios: ScenarioRow[]
+  comparables: ComparableTransaction[]
+}
+
+/**
+ * Build the year-by-year cash-flow table (Feedback #1).
+ * Shows gross rent, expenses, mortgage, net cash-flow, property value,
+ * and cumulative return for each year of the hold period.
+ */
+function buildCashFlowTable(params: {
+  purchasePrice: number
+  mortgageAmount: number
+  mortgageRate: number       // annual %
+  mortgageTerm: number       // years (for amortization)
+  annualRent: number
+  annualExpenses: number     // total OPEX per year
+  appreciationPct: number    // annual %
+  holdPeriod: number
+  equityInvested: number
+}): CashFlowTable {
+  const {
+    purchasePrice, mortgageAmount, mortgageRate, mortgageTerm,
+    annualRent, annualExpenses, appreciationPct, holdPeriod, equityInvested,
+  } = params
+
+  // Monthly mortgage payment (P&I)
+  const monthlyRate = mortgageRate / 100 / 12
+  const totalPayments = mortgageTerm * 12
+  const monthlyPayment =
+    mortgageAmount > 0 && monthlyRate > 0
+      ? mortgageAmount *
+        (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) /
+        (Math.pow(1 + monthlyRate, totalPayments) - 1)
+      : 0
+  const annualMortgagePayment = Math.round(monthlyPayment * 12)
+
+  const rows: CashFlowRow[] = []
+  let cumulativeReturn = 0
+
+  for (let year = 1; year <= holdPeriod; year++) {
+    const grossRent = Math.round(annualRent * Math.pow(1.03, year - 1)) // 3% rental growth
+    const expenses = Math.round(annualExpenses * Math.pow(1.02, year - 1)) // 2% expense inflation
+    const netCashFlow = grossRent - expenses - annualMortgagePayment
+    cumulativeReturn += netCashFlow
+    const propertyValue = Math.round(purchasePrice * Math.pow(1 + appreciationPct / 100, year))
+
+    rows.push({
+      year,
+      grossRent,
+      expenses,
+      mortgagePayment: annualMortgagePayment,
+      netCashFlow,
+      propertyValue,
+      cumulativeReturn,
+    })
+  }
+
+  // Exit proceeds
+  const finalValue = rows[rows.length - 1]?.propertyValue ?? purchasePrice
+  const remainingPayments = Math.max(0, totalPayments - holdPeriod * 12)
+  const outstandingLoan =
+    remainingPayments > 0 && monthlyRate > 0
+      ? mortgageAmount *
+        (Math.pow(1 + monthlyRate, totalPayments) - Math.pow(1 + monthlyRate, holdPeriod * 12)) /
+        (Math.pow(1 + monthlyRate, totalPayments) - 1)
+      : 0
+  const exitProceeds = Math.round(finalValue - outstandingLoan)
+  const totalProfit = Math.round(exitProceeds + cumulativeReturn - equityInvested)
+
+  return { rows, exitProceeds, totalProfit, holdPeriod }
+}
+
+/**
+ * Build operating expenses breakdown (Feedback #2).
+ */
+function buildOperatingExpenses(params: {
+  purchasePrice: number
+  annualRent: number
+  sizeSqft: number | null
+  serviceChargePerSqft: number | null
+}): OperatingExpenses {
+  const { purchasePrice, annualRent, sizeSqft, serviceChargePerSqft } = params
+
+  // Service charge: use extracted value or estimate from area average
+  const scPerSqft = serviceChargePerSqft ?? 18 // AED/sqft fallback (Dubai average)
+  const effectiveSize = sizeSqft ?? Math.round(purchasePrice / 1200) // rough fallback
+  const serviceCharge = Math.round(scPerSqft * effectiveSize)
+
+  // Management fee: 5% of gross rent (typical Dubai property management)
+  const managementFee = Math.round(annualRent * 0.05)
+
+  // Maintenance reserve: 1% of property value
+  const maintenanceReserve = Math.round(purchasePrice * 0.01)
+
+  // Insurance: ~0.1% of property value (minimal in Dubai)
+  const insurance = Math.round(purchasePrice * 0.001)
+
+  const totalAnnual = serviceCharge + managementFee + maintenanceReserve + insurance
+  const netRent = annualRent - totalAnnual
+
+  return {
+    serviceCharge,
+    managementFee,
+    maintenanceReserve,
+    insurance,
+    totalAnnual,
+    grossRent: annualRent,
+    netRent,
+    serviceChargePerSqft: scPerSqft,
+    notes: serviceChargePerSqft
+      ? "Service charge from listing data"
+      : "Service charge estimated from area average (~AED 18/sqft)",
+  }
+}
+
+/**
+ * Run 3 scenarios — upside / base / downside (Feedback #3).
+ * Varies rent, occupancy and exit price; keeps purchase costs constant.
+ */
+function buildScenarios(params: {
+  purchasePrice: number
+  annualRent: number
+  appreciationPct: number
+  holdPeriod: number
+  equityInvested: number
+  mortgageAmount: number
+  mortgageRate: number
+  totalExpenses: number
+}): ScenarioRow[] {
+  const {
+    purchasePrice, annualRent, appreciationPct, holdPeriod,
+    equityInvested, mortgageAmount, mortgageRate, totalExpenses,
+  } = params
+
+  const annualInterest = Math.round(mortgageAmount * (mortgageRate / 100))
+
+  function runScenario(
+    label: string,
+    rentMultiplier: number,
+    occupancy: number,
+    growthDelta: number,
+  ): ScenarioRow {
+    const adjRent = Math.round(annualRent * rentMultiplier * (occupancy / 100))
+    const adjGrowth = appreciationPct + growthDelta
+    const exitPrice = Math.round(purchasePrice * Math.pow(1 + adjGrowth / 100, holdPeriod))
+
+    // Total rental income over hold period (simple; ignores rental growth for clarity)
+    const totalRentalIncome = adjRent * holdPeriod
+    const totalExpensesCost = totalExpenses * holdPeriod
+    const totalInterestCost = annualInterest * holdPeriod
+    const netSale = exitPrice - mortgageAmount
+    const netProfit = Math.round(
+      netSale + totalRentalIncome - totalExpensesCost - totalInterestCost - equityInvested,
+    )
+
+    // IRR approximation (equity-multiple based)
+    const totalCashIn = netSale + totalRentalIncome - totalExpensesCost - totalInterestCost
+    const equityMultiple = equityInvested > 0 ? totalCashIn / equityInvested : 1
+    const fiveYearIrr = holdPeriod > 0
+      ? Math.round((Math.pow(Math.max(equityMultiple, 0), 1 / holdPeriod) - 1) * 1000) / 10
+      : 0
+
+    return { label, annualRent: adjRent, occupancy, exitPrice, fiveYearIrr, netProfit }
+  }
+
+  return [
+    runScenario("Upside", 1.10, 95, 2),
+    runScenario("Base", 1.00, 90, 0),
+    runScenario("Downside", 0.90, 80, -2),
+  ]
+}
+
+/**
+ * Fetch DLD-based comparables and merge with AI-generated ones (Feedback #4).
+ * Returns a unified list with source attribution.
+ */
+async function fetchDLDComparables(params: {
+  area: string
+  propertyType: string
+  bedrooms: number
+  sizeSqft: number | null
+  buildingName: string | null
+}): Promise<ComparableTransaction[]> {
+  try {
+    const supabase = getSupabaseAdminClient()
+    const dldPropertyType = params.propertyType?.toLowerCase().includes("villa")
+      ? "Villa"
+      : params.propertyType?.toLowerCase().includes("townhouse")
+        ? "Villa"
+        : params.propertyType?.toLowerCase().includes("land")
+          ? "Land"
+          : "Unit"
+
+    const sizeSqm = params.sizeSqft ? params.sizeSqft * 0.092903 : null
+
+    // Resolve area name
+    let resolvedArea = params.area
+    const { data: directCheck } = await supabase
+      .from("dld_area_stats")
+      .select("area_name_en")
+      .eq("area_name_en", params.area)
+      .limit(1)
+
+    if (!directCheck || directCheck.length === 0) {
+      try {
+        const { data: resolved } = await supabase
+          .rpc("resolve_area_name" as any, { p_community_name: params.area })
+          .maybeSingle()
+        const r = resolved as Record<string, unknown> | null
+        if (r?.dld_area_name) resolvedArea = String(r.dld_area_name)
+      } catch {
+        // ignore
+      }
+    }
+
+    // Query tiered comparables
+    const { data: tiers } = await supabase.rpc("find_best_comparables", {
+      p_area_name: params.area,
+      p_property_type: dldPropertyType,
+      p_bedrooms: params.bedrooms ? String(params.bedrooms) : "0",
+      p_size_sqm: sizeSqm ?? 0,
+      p_building_name: params.buildingName || undefined,
+    })
+
+    const comps: ComparableTransaction[] = []
+
+    if (tiers && tiers.length > 0) {
+      for (const tier of tiers) {
+        comps.push({
+          name: `${String(tier.match_description || resolvedArea)} (Tier ${tier.match_tier})`,
+          distance: tier.match_tier === 1 ? "Same building" : tier.match_tier === 2 ? "Same area" : "Nearby",
+          price: Number(tier.median_price),
+          pricePerSqft: Math.round(Number(tier.median_price_per_sqm) * 0.092903),
+          date: "Recent",
+          source: "DLD",
+          type: "sale",
+          note: `${tier.comparable_count} transactions, ${Math.round(Number(tier.confidence_score))}% confidence`,
+        })
+      }
+    }
+
+    // Also fetch latest individual transactions if available
+    try {
+      const { data: txns } = await supabase
+        .from("dld_transactions")
+        .select("instance_date, actual_worth, area_name_en, building_name_en, procedure_area, rooms_en")
+        .eq("area_name_en", resolvedArea)
+        .eq("property_type_en", dldPropertyType)
+        .eq("trans_group_en", "Sales")
+        .order("instance_date", { ascending: false })
+        .limit(6)
+
+      if (txns && txns.length > 0) {
+        for (const txn of txns) {
+          const areaSqm = Number(txn.procedure_area)
+          const areaSqft = areaSqm > 0 ? Math.round(areaSqm / 0.092903) : 0
+          const price = Number(txn.actual_worth)
+          const psf = areaSqft > 0 ? Math.round(price / areaSqft) : 0
+          comps.push({
+            name: txn.building_name_en || txn.area_name_en || resolvedArea,
+            distance: "Same area",
+            price,
+            pricePerSqft: psf,
+            size: areaSqft > 0 ? `${areaSqft.toLocaleString()} sqft` : undefined,
+            date: txn.instance_date || "Recent",
+            source: "DLD",
+            type: "sale",
+            note: txn.rooms_en ? String(txn.rooms_en) : undefined,
+          })
+        }
+      }
+    } catch {
+      // individual transactions not available, that's fine
+    }
+
+    return comps
+  } catch (err) {
+    console.warn("[evaluate] DLD comparables fetch failed:", err)
+    return []
+  }
+}
+
+/**
+ * Merge AI comparables with DLD comparables, deduplicating by name.
+ */
+function mergeComparables(
+  aiComps: EvaluationResult["analysis"]["comparables"],
+  dldComps: ComparableTransaction[],
+): ComparableTransaction[] {
+  const merged: ComparableTransaction[] = []
+  const seen = new Set<string>()
+
+  // DLD comps first (higher trust)
+  for (const comp of dldComps) {
+    const key = `${comp.name}-${comp.price}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push(comp)
+    }
+  }
+
+  // Then AI comps
+  for (const comp of aiComps) {
+    const key = `${comp.name}-${comp.price}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push({
+        name: comp.name,
+        distance: comp.distance,
+        price: comp.price,
+        pricePerSqft: comp.pricePerSqft,
+        size: comp.size,
+        date: comp.closingDate,
+        source: "AI",
+        type: "sale",
+        note: comp.note,
+      })
+    }
+  }
+
+  return merged.slice(0, 10) // cap at 10
+}
+
+/**
+ * Builds all enhanced PDF data from the evaluation result.
+ */
+async function buildEnhancedPdfData(
+  property: PropertyData,
+  marketContext: MarketContext,
+  evaluation: EvaluationResult,
+): Promise<EnhancedPdfData> {
+  const analysis = evaluation.analysis
+  const rb = analysis.financialAnalysis.returnBridge
+  const growth = analysis.growth
+
+  const purchasePrice = analysis.pricing.askingPrice || property.price
+  const annualRent = Math.round(analysis.pricing.rentPotential || analysis.pricing.rentCurrent || purchasePrice * (marketContext.areaAverageYield / 100))
+  const mortgageAmount = rb?.mortgageAmount ?? Math.round(purchasePrice * 0.7)
+  const mortgageRate = rb?.annualInterestRatePct ?? 3.5
+  const equityInvested = rb?.equityInvested ?? Math.round(purchasePrice * 0.36) // ~30% equity + fees
+  const appreciationPct = growth?.annualGrowthBase ?? marketContext.historicalAppreciation
+  const holdPeriod = 5
+
+  // 1. Operating expenses
+  const opex = buildOperatingExpenses({
+    purchasePrice,
+    annualRent,
+    sizeSqft: property.size ?? null,
+    serviceChargePerSqft: property.serviceCharge ?? null,
+  })
+
+  // 2. Cash flow table (uses net expenses)
+  const cashFlowTable = buildCashFlowTable({
+    purchasePrice,
+    mortgageAmount,
+    mortgageRate,
+    mortgageTerm: 25,
+    annualRent,
+    annualExpenses: opex.totalAnnual,
+    appreciationPct,
+    holdPeriod,
+    equityInvested,
+  })
+
+  // 3. Scenarios
+  const scenarios = buildScenarios({
+    purchasePrice,
+    annualRent,
+    appreciationPct,
+    holdPeriod,
+    equityInvested,
+    mortgageAmount,
+    mortgageRate,
+    totalExpenses: opex.totalAnnual,
+  })
+
+  // 4. Enhanced comparables (merge DLD + AI)
+  const dldComps = await fetchDLDComparables({
+    area: property.area,
+    propertyType: property.propertyType,
+    bedrooms: property.bedrooms,
+    sizeSqft: property.size,
+    buildingName: property.buildingName || null,
+  })
+  const comparables = mergeComparables(analysis.comparables, dldComps)
+
+  return { cashFlowTable, operatingExpenses: opex, scenarios, comparables }
+}
+
 function createFallbackEvaluation(
   property: PropertyData,
   marketContext: MarketContext,
@@ -979,6 +1383,14 @@ export async function POST(req: Request) {
 
     // Evaluate with AI (or fallback)
     const evaluation = await evaluateWithAI(property, marketContext)
+
+    // Build enhanced PDF data (cash flow, expenses, scenarios, DLD comps)
+    let enhancedPdfData: EnhancedPdfData | null = null
+    try {
+      enhancedPdfData = await buildEnhancedPdfData(property as PropertyData, marketContext, evaluation)
+    } catch (err) {
+      console.warn("[evaluate] Enhanced PDF data build failed (non-fatal):", err)
+    }
     
     // Log the AI evaluation for usage tracking
     try {
@@ -1002,6 +1414,7 @@ export async function POST(req: Request) {
       success: true,
       evaluation,
       marketContext,
+      enhancedPdfData,
     })
   } catch (error) {
     console.error("Property evaluation error:", error)

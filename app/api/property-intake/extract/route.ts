@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { createClient } from "@supabase/supabase-js"
 
 /**
  * Extract property data from Bayut/PropertyFinder URLs
@@ -631,6 +632,150 @@ function extractImagesFromHtml(html: string): string[] {
 
 const SUPPORTED_PORTALS = ["Bayut", "PropertyFinder", "Dubizzle"]
 
+// ─── Image mirroring to Supabase Storage ─────────────────────────────
+const STORAGE_BUCKET = "listings"
+const IMAGE_MIRROR_TIMEOUT = 8_000
+
+/**
+ * Download a single image and upload it to Supabase Storage.
+ * Returns the public URL on success, or null on failure.
+ */
+async function mirrorImageToStorage(
+  imageUrl: string,
+  storagePath: string,
+): Promise<string | null> {
+  // Skip if already a Supabase Storage URL or data URI
+  if (imageUrl.startsWith("data:")) return imageUrl
+  if (imageUrl.includes("supabase.co/storage")) return imageUrl
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
+    console.warn("[mirror-images] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+    return null
+  }
+
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), IMAGE_MIRROR_TIMEOUT)
+
+    // Determine referer from image URL for CDN access
+    let referer: string
+    try {
+      referer = new URL(imageUrl).origin
+    } catch {
+      referer = "https://www.bayut.com"
+    }
+
+    const res = await fetch(imageUrl, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "image/jpeg,image/png,image/gif,image/*,*/*;q=0.8",
+        Referer: referer,
+      },
+    })
+    clearTimeout(timer)
+
+    if (!res.ok) {
+      console.warn(`[mirror-images] HTTP ${res.status} for ${imageUrl.slice(0, 80)}`)
+      return null
+    }
+
+    const buffer = await res.arrayBuffer()
+    if (buffer.byteLength < 100) return null // too small to be a real image
+
+    // Determine content type
+    let contentType = res.headers.get("content-type")?.split(";")[0]?.trim()
+    if (!contentType || contentType === "application/octet-stream") {
+      if (imageUrl.includes(".png")) contentType = "image/png"
+      else if (imageUrl.includes(".gif")) contentType = "image/gif"
+      else contentType = "image/jpeg"
+    }
+
+    // Determine extension
+    const ext = contentType === "image/png" ? ".png" : contentType === "image/gif" ? ".gif" : ".jpg"
+    const finalPath = storagePath.endsWith(ext) ? storagePath : `${storagePath}${ext}`
+
+    const supabase = createClient(supabaseUrl, serviceKey)
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(finalPath, Buffer.from(buffer), {
+        contentType,
+        upsert: true,
+      })
+
+    if (error) {
+      console.warn(`[mirror-images] Upload failed for ${finalPath}: ${error.message}`)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(finalPath)
+    console.log(`[mirror-images] OK: ${finalPath} (${(buffer.byteLength / 1024).toFixed(0)} KB)`)
+    return urlData.publicUrl
+  } catch (err) {
+    console.warn(`[mirror-images] Failed: ${imageUrl.slice(0, 80)}: ${err}`)
+    return null
+  }
+}
+
+/**
+ * Mirror all images from a property to Supabase Storage.
+ * Returns a new ExtractedProperty with updated image URLs.
+ * Original URLs are kept as fallback if mirroring fails.
+ */
+async function mirrorPropertyImages(
+  property: ExtractedProperty,
+): Promise<ExtractedProperty> {
+  const listingId = property.listingId || `unknown-${Date.now()}`
+  const basePath = `intake/${listingId}`
+
+  // Mirror all images in parallel
+  const imagePromises = property.images.map(async (url, idx) => {
+    const path = `${basePath}/img-${String(idx).padStart(2, "0")}`
+    const mirroredUrl = await mirrorImageToStorage(url, path)
+    return mirroredUrl ?? url // keep original as fallback
+  })
+
+  // Mirror cover image
+  const coverPromise = property.coverImageUrl
+    ? mirrorImageToStorage(property.coverImageUrl, `${basePath}/cover`).then(
+        (r) => r ?? property.coverImageUrl,
+      )
+    : Promise.resolve(property.coverImageUrl)
+
+  // Mirror floor plan images
+  const floorPlanPromises = (property.floorPlanImages || []).map(
+    async (url, idx) => {
+      const path = `${basePath}/floorplan-${idx}`
+      const mirroredUrl = await mirrorImageToStorage(url, path)
+      return mirroredUrl ?? url
+    },
+  )
+
+  const [images, coverImageUrl, ...floorPlanResults] = await Promise.all([
+    Promise.all(imagePromises),
+    coverPromise,
+    ...floorPlanPromises,
+  ])
+
+  const floorPlanImages =
+    floorPlanResults.length > 0 ? (floorPlanResults as string[]) : property.floorPlanImages
+
+  console.log(
+    `[mirror-images] Property ${listingId}: ${images.filter((u) => u.includes("supabase")).length}/${images.length} images mirrored`,
+  )
+
+  return {
+    ...property,
+    images,
+    coverImageUrl: coverImageUrl ?? null,
+    floorPlanImages,
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -720,6 +865,17 @@ export async function POST(req: Request) {
     // Ensure listing ID is set
     if (!property.listingId && propertyId) {
       property.listingId = propertyId
+    }
+
+    // Mirror images to Supabase Storage for reliable access
+    // (External CDNs like Bayut S3 often block cross-origin requests)
+    if (property.images.length > 0 || property.coverImageUrl || property.floorPlanImages?.length) {
+      try {
+        property = await mirrorPropertyImages(property)
+      } catch (err) {
+        console.warn("[mirror-images] Image mirroring failed (non-fatal):", err)
+        // Continue with original URLs
+      }
     }
 
     return NextResponse.json({

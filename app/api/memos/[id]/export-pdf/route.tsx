@@ -7,7 +7,15 @@ import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 import { MemoPDFDocument } from "@/components/memos/memo-pdf-document"
 import { IntakeReportPdfDocument } from "@/components/memos/intake-report-pdf-document"
-import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
+import type {
+  IntakeReportPayload,
+  CashFlowTable,
+  CashFlowRow,
+  OperatingExpenses,
+  ScenarioRow,
+  ComparableTransaction,
+} from "@/lib/pdf/intake-report"
+import { prefetchPayloadImages } from "@/lib/pdf/prefetch-images"
 import { getHoldingsByInvestor, type PropertyHolding } from "@/lib/db/holdings"
 
 function formatCurrency(value?: number | null) {
@@ -72,6 +80,131 @@ function buildStaticMapUrl(
 </svg>`
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+/* ------------------------------------------------------------------ */
+/*  Enhanced PDF data helpers (mirrors evaluate route logic)            */
+/* ------------------------------------------------------------------ */
+
+function buildMemoOperatingExpenses(params: {
+  purchasePrice: number
+  annualRent: number
+  sizeSqft: number | null
+  serviceChargePerSqft: number | null
+}): OperatingExpenses {
+  const { purchasePrice, annualRent, sizeSqft, serviceChargePerSqft } = params
+  const scPerSqft = serviceChargePerSqft ?? 18
+  const effectiveSize = sizeSqft ?? Math.round(purchasePrice / 1200)
+  const serviceCharge = Math.round(scPerSqft * effectiveSize)
+  const managementFee = Math.round(annualRent * 0.05)
+  const maintenanceReserve = Math.round(purchasePrice * 0.01)
+  const insurance = Math.round(purchasePrice * 0.001)
+  const totalAnnual = serviceCharge + managementFee + maintenanceReserve + insurance
+  return {
+    serviceCharge, managementFee, maintenanceReserve, insurance, totalAnnual,
+    grossRent: annualRent, netRent: annualRent - totalAnnual,
+    serviceChargePerSqft: scPerSqft,
+    notes: serviceChargePerSqft ? "Service charge from listing data" : "Service charge estimated (~AED 18/sqft)",
+  }
+}
+
+function buildMemoCashFlowTable(params: {
+  purchasePrice: number; mortgageAmount: number; mortgageRate: number;
+  annualRent: number; annualExpenses: number; appreciationPct: number;
+  holdPeriod: number; equityInvested: number;
+}): CashFlowTable {
+  const { purchasePrice, mortgageAmount, mortgageRate, annualRent, annualExpenses, appreciationPct, holdPeriod, equityInvested } = params
+  const monthlyRate = mortgageRate / 100 / 12
+  const totalPayments = 25 * 12
+  const monthlyPayment = mortgageAmount > 0 && monthlyRate > 0
+    ? mortgageAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) / (Math.pow(1 + monthlyRate, totalPayments) - 1)
+    : 0
+  const annualMortgagePayment = Math.round(monthlyPayment * 12)
+  const rows: CashFlowRow[] = []
+  let cumulativeReturn = 0
+  for (let year = 1; year <= holdPeriod; year++) {
+    const grossRent = Math.round(annualRent * Math.pow(1.03, year - 1))
+    const expenses = Math.round(annualExpenses * Math.pow(1.02, year - 1))
+    const netCashFlow = grossRent - expenses - annualMortgagePayment
+    cumulativeReturn += netCashFlow
+    rows.push({ year, grossRent, expenses, mortgagePayment: annualMortgagePayment, netCashFlow, propertyValue: Math.round(purchasePrice * Math.pow(1 + appreciationPct / 100, year)), cumulativeReturn })
+  }
+  const finalValue = rows[rows.length - 1]?.propertyValue ?? purchasePrice
+  const remainingPayments = Math.max(0, totalPayments - holdPeriod * 12)
+  const outstandingLoan = remainingPayments > 0 && monthlyRate > 0
+    ? mortgageAmount * (Math.pow(1 + monthlyRate, totalPayments) - Math.pow(1 + monthlyRate, holdPeriod * 12)) / (Math.pow(1 + monthlyRate, totalPayments) - 1)
+    : 0
+  const exitProceeds = Math.round(finalValue - outstandingLoan)
+  const totalProfit = Math.round(exitProceeds + cumulativeReturn - equityInvested)
+  return { rows, exitProceeds, totalProfit, holdPeriod }
+}
+
+function buildMemoScenarios(params: {
+  purchasePrice: number; annualRent: number; appreciationPct: number;
+  holdPeriod: number; equityInvested: number; mortgageAmount: number;
+  mortgageRate: number; totalExpenses: number;
+}): ScenarioRow[] {
+  const { purchasePrice, annualRent, appreciationPct, holdPeriod, equityInvested, mortgageAmount, mortgageRate, totalExpenses } = params
+  const annualInterest = Math.round(mortgageAmount * (mortgageRate / 100))
+  function run(label: string, rentMul: number, occ: number, growthDelta: number): ScenarioRow {
+    const adjRent = Math.round(annualRent * rentMul * (occ / 100))
+    const adjGrowth = appreciationPct + growthDelta
+    const exitPrice = Math.round(purchasePrice * Math.pow(1 + adjGrowth / 100, holdPeriod))
+    const totalRental = adjRent * holdPeriod
+    const totalExp = totalExpenses * holdPeriod
+    const totalInt = annualInterest * holdPeriod
+    const netSale = exitPrice - mortgageAmount
+    const netProfit = Math.round(netSale + totalRental - totalExp - totalInt - equityInvested)
+    const totalCashIn = netSale + totalRental - totalExp - totalInt
+    const eqMul = equityInvested > 0 ? totalCashIn / equityInvested : 1
+    const fiveYearIrr = holdPeriod > 0 ? Math.round((Math.pow(Math.max(eqMul, 0), 1 / holdPeriod) - 1) * 1000) / 10 : 0
+    return { label, annualRent: adjRent, occupancy: occ, exitPrice, fiveYearIrr, netProfit }
+  }
+  return [run("Upside", 1.10, 95, 2), run("Base", 1.00, 90, 0), run("Downside", 0.90, 80, -2)]
+}
+
+function buildEnhancedFromMemoContent(content: Record<string, any>, listing: any): {
+  cashFlowTable?: CashFlowTable; operatingExpenses?: OperatingExpenses; scenarios?: ScenarioRow[]; comparables?: ComparableTransaction[];
+} {
+  const analysis = content?.analysis
+  if (!analysis) return {}
+
+  const rb = analysis.financialAnalysis?.returnBridge
+  const growth = analysis.growth
+  const pricing = analysis.pricing
+
+  const purchasePrice = Number(pricing?.askingPrice || listing?.price) || 0
+  if (purchasePrice <= 0) return {}
+
+  const annualRent = Math.round(Number(pricing?.rentPotential || pricing?.rentCurrent) || purchasePrice * 0.06)
+  const mortgageAmount = Number(rb?.mortgageAmount) || Math.round(purchasePrice * 0.7)
+  const mortgageRate = Number(rb?.annualInterestRatePct) || 3.5
+  const equityInvested = Number(rb?.equityInvested) || Math.round(purchasePrice * 0.36)
+  const appreciationPct = Number(growth?.annualGrowthBase) || 4
+  const holdPeriod = 5
+  const sizeSqft = typeof listing?.size === "number" ? listing.size : null
+  const scPerSqft = content?.source?.serviceCharge ?? null
+
+  const opex = buildMemoOperatingExpenses({ purchasePrice, annualRent, sizeSqft, serviceChargePerSqft: scPerSqft })
+  const cashFlowTable = buildMemoCashFlowTable({ purchasePrice, mortgageAmount, mortgageRate, annualRent, annualExpenses: opex.totalAnnual, appreciationPct, holdPeriod, equityInvested })
+  const scenarios = buildMemoScenarios({ purchasePrice, annualRent, appreciationPct, holdPeriod, equityInvested, mortgageAmount, mortgageRate, totalExpenses: opex.totalAnnual })
+
+  // Map analysis.comparables to structured ComparableTransaction[]
+  const comparables: ComparableTransaction[] = Array.isArray(analysis.comparables)
+    ? analysis.comparables.map((c: any) => ({
+        name: c.name || "Comparable",
+        distance: c.distance || "",
+        price: Number(c.price) || 0,
+        pricePerSqft: Number(c.pricePerSqft) || 0,
+        size: c.size,
+        date: c.closingDate || "Recent",
+        source: "AI" as const,
+        type: "sale" as const,
+        note: c.note,
+      }))
+    : []
+
+  return { cashFlowTable, operatingExpenses: opex, scenarios, comparables }
 }
 
 function buildIntakePayloadFromMemo(
@@ -295,6 +428,9 @@ function buildIntakePayloadFromMemo(
     },
   ]
 
+  // Build enhanced financial data for the PDF
+  const enhanced = buildEnhancedFromMemoContent(content, listing)
+
   return {
     title: `IC Opportunity Report - ${listing?.title || memo?.title || "Property"}`,
     subtitle: listing?.area || "Dubai, UAE",
@@ -321,6 +457,10 @@ function buildIntakePayloadFromMemo(
       portfolioFit: content.evaluation.factors.portfolioFit,
       riskAlignment: content.evaluation.factors.riskAlignment,
     } : undefined,
+    cashFlowTable: enhanced.cashFlowTable,
+    operatingExpenses: enhanced.operatingExpenses,
+    scenarios: enhanced.scenarios,
+    comparables: enhanced.comparables,
     sections,
   }
 }
@@ -375,8 +515,15 @@ export async function GET(
 
     // Use the premium intake-style PDF whenever structured analysis exists.
     const intakePayload = buildIntakePayloadFromMemo(memo, investor, listing, holdings)
-    const pdfBuffer = intakePayload
-      ? await renderToBuffer(<IntakeReportPdfDocument payload={intakePayload} />)
+
+    // Pre-fetch external images → base64 data URIs so the PDF renderer
+    // doesn't fail on CDN / CORS restrictions.
+    const resolvedPayload = intakePayload
+      ? await prefetchPayloadImages(intakePayload)
+      : null
+
+    const pdfBuffer = resolvedPayload
+      ? await renderToBuffer(<IntakeReportPdfDocument payload={resolvedPayload} />)
       : await renderToBuffer(
           <MemoPDFDocument memo={memo} investor={investor} listing={listing} />
         )

@@ -65,7 +65,7 @@ import {
   saveOffplanMemo,
   resetOffplan,
 } from "@/lib/property-intake-store"
-import type { ExtractedProperty, EvaluationResult } from "@/lib/property-intake-store"
+import type { ExtractedProperty, EvaluationResult, EnhancedPdfData } from "@/lib/property-intake-store"
 
 const currencyFormatter = new Intl.NumberFormat("en-AE", {
   style: "currency",
@@ -164,6 +164,7 @@ function PropertyIntakeContent() {
     property,
     evaluation,
     marketContext,
+    enhancedPdfData,
     notes,
     savedMemoId,
     scoreRevealComplete,
@@ -205,8 +206,8 @@ function PropertyIntakeContent() {
   const analysis = evaluation?.analysis
   const growth = analysis?.growth
   const portalReportPayload = React.useMemo(
-    () => (property && evaluation ? buildPortalIntakeReportPayload(property, evaluation) : undefined),
-    [property, evaluation],
+    () => (property && evaluation ? buildPortalIntakeReportPayload(property, evaluation, enhancedPdfData) : undefined),
+    [property, evaluation, enhancedPdfData],
   )
   const offplanReportPayload = React.useMemo(
     () =>
@@ -588,8 +589,8 @@ function PropertyIntakeContent() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {property.images.length > 0 && (
-                  <div className="relative h-48 overflow-hidden rounded-lg">
+                {property.images.length > 0 ? (
+                  <div className="relative h-48 overflow-hidden rounded-lg bg-muted">
                     <Image
                       src={property.images[0]}
                       alt={property.title}
@@ -597,8 +598,19 @@ function PropertyIntakeContent() {
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 600px"
                       unoptimized
-                      onError={(e) => { e.currentTarget.style.display = "none" }}
+                      onError={(e) => {
+                        // Replace broken image with a placeholder icon
+                        const parent = e.currentTarget.parentElement
+                        if (parent) {
+                          e.currentTarget.style.display = "none"
+                          parent.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'
+                        }
+                      }}
                     />
+                  </div>
+                ) : (
+                  <div className="relative h-48 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1329,7 +1341,7 @@ function StatTile({ label, value, hint }: { label: string; value?: string | numb
   )
 }
 
-function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation: EvaluationResult): IntakeReportPayload {
+function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation: EvaluationResult, enhanced?: EnhancedPdfData | null): IntakeReportPayload {
   const analysis = evaluation.analysis
   const score = `${evaluation.overallScore}/100`
   const recommendation = `${evaluation.recommendation} (${analysis.finalRecommendation.decision})`
@@ -1356,6 +1368,10 @@ function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation:
       property.coordinates,
       `${property.area}${property.subArea ? `, ${property.subArea}` : ""}`,
     ),
+    cashFlowTable: enhanced?.cashFlowTable,
+    operatingExpenses: enhanced?.operatingExpenses,
+    scenarios: enhanced?.scenarios,
+    comparables: enhanced?.comparables,
     sections: [
       {
         title: "Property Snapshot",

@@ -15,7 +15,13 @@ import {
   View,
 } from "@react-pdf/renderer"
 
-import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
+import type {
+  IntakeReportPayload,
+  CashFlowTable,
+  OperatingExpenses,
+  ScenarioRow,
+  ComparableTransaction,
+} from "@/lib/pdf/intake-report"
 
 /* ================================================================== */
 /*  Brand                                                              */
@@ -218,6 +224,46 @@ const s = StyleSheet.create({
   compsRow: { flexDirection: "row", paddingTop: 6, paddingBottom: 6, borderBottomWidth: 0.5, borderBottomColor: C.rule },
   compsRowAlt: { flexDirection: "row", paddingTop: 6, paddingBottom: 6, borderBottomWidth: 0.5, borderBottomColor: C.rule, backgroundColor: C.bg },
   compsCell: { fontSize: 8.5, color: C.body },
+
+  /* --- cash flow table --- */
+  cfTable: { marginBottom: 14, borderTopWidth: 0.5, borderTopColor: C.rule },
+  cfHeaderRow: { flexDirection: "row", paddingTop: 5, paddingBottom: 5, borderBottomWidth: 1, borderBottomColor: C.dark, backgroundColor: C.bg },
+  cfHeaderCell: { fontSize: 6.5, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 0.6, color: C.dark, textAlign: "right", paddingRight: 4 },
+  cfRow: { flexDirection: "row", paddingTop: 4, paddingBottom: 4, borderBottomWidth: 0.5, borderBottomColor: C.rule },
+  cfRowAlt: { flexDirection: "row", paddingTop: 4, paddingBottom: 4, borderBottomWidth: 0.5, borderBottomColor: C.rule, backgroundColor: C.bg },
+  cfRowTotal: { flexDirection: "row", paddingTop: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: Brand.green, backgroundColor: Brand.greenLight },
+  cfCell: { fontSize: 8, color: C.body, textAlign: "right", paddingRight: 4 },
+  cfCellBold: { fontSize: 8, color: C.dark, fontFamily: "Helvetica-Bold", textAlign: "right", paddingRight: 4 },
+  cfCellLabel: { fontSize: 8, color: C.body, textAlign: "left", paddingLeft: 4 },
+
+  /* --- scenario table --- */
+  scenTable: { marginBottom: 14, borderTopWidth: 0.5, borderTopColor: C.rule },
+  scenHeaderRow: { flexDirection: "row", paddingTop: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: C.dark, backgroundColor: C.bg },
+  scenHeaderCell: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 0.8, color: C.dark, textAlign: "right", paddingRight: 6 },
+  scenRow: { flexDirection: "row", paddingTop: 7, paddingBottom: 7, borderBottomWidth: 0.5, borderBottomColor: C.rule },
+  scenRowBase: { flexDirection: "row", paddingTop: 7, paddingBottom: 7, borderBottomWidth: 0.5, borderBottomColor: Brand.green, backgroundColor: Brand.greenLight, paddingLeft: 2, borderLeftWidth: 3, borderLeftColor: Brand.green },
+  scenCell: { fontSize: 8.5, color: C.body, textAlign: "right", paddingRight: 6 },
+  scenCellBold: { fontSize: 8.5, color: C.dark, fontFamily: "Helvetica-Bold", textAlign: "right", paddingRight: 6 },
+  scenCellLabel: { fontSize: 8.5, fontFamily: "Helvetica-Bold", color: C.dark, textAlign: "left", paddingLeft: 6, width: 70 },
+
+  /* --- expense breakdown --- */
+  expenseRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 5, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: C.rule },
+  expenseRowTotal: { flexDirection: "row", justifyContent: "space-between", paddingTop: 6, paddingBottom: 6, borderTopWidth: 1, borderTopColor: C.dark, backgroundColor: Brand.greenLight, paddingLeft: 6, borderLeftWidth: 3, borderLeftColor: Brand.green },
+  expenseLabel: { fontSize: 9, color: C.body },
+  expenseLabelBold: { fontSize: 9, color: C.dark, fontFamily: "Helvetica-Bold" },
+  expenseValue: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.black, textAlign: "right" },
+  expenseNote: { fontSize: 7.5, color: C.light, marginTop: 4, fontStyle: "italic" },
+
+  /* --- enhanced comps table --- */
+  enhCompsTable: { marginBottom: 14, borderTopWidth: 0.5, borderTopColor: C.rule },
+  enhCompsHeaderRow: { flexDirection: "row", paddingTop: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: C.dark, backgroundColor: C.bg },
+  enhCompsHeaderCell: { fontSize: 6.5, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 0.6, color: C.dark },
+  enhCompsRow: { flexDirection: "row", paddingTop: 5, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: C.rule },
+  enhCompsRowAlt: { flexDirection: "row", paddingTop: 5, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: C.rule, backgroundColor: C.bg },
+  enhCompsCell: { fontSize: 8, color: C.body },
+  enhCompsCellBold: { fontSize: 8, color: C.dark, fontFamily: "Helvetica-Bold" },
+  enhCompsSourceBadge: { fontSize: 6, color: C.white, backgroundColor: Brand.green, borderRadius: 2, paddingTop: 1, paddingBottom: 1, paddingLeft: 3, paddingRight: 3, marginLeft: 4 },
+  enhCompsSourceBadgeAI: { fontSize: 6, color: C.dark, backgroundColor: Brand.goldLight, borderRadius: 2, paddingTop: 1, paddingBottom: 1, paddingLeft: 3, paddingRight: 3, marginLeft: 4 },
 
   /* --- timeline execution steps --- */
   timelineWrap: { marginBottom: 14, paddingLeft: 2 },
@@ -512,6 +558,148 @@ function CompsTable({ comps }: { comps: ReturnType<typeof parseComp>[] }) {
   )
 }
 
+/* ================================================================== */
+/*  Enhanced sub-components (Feedback #1-#4)                           */
+/* ================================================================== */
+
+function fmtAED(v: number) {
+  return `AED ${v.toLocaleString("en-AE")}`
+}
+
+function fmtPct(v: number) {
+  return `${v.toFixed(1)}%`
+}
+
+/** Cash-flow year-by-year table (Feedback #1) */
+function CashFlowTableView({ table }: { table: CashFlowTable }) {
+  return (
+    <View style={s.cfTable}>
+      <View style={s.cfHeaderRow}>
+        <Text style={[s.cfHeaderCell, { flex: 0.6, textAlign: "left", paddingLeft: 4 }]}>Year</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1.2 }]}>Gross Rent</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1 }]}>Expenses</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1 }]}>Mortgage</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1 }]}>Net Cash</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1.2 }]}>Property Value</Text>
+        <Text style={[s.cfHeaderCell, { flex: 1 }]}>Cumulative</Text>
+      </View>
+      {table.rows.map((row, i) => (
+        <View key={i} style={i % 2 === 1 ? s.cfRowAlt : s.cfRow}>
+          <Text style={[s.cfCellLabel, { flex: 0.6 }]}>Y{row.year}</Text>
+          <Text style={[s.cfCell, { flex: 1.2 }]}>{fmtAED(row.grossRent)}</Text>
+          <Text style={[s.cfCell, { flex: 1 }]}>{fmtAED(row.expenses)}</Text>
+          <Text style={[s.cfCell, { flex: 1 }]}>{fmtAED(row.mortgagePayment)}</Text>
+          <Text style={[row.netCashFlow >= 0 ? s.cfCell : { ...s.cfCell, color: "#dc2626" }, { flex: 1 }]}>{fmtAED(row.netCashFlow)}</Text>
+          <Text style={[s.cfCell, { flex: 1.2 }]}>{fmtAED(row.propertyValue)}</Text>
+          <Text style={[s.cfCell, { flex: 1 }]}>{fmtAED(row.cumulativeReturn)}</Text>
+        </View>
+      ))}
+      {/* Exit / total row */}
+      <View style={s.cfRowTotal}>
+        <Text style={[s.cfCellBold, { flex: 0.6, textAlign: "left", paddingLeft: 4 }]}>Exit</Text>
+        <Text style={[s.cfCellBold, { flex: 1.2 }]}>—</Text>
+        <Text style={[s.cfCellBold, { flex: 1 }]}>—</Text>
+        <Text style={[s.cfCellBold, { flex: 1 }]}>—</Text>
+        <Text style={[s.cfCellBold, { flex: 1 }]}>{fmtAED(table.exitProceeds)}</Text>
+        <Text style={[s.cfCellBold, { flex: 1.2 }]}>—</Text>
+        <Text style={[s.cfCellBold, { flex: 1 }]}>{fmtAED(table.totalProfit)}</Text>
+      </View>
+    </View>
+  )
+}
+
+/** Operating expenses breakdown (Feedback #2) */
+function OperatingExpensesView({ opex }: { opex: OperatingExpenses }) {
+  const items = [
+    { label: "Service Charge", value: opex.serviceCharge, detail: opex.serviceChargePerSqft ? `AED ${opex.serviceChargePerSqft}/sqft` : undefined },
+    { label: "Property Management (5%)", value: opex.managementFee },
+    { label: "Maintenance Reserve (1%)", value: opex.maintenanceReserve },
+    { label: "Insurance (0.1%)", value: opex.insurance },
+  ]
+  return (
+    <View style={s.kvTable}>
+      {items.map((item, i) => (
+        <View key={i} style={s.expenseRow}>
+          <Text style={s.expenseLabel}>{item.label}{item.detail ? ` (${item.detail})` : ""}</Text>
+          <Text style={s.expenseValue}>{fmtAED(item.value)}</Text>
+        </View>
+      ))}
+      <View style={s.expenseRowTotal}>
+        <Text style={s.expenseLabelBold}>Total Annual Expenses</Text>
+        <Text style={s.expenseValue}>{fmtAED(opex.totalAnnual)}</Text>
+      </View>
+      <View style={s.expenseRow}>
+        <Text style={s.expenseLabelBold}>Gross Rental Income</Text>
+        <Text style={s.expenseValue}>{fmtAED(opex.grossRent)}</Text>
+      </View>
+      <View style={s.expenseRowTotal}>
+        <Text style={s.expenseLabelBold}>Net Rental Income</Text>
+        <Text style={s.expenseValue}>{fmtAED(opex.netRent)}</Text>
+      </View>
+      {opex.notes ? <Text style={s.expenseNote}>{opex.notes}</Text> : null}
+    </View>
+  )
+}
+
+/** Scenario comparison table (Feedback #3) */
+function ScenarioTableView({ scenarios }: { scenarios: ScenarioRow[] }) {
+  return (
+    <View style={s.scenTable}>
+      <View style={s.scenHeaderRow}>
+        <Text style={[s.scenHeaderCell, { flex: 1, textAlign: "left", paddingLeft: 6 }]}>Scenario</Text>
+        <Text style={[s.scenHeaderCell, { flex: 1.2 }]}>Annual Rent</Text>
+        <Text style={[s.scenHeaderCell, { flex: 0.8 }]}>Occupancy</Text>
+        <Text style={[s.scenHeaderCell, { flex: 1.2 }]}>Exit Price</Text>
+        <Text style={[s.scenHeaderCell, { flex: 0.8 }]}>5Y IRR</Text>
+        <Text style={[s.scenHeaderCell, { flex: 1.2 }]}>Net Profit</Text>
+      </View>
+      {scenarios.map((row, i) => {
+        const isBase = row.label === "Base"
+        return (
+          <View key={i} style={isBase ? s.scenRowBase : s.scenRow}>
+            <Text style={[s.scenCellLabel, { flex: 1 }]}>{row.label}</Text>
+            <Text style={[s.scenCell, { flex: 1.2 }]}>{fmtAED(row.annualRent)}</Text>
+            <Text style={[s.scenCell, { flex: 0.8 }]}>{fmtPct(row.occupancy)}</Text>
+            <Text style={[s.scenCell, { flex: 1.2 }]}>{fmtAED(row.exitPrice)}</Text>
+            <Text style={[s.scenCellBold, { flex: 0.8 }]}>{fmtPct(row.fiveYearIrr)}</Text>
+            <Text style={[row.netProfit >= 0 ? s.scenCellBold : { ...s.scenCellBold, color: "#dc2626" }, { flex: 1.2 }]}>{fmtAED(row.netProfit)}</Text>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+/** Enhanced comparables table with source badges (Feedback #4) */
+function EnhancedCompsTableView({ comps }: { comps: ComparableTransaction[] }) {
+  return (
+    <View style={s.enhCompsTable}>
+      <View style={s.enhCompsHeaderRow}>
+        <Text style={[s.enhCompsHeaderCell, { flex: 2, paddingLeft: 4 }]}>Property</Text>
+        <Text style={[s.enhCompsHeaderCell, { flex: 0.8 }]}>Distance</Text>
+        <Text style={[s.enhCompsHeaderCell, { flex: 1 }]}>Price</Text>
+        <Text style={[s.enhCompsHeaderCell, { flex: 0.8 }]}>Per sqft</Text>
+        <Text style={[s.enhCompsHeaderCell, { flex: 0.7 }]}>Date</Text>
+        <Text style={[s.enhCompsHeaderCell, { flex: 0.5 }]}>Source</Text>
+      </View>
+      {comps.map((comp, i) => (
+        <View key={i} style={i % 2 === 1 ? s.enhCompsRowAlt : s.enhCompsRow}>
+          <Text style={[s.enhCompsCellBold, { flex: 2, paddingLeft: 4 }]}>{comp.name}</Text>
+          <Text style={[s.enhCompsCell, { flex: 0.8 }]}>{comp.distance}</Text>
+          <Text style={[s.enhCompsCell, { flex: 1 }]}>{fmtAED(comp.price)}</Text>
+          <Text style={[s.enhCompsCell, { flex: 0.8 }]}>{comp.pricePerSqft > 0 ? fmtAED(comp.pricePerSqft) : "—"}</Text>
+          <Text style={[s.enhCompsCell, { flex: 0.7 }]}>{comp.date}</Text>
+          <View style={{ flex: 0.5, flexDirection: "row", alignItems: "center" }}>
+            <Text style={comp.source === "DLD" ? s.enhCompsSourceBadge : s.enhCompsSourceBadgeAI}>
+              {comp.source || "AI"}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 /** Timeline step */
 function TimelineStep({ num, text, isLast }: { num: number; text: string; isLast: boolean }) {
   return (
@@ -546,7 +734,16 @@ export function IntakeReportPdfDocument({ payload }: Props) {
   const floorPlan = payload.floorPlanImageUrls?.[0]
   const { company, realtor, investor } = getCoverInfo(payload)
   const snap = getPropertySnapshot(payload)
-  const totalPages = "9"
+
+  // Enhanced structured data (may be undefined for older memos)
+  const hasCashFlow = Boolean(payload.cashFlowTable?.rows?.length)
+  const hasOpex = Boolean(payload.operatingExpenses)
+  const hasScenarios = Boolean(payload.scenarios?.length)
+  const hasEnhancedComps = Boolean(payload.comparables?.length)
+
+  // Page count: base 9 + 1 extra if we have enhanced financial data
+  const hasEnhancedPage = hasCashFlow || hasScenarios
+  const totalPages = hasEnhancedPage ? "10" : "9"
 
   const execSec = findSection(payload, ["executive", "summary", "thesis", "project summary"]) || payload.sections[0]
   const propSec = findSection(payload, ["property snapshot", "project snapshot"])
@@ -598,17 +795,20 @@ export function IntakeReportPdfDocument({ payload }: Props) {
   const parsedComps = cmpBullets.map(parseComp)
   const hasStructuredComps = parsedComps.some((c) => c.price !== "")
 
-  // ToC entries
+  // ToC entries — dynamic based on whether enhanced financial page exists
   const tocEntries = [
     { num: "01", label: "Cover", page: "01" },
     { num: "02", label: "Table of Contents", page: "02" },
     { num: "03", label: "Executive Summary", page: "03" },
     { num: "04", label: "Property Details", page: "04" },
     { num: "05", label: "Location & Zone Analysis", page: "05" },
-    { num: "06", label: "Financial Profile", page: "06" },
+    { num: "06", label: "Financial Profile & Expenses", page: "06" },
     { num: "07", label: "Capital Structure & ROI", page: "07" },
-    { num: "08", label: "Growth & Comparables", page: "08" },
-    { num: "09", label: "Risk, Execution & Closing", page: "09" },
+    ...(hasEnhancedPage
+      ? [{ num: "08", label: "Cash Flow & Scenarios", page: "08" }]
+      : []),
+    { num: hasEnhancedPage ? "09" : "08", label: "Growth & Comparables", page: hasEnhancedPage ? "09" : "08" },
+    { num: hasEnhancedPage ? "10" : "09", label: "Risk, Execution & Closing", page: hasEnhancedPage ? "10" : "09" },
   ]
 
   return (
@@ -939,6 +1139,16 @@ export function IntakeReportPdfDocument({ payload }: Props) {
         <Text style={s.body}>The following return metrics consolidate acquisition pricing, income assumptions, and expected performance parameters under the current underwriting base case.</Text>
         {finFacts.length > 0 ? <KVTable items={finFacts} highlight /> : <Text style={s.bodySmall}>Detailed financial breakdown pending final data.</Text>}
 
+        {/* Operating Expenses Breakdown (Feedback #2) */}
+        {hasOpex ? (
+          <View wrap={false}>
+            <View style={s.accentBarLight} />
+            <Text style={s.h3}>Operating Expenses</Text>
+            <Text style={s.bodySmall}>Annual expenses deducted from gross rental income to arrive at net income.</Text>
+            <OperatingExpensesView opex={payload.operatingExpenses!} />
+          </View>
+        ) : null}
+
         <PageFooter pageNum="06" totalPages={totalPages} />
       </Page>
 
@@ -981,10 +1191,45 @@ export function IntakeReportPdfDocument({ payload }: Props) {
       </Page>
 
       {/* ============================================================ */}
-      {/*  PAGE 8 — GROWTH & COMPARABLES                                */}
+      {/*  PAGE 8 (conditional) — CASH FLOW & SCENARIOS                  */}
+      {/* ============================================================ */}
+      {hasEnhancedPage ? (
+        <Page size="A4" style={s.page}>
+          <Header title="Cash Flow & Scenarios" page="08" />
+          <Text style={s.h1}>Cash Flow Projection</Text>
+          <View style={s.accentBar} />
+
+          {/* Year-by-year cash flow table (Feedback #1) */}
+          {hasCashFlow ? (
+            <>
+              <Text style={s.body}>
+                Year-by-year breakdown showing gross rental income, operating expenses, mortgage payments, and net cash flow.
+                The exit row reflects net sale proceeds after mortgage repayment.
+              </Text>
+              <CashFlowTableView table={payload.cashFlowTable!} />
+            </>
+          ) : null}
+
+          {/* Scenario analysis (Feedback #3) */}
+          {hasScenarios ? (
+            <View wrap={false}>
+              <Text style={s.h2}>Scenario Analysis</Text>
+              <Text style={s.body}>
+                Three scenarios varying rent, occupancy, and exit price. Purchase costs and mortgage terms remain constant across all cases.
+              </Text>
+              <ScenarioTableView scenarios={payload.scenarios!} />
+            </View>
+          ) : null}
+
+          <PageFooter pageNum="08" totalPages={totalPages} />
+        </Page>
+      ) : null}
+
+      {/* ============================================================ */}
+      {/*  GROWTH & COMPARABLES                                          */}
       {/* ============================================================ */}
       <Page size="A4" style={s.page}>
-        <Header title="Growth & Comparables" page="08" />
+        <Header title="Growth & Comparables" page={hasEnhancedPage ? "09" : "08"} />
         <Text style={s.h1}>Future Value Outlook</Text>
         <View style={s.accentBar} />
         <Text style={s.body}>{growthBody || "Projected value trajectory reflects neighborhood evolution, expected demand inflow, and sensitivity considerations around supply timing."}</Text>
@@ -1006,7 +1251,10 @@ export function IntakeReportPdfDocument({ payload }: Props) {
           </View>
           <View style={s.colR}>
             <Text style={s.label}>Comparable Transactions</Text>
-            {hasStructuredComps ? (
+            {/* Use enhanced comps if available (Feedback #4), else fall back to old format */}
+            {hasEnhancedComps ? (
+              <EnhancedCompsTableView comps={payload.comparables!.filter((c) => c.type === "sale").slice(0, 6)} />
+            ) : hasStructuredComps ? (
               <CompsTable comps={parsedComps} />
             ) : cmpBullets.length > 0 ? (
               cmpBullets.map((b, i) => <Bullet key={i} text={b} />)
@@ -1016,14 +1264,22 @@ export function IntakeReportPdfDocument({ payload }: Props) {
           </View>
         </View>
 
-        <PageFooter pageNum="08" totalPages={totalPages} />
+        {/* Full-width enhanced comps if we have many (Feedback #4) */}
+        {hasEnhancedComps && (payload.comparables?.length ?? 0) > 3 ? (
+          <View wrap={false} style={{ marginTop: 14 }}>
+            <Text style={s.h3}>All Comparable Transactions ({payload.comparables!.length})</Text>
+            <EnhancedCompsTableView comps={payload.comparables!} />
+          </View>
+        ) : null}
+
+        <PageFooter pageNum={hasEnhancedPage ? "09" : "08"} totalPages={totalPages} />
       </Page>
 
       {/* ============================================================ */}
-      {/*  PAGE 9 — RISK, STRATEGY & CLOSING                           */}
+      {/*  FINAL PAGE — RISK, STRATEGY & CLOSING                       */}
       {/* ============================================================ */}
       <Page size="A4" style={s.page}>
-        <Header title="Risk & Execution" page="09" />
+        <Header title="Risk & Execution" page={hasEnhancedPage ? "10" : "09"} />
         <Text style={s.h1}>Risk Assessment & Execution</Text>
         <View style={s.accentBar} />
 
@@ -1086,7 +1342,7 @@ export function IntakeReportPdfDocument({ payload }: Props) {
           </Text>
         </View>
 
-        <PageFooter pageNum="09" totalPages={totalPages} />
+        <PageFooter pageNum={hasEnhancedPage ? "10" : "09"} totalPages={totalPages} />
       </Page>
     </Document>
   )
