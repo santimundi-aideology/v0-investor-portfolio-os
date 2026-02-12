@@ -7,7 +7,6 @@ import {
   getOpportunitiesByInvestor,
   validateOpportunityState,
 } from "@/lib/db/opportunities"
-import { isDemoMode } from "@/lib/demo-mode"
 
 const FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1560184897-ae75f418493e?w=800&h=600&fit=crop",
@@ -160,7 +159,7 @@ export async function GET(req: Request) {
       } | null = null
 
       if (listing) {
-        const useFallback = isDemoMode() || process.env.NODE_ENV !== "production"
+        const useFallback = true // Always provide fallback when no real image exists
         const realImage = extractImageUrl(listing)
         const imageUrl = realImage ?? (useFallback ? pickFallbackImage(opp.listingId) : null)
         property = {

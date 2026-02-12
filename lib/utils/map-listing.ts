@@ -1,5 +1,4 @@
 import type { Property } from "@/lib/types"
-import { isDemoMode } from "@/lib/demo-mode"
 
 const DEMO_PROPERTY_IMAGES: string[] = [
   // Curated Unsplash images (allowed by next.config remotePatterns)
@@ -28,12 +27,10 @@ export function mapListingToProperty(listing: Record<string, unknown>): Property
     (listing.image_url as string | null | undefined) ??
     undefined
 
-  // In demo/dev, show fictional images when no image is provided (listings table has no image_url column).
-  // This keeps the UI realistic without relying on real listing media.
-  const shouldUseFictionalImages = isDemoMode() || process.env.NODE_ENV !== "production"
-  const demoFallback = shouldUseFictionalImages
-    ? pickDemoImage(((listing.id as string) ?? "demo") + "")
-    : undefined
+  // Always provide a fallback image when no explicit image exists in the DB.
+  // This ensures properties look good in all environments (dev, preview, production).
+  // Once listings have real media, the explicit URL takes priority automatically.
+  const fallbackImage = pickDemoImage(((listing.id as string) ?? "default") + "")
 
   return {
     id: (listing.id as string) ?? "",
@@ -53,7 +50,7 @@ export function mapListingToProperty(listing: Record<string, unknown>): Property
     listingType: listing.listingType as Property["listingType"] | undefined,
     roi: listing.roi as number | undefined,
     trustScore: listing.trustScore as number | undefined,
-    imageUrl: explicitImageUrl ?? demoFallback,
+    imageUrl: explicitImageUrl ?? fallbackImage,
     images: listing.images as Property["images"] | undefined,
     description: listing.description as string | undefined,
     features: listing.features as string[] | undefined,

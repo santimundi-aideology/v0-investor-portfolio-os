@@ -65,8 +65,8 @@ export async function GET(req: Request) {
       .select("id, title, area, readiness, status, attachments")
       .eq("tenant_id", ctx.tenantId)
 
-    const shouldUseFictionalImages =
-      process.env.NEXT_PUBLIC_DEMO_MODE === "true" || process.env.NODE_ENV !== "production"
+    // Always provide fallback images when no real media exists in the DB
+    const shouldUseFallbackImages = true
 
     // Count by readiness status
     const readinessBuckets: Record<string, number> = {}
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
         area: p.area || "",
         imageUrl:
           extractImageUrl(p.attachments) ??
-          (shouldUseFictionalImages ? pickDemoImage(p.id) : null),
+          (shouldUseFallbackImages ? pickDemoImage(p.id) : null),
       })) || []
 
     // Featured properties (available, ready for memo)
@@ -98,7 +98,7 @@ export async function GET(req: Request) {
         area: p.area || "",
         imageUrl:
           extractImageUrl(p.attachments) ??
-          (shouldUseFictionalImages ? pickDemoImage(p.id) : null),
+          (shouldUseFallbackImages ? pickDemoImage(p.id) : null),
         price: 0, // Would need to join with pricing data
       })) || []
 
