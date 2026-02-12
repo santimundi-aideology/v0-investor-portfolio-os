@@ -2,10 +2,20 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Download, Edit, Send, FileText, ChevronDown } from "lucide-react"
+import { Download, Edit, Send, FileText, ChevronDown, Trash2, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +44,8 @@ export function MemoActions({ memo, property }: MemoActionsProps) {
   const router = useRouter()
   const [downloading, setDownloading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const handleEdit = () => {
     const params = new URLSearchParams({
@@ -185,6 +197,26 @@ export function MemoActions({ memo, property }: MemoActionsProps) {
     }
   }
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/memos/${memo.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? "Failed to delete memo")
+      }
+      toast.success("IC memo deleted")
+      setDeleteOpen(false)
+      router.push("/memos")
+    } catch (err) {
+      toast.error("Could not delete memo", {
+        description: (err as Error)?.message ?? "Please try again.",
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const handleSend = async () => {
     setSending(true)
     const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
@@ -249,6 +281,42 @@ export function MemoActions({ memo, property }: MemoActionsProps) {
           })
         }}
       />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" disabled={downloading || sending} aria-label="More actions">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete memo
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete IC memo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The memo and its versions will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-500 text-white shadow-sm hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500/50"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

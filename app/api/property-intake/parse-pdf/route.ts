@@ -175,15 +175,19 @@ export async function POST(req: NextRequest) {
     
     console.log(`Analyzing ${files.length} PDF(s) with Claude Opus...`)
     
-    // Use streaming to avoid SDK timeout for long-running Opus requests
-    const stream = anthropic.messages.stream({
-      model: CLAUDE_MODEL,
-      max_tokens: 16000,
-      system: EXTRACTION_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Please analyze the following text extracted from off-plan property brochure(s) and availability sheet(s) from Dubai developers. Extract all project details, unit information, and payment plan data.
+    // Call Claude with retry on transient socket/network errors
+    let textContent: string | null = null
+    const MAX_RETRIES = 2
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const stream = anthropic.messages.stream({
+          model: CLAUDE_MODEL,
+          max_tokens: 16000,
+          system: EXTRACTION_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: `Please analyze the following text extracted from off-plan property brochure(s) and availability sheet(s) from Dubai developers. Extract all project details, unit information, and payment plan data.
 
 Files provided: ${files.map(f => f.name).join(", ")}
 
@@ -194,17 +198,31 @@ ${truncatedText}
 --- END OF TEXT ---
 
 Extract all data and return as JSON.`,
-        },
-      ],
-    })
+            },
+          ],
+        })
 
-    const response = await stream.finalMessage()
-    
-    // Extract text content from response
-    const textBlock = response.content.find(block => block.type === "text")
-    const textContent = textBlock && textBlock.type === "text" ? textBlock.text : null
+        const response = await stream.finalMessage()
+        
+        const textBlock = response.content.find(block => block.type === "text")
+        textContent = textBlock && textBlock.type === "text" ? textBlock.text : null
+        if (!textContent) {
+          throw new Error("No response from Claude")
+        }
+        break // success
+      } catch (err: any) {
+        const isTransient = /terminated|socket|ECONNRESET|ETIMEDOUT/i.test(String(err?.message || err))
+        if (isTransient && attempt < MAX_RETRIES) {
+          console.warn(`[parse-pdf] Attempt ${attempt} failed with transient error, retrying in 3s...`, err?.message)
+          await new Promise((r) => setTimeout(r, 3000))
+          continue
+        }
+        throw err
+      }
+    }
+
     if (!textContent) {
-      throw new Error("No response from Claude")
+      throw new Error("No response from Claude after retries")
     }
     
     // Parse JSON from response

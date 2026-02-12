@@ -128,6 +128,23 @@ export async function createMemo(input: {
   })))
 }
 
+export async function deleteMemo(id: string): Promise<void> {
+  const supabase = getSupabaseAdminClient()
+
+  // Break optional links first for tables that reference memos without
+  // ON DELETE behavior. investor_opportunities.memo_id is nullable and should
+  // be cleared when a memo is deleted.
+  const { error: detachError } = await supabase
+    .from("investor_opportunities")
+    .update({ memo_id: null, updated_at: new Date().toISOString() })
+    .eq("memo_id", id)
+  // Some environments may not have this table yet; ignore that specific case.
+  if (detachError && detachError.code !== "42P01") throw detachError
+
+  const { error } = await supabase.from("memos").delete().eq("id", id)
+  if (error) throw error
+}
+
 export async function saveMemo(updated: MemoRecord): Promise<void> {
   const supabase = getSupabaseAdminClient()
   const { error } = await supabase

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
-import { getMemo, saveMemo } from "@/lib/db/memo-ops"
+import { getMemo, saveMemo, deleteMemo } from "@/lib/db/memo-ops"
 import { getInvestorById } from "@/lib/db/investors"
 import { editMemoContent, transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
-import { AccessError, assertMemoAccess, assertTenantScope } from "@/lib/security/rbac"
+import { AccessError, assertMemoAccess, assertTenantScope, hasPermission } from "@/lib/security/rbac"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -84,6 +84,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     )
 
     return NextResponse.json(updated)
+  } catch (err) {
+    return handleError(err)
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const ctx = await requireAuthContext(req)
+    if (!hasPermission(ctx, "delete", "memos")) {
+      throw new AccessError("You do not have permission to delete memos")
+    }
+
+    const memo = await getMemo((await params).id)
+    if (!memo) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    if (ctx.role === "investor") throw new AccessError("Investors cannot delete memos")
+
+    if (memo.investorId) {
+      const investor = await getInvestorById(memo.investorId)
+      if (!investor) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      assertMemoAccess({ tenantId: memo.tenantId, investorId: memo.investorId }, ctx, investor)
+    } else {
+      assertTenantScope(memo.tenantId, ctx)
+    }
+
+    await deleteMemo(memo.id)
+
+    const write = createAuditEventWriter()
+    await write(
+      AuditEvents.memoDeleted({
+        tenantId: memo.tenantId,
+        actorId: ctx.userId,
+        role: ctx.role,
+        memoId: memo.id,
+        investorId: memo.investorId ?? undefined,
+      }),
+    )
+
+    return new NextResponse(null, { status: 204 })
   } catch (err) {
     return handleError(err)
   }

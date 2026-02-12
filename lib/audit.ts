@@ -181,6 +181,15 @@ export const AuditEvents = {
     objectId: ctx.memoId,
     metadata: { investorId: ctx.investorId, version: ctx.version },
   }),
+  memoDeleted: (ctx: { tenantId: string; actorId: string; role: PlatformRole; memoId: string; investorId?: string }): AuditEvent => ({
+    tenantId: ctx.tenantId,
+    actorId: ctx.actorId,
+    actorRole: ctx.role,
+    eventType: "memo.deleted",
+    objectType: "memo",
+    objectId: ctx.memoId,
+    metadata: ctx.investorId ? { investorId: ctx.investorId } : undefined,
+  }),
   memoOpened: (ctx: { tenantId: string; actorId: string; role: PlatformRole; memoId: string; investorId: string }): AuditEvent => ({
     tenantId: ctx.tenantId,
     actorId: ctx.actorId,

@@ -54,12 +54,19 @@ export async function GET(req: Request) {
     if (recipientUserId) q = q.eq("recipient_user_id", recipientUserId)
 
     const { data, error } = await q
-    if (error) throw error
+    if (error) {
+      // Table may not exist yet — return empty instead of 500
+      if (error.code === "42P01" || error.message?.includes("does not exist")) {
+        return NextResponse.json({ ok: true, tenantId, notifications: [] }, { status: 200 })
+      }
+      throw error
+    }
 
     return NextResponse.json({ ok: true, tenantId, notifications: data ?? [] }, { status: 200 })
   } catch (e) {
     const error = e as Error
-    return NextResponse.json({ ok: false, error: error?.message ?? String(e) }, { status: 500 })
+    // Return empty notifications on any error to prevent SWR retry storms
+    return NextResponse.json({ ok: true, tenantId: null, notifications: [], _error: error?.message ?? String(e) }, { status: 200 })
   }
 }
 

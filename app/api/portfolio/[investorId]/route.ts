@@ -23,139 +23,113 @@ export async function GET(
     // Fetch holdings from DB
     const holdings = await getHoldingsByInvestor(investorId)
 
-    // Enrich each holding with DLD market data
-    const enrichedHoldings = await Promise.all(
-      holdings.map(async (holding) => {
-        // Try to get listing details from DB for area/type info
-        let property: { title?: string; area?: string; type?: string; imageUrl?: string; size?: number; bedrooms?: number; bathrooms?: number } | null = null
-        try {
-          const { data: listingData } = await supabase
-            .from("listings")
-            .select("title, area, type, size, bedrooms, bathrooms, attachments")
-            .eq("id", holding.listingId)
-            .maybeSingle()
-          if (listingData) {
-            const attachments = listingData.attachments as Array<{ type?: string; url?: string }> | null
-            const imageUrl = attachments?.find((a) => a.type?.startsWith("image"))?.url
-            
-            property = {
-              ...listingData,
-              imageUrl
-            }
-          }
-        } catch {
-          // Listing may not exist
+    // ── Batch-fetch all listings in one query ──────────────────────
+    const listingIds = [...new Set(holdings.map((h) => h.listingId).filter(Boolean))]
+    const listingMap = new Map<string, Record<string, unknown>>()
+    if (listingIds.length > 0) {
+      const { data: listingsData } = await supabase
+        .from("listings")
+        .select("id, title, area, type, size, bedrooms, bathrooms, attachments")
+        .in("id", listingIds)
+      for (const l of listingsData ?? []) {
+        listingMap.set(l.id as string, l as Record<string, unknown>)
+      }
+    }
+
+    // ── Batch-fetch DLD area stats for all unique areas ──────────
+    const areas = [...new Set(
+      holdings.map((h) => {
+        const listing = listingMap.get(h.listingId)
+        return (listing?.area as string) || null
+      }).filter((a): a is string => !!a)
+    )]
+
+    const areaStatsMap = new Map<string, number>()
+    const areaTrendsMap = new Map<string, { month: string; avgPrice: number; volume: number }[]>()
+
+    if (areas.length > 0) {
+      const [{ data: statsRows }, { data: trendRows }] = await Promise.all([
+        supabase.from("dld_area_stats").select("area_name_en, transaction_count").in("area_name_en", areas),
+        supabase.from("dld_monthly_trends").select("area_name_en, month, avg_price, total_volume").in("area_name_en", areas).order("month", { ascending: false }).limit(areas.length * 12),
+      ])
+      for (const s of statsRows ?? []) {
+        areaStatsMap.set(s.area_name_en as string, Number(s.transaction_count))
+      }
+      for (const t of trendRows ?? []) {
+        const areaName = t.area_name_en as string
+        const existing = areaTrendsMap.get(areaName) ?? []
+        if (existing.length < 12) {
+          existing.push({ month: t.month as string, avgPrice: Number(t.avg_price), volume: Number(t.total_volume) })
         }
+        areaTrendsMap.set(areaName, existing)
+      }
+      // Reverse each area's trends to ascending order
+      for (const [k, v] of areaTrendsMap) areaTrendsMap.set(k, v.reverse())
+    }
 
-        // Get area for DLD comparison
-        const area = property?.area || null
-        const propertyType = property?.type || null
-        const sizeSqm = property?.size ? Number(property.size) : null
-
-        let marketData: {
-          dldMedianPrice: number | null
-          dldMedianPsm: number | null
-          priceVsMarketPct: number | null
-          comparableCount: number
-          areaTransactionCount: number
-          monthlyTrends: { month: string; avgPrice: number; volume: number }[]
-          marketYield: number | null
-        } = {
-          dldMedianPrice: null,
-          dldMedianPsm: null,
-          priceVsMarketPct: null,
-          comparableCount: 0,
-          areaTransactionCount: 0,
-          monthlyTrends: [],
-          marketYield: null,
+    // ── Build enriched holdings (no per-holding DB calls) ────────
+    const enrichedHoldings = holdings.map((holding) => {
+      const listingData = listingMap.get(holding.listingId) ?? null
+      let property: { title?: string; area?: string; type?: string; imageUrl?: string; size?: number; bedrooms?: number; bathrooms?: number } | null = null
+      if (listingData) {
+        const attachments = listingData.attachments as Array<{ type?: string; url?: string }> | null
+        const imageUrl = attachments?.find((a) => a.type?.startsWith("image"))?.url
+        property = {
+          title: listingData.title as string,
+          area: listingData.area as string,
+          type: listingData.type as string,
+          size: listingData.size as number,
+          bedrooms: listingData.bedrooms as number,
+          bathrooms: listingData.bathrooms as number,
+          imageUrl,
         }
+      }
 
-        if (area) {
-          try {
-            // Get DLD comparables for this holding
-            const { data: compData } = await supabase.rpc("compare_listing_to_dld", {
-              p_area_name: area,
-              p_property_type: propertyType,
-              p_size_sqm: sizeSqm,
-              p_asking_price: holding.currentValue,
-            })
+      const area = property?.area || null
+      const marketData = {
+        dldMedianPrice: null as number | null,
+        dldMedianPsm: null as number | null,
+        priceVsMarketPct: null as number | null,
+        comparableCount: 0,
+        areaTransactionCount: area ? (areaStatsMap.get(area) ?? 0) : 0,
+        monthlyTrends: area ? (areaTrendsMap.get(area) ?? []) : [],
+        marketYield: null as number | null,
+      }
 
-            if (compData && compData.length > 0) {
-              const comp = compData[0]
-              marketData.dldMedianPrice = comp.dld_median_price
-              marketData.dldMedianPsm = comp.dld_median_psm
-              marketData.priceVsMarketPct = comp.price_discount_pct ? -comp.price_discount_pct : null
-              marketData.comparableCount = comp.comparable_count
-            }
+      const appreciationPct =
+        holding.purchasePrice > 0
+          ? ((holding.currentValue - holding.purchasePrice) / holding.purchasePrice) * 100
+          : 0
 
-            // Get area transaction volume
-            const { data: areaStats } = await supabase
-              .from("dld_area_stats")
-              .select("transaction_count")
-              .eq("area_name_en", area)
-              .maybeSingle()
+      const netAnnualRent =
+        holding.monthlyRent * 12 * holding.occupancyRate - holding.annualExpenses
+      const yieldPct = holding.currentValue > 0 ? (netAnnualRent / holding.currentValue) * 100 : 0
+      const grossYieldPct =
+        holding.currentValue > 0 ? ((holding.monthlyRent * 12) / holding.currentValue) * 100 : 0
 
-            if (areaStats) {
-              marketData.areaTransactionCount = areaStats.transaction_count
-            }
-
-            // Get monthly trends for the area
-            const { data: trends } = await supabase
-              .from("dld_monthly_trends")
-              .select("month, avg_price, total_volume")
-              .eq("area_name_en", area)
-              .order("month", { ascending: false })
-              .limit(12)
-
-            if (trends && trends.length > 0) {
-              marketData.monthlyTrends = trends.reverse().map((t: Record<string, unknown>) => ({
-                month: t.month as string,
-                avgPrice: Number(t.avg_price),
-                volume: Number(t.total_volume),
-              }))
-            }
-          } catch (err) {
-            // DLD data may not be available for all areas
-            console.warn(`[portfolio] DLD data not available for area: ${area}`, err)
-          }
-        }
-
-        // Calculate metrics
-        const appreciationPct =
-          holding.purchasePrice > 0
-            ? ((holding.currentValue - holding.purchasePrice) / holding.purchasePrice) * 100
-            : 0
-
-        const netAnnualRent =
-          holding.monthlyRent * 12 * holding.occupancyRate - holding.annualExpenses
-        const yieldPct = holding.currentValue > 0 ? (netAnnualRent / holding.currentValue) * 100 : 0
-        const grossYieldPct =
-          holding.currentValue > 0 ? ((holding.monthlyRent * 12) / holding.currentValue) * 100 : 0
-
-        return {
-          id: holding.id,
-          investorId: holding.investorId,
-          listingId: holding.listingId,
-          property: property ?? null,
-          financials: {
-            purchasePrice: holding.purchasePrice,
-            purchaseDate: holding.purchaseDate,
-            currentValue: holding.currentValue,
-            monthlyRent: holding.monthlyRent,
-            occupancyRate: holding.occupancyRate,
-            annualExpenses: holding.annualExpenses,
-            appreciationPct: Math.round(appreciationPct * 10) / 10,
-            netYieldPct: Math.round(yieldPct * 10) / 10,
-            grossYieldPct: Math.round(grossYieldPct * 10) / 10,
-            netAnnualRent: Math.round(netAnnualRent),
-            totalReturn: Math.round(
-              holding.currentValue - holding.purchasePrice + netAnnualRent
-            ),
-          },
-          marketData,
-        }
-      })
-    )
+      return {
+        id: holding.id,
+        investorId: holding.investorId,
+        listingId: holding.listingId,
+        property: property ?? null,
+        financials: {
+          purchasePrice: holding.purchasePrice,
+          purchaseDate: holding.purchaseDate,
+          currentValue: holding.currentValue,
+          monthlyRent: holding.monthlyRent,
+          occupancyRate: holding.occupancyRate,
+          annualExpenses: holding.annualExpenses,
+          appreciationPct: Math.round(appreciationPct * 10) / 10,
+          netYieldPct: Math.round(yieldPct * 10) / 10,
+          grossYieldPct: Math.round(grossYieldPct * 10) / 10,
+          netAnnualRent: Math.round(netAnnualRent),
+          totalReturn: Math.round(
+            holding.currentValue - holding.purchasePrice + netAnnualRent
+          ),
+        },
+        marketData,
+      }
+    })
 
     // Portfolio-level summary
     const totalValue = holdings.reduce((s, h) => s + h.currentValue, 0)

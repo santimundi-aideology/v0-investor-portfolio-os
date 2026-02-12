@@ -176,6 +176,7 @@ export function PdfUploadZone({
       if (currentBatch.length > 0) batches.push(currentBatch)
 
       let lastResult: any = null
+      let failedBatches = 0
 
       for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
         const batch = batches[batchIdx]
@@ -185,47 +186,81 @@ export function PdfUploadZone({
           prev.map((f) => ({ ...f, progress: progressBase }))
         )
 
-        const formData = new FormData()
-        for (const file of batch) {
-          formData.append("files", file)
-        }
+        // Try each batch with one retry on transient errors (socket close, timeout)
+        let data: any = null
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const formData = new FormData()
+            for (const file of batch) {
+              formData.append("files", file)
+            }
 
-        const response = await fetch("/api/property-intake/parse-pdf", {
-          method: "POST",
-          body: formData,
-        })
+            const response = await fetch("/api/property-intake/parse-pdf", {
+              method: "POST",
+              body: formData,
+            })
 
-        const data = await response.json()
+            const json = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to parse PDFs")
-        }
+            if (!response.ok) {
+              const errMsg = json.error || "Failed to parse PDFs"
+              // Retry on transient errors
+              if (attempt === 0 && /terminated|socket|timeout|ECONNRESET/i.test(errMsg)) {
+                console.warn(`[pdf-upload] Batch ${batchIdx + 1} failed (attempt ${attempt + 1}), retrying...`, errMsg)
+                await new Promise((r) => setTimeout(r, 2000))
+                continue
+              }
+              throw new Error(errMsg)
+            }
 
-        // Merge results: keep the last batch's result (API merges all files in a batch)
-        if (!lastResult) {
-          lastResult = data
-        } else {
-          // Merge units from subsequent batches
-          if (data.units && Array.isArray(data.units)) {
-            lastResult.units = [...(lastResult.units || []), ...data.units]
+            data = json
+            break // success, stop retrying
+          } catch (batchErr) {
+            if (attempt === 0) {
+              console.warn(`[pdf-upload] Batch ${batchIdx + 1} error (attempt ${attempt + 1}), retrying...`, batchErr)
+              await new Promise((r) => setTimeout(r, 2000))
+              continue
+            }
+            // Second attempt also failed — skip this batch but don't abort everything
+            console.error(`[pdf-upload] Batch ${batchIdx + 1} failed after 2 attempts:`, batchErr)
+            failedBatches++
           }
-          // Update stats if available
-          if (data.stats) {
-            lastResult.stats = {
-              ...lastResult.stats,
-              totalUnits: (lastResult.stats?.totalUnits || 0) + (data.stats.totalUnits || 0),
+        }
+
+        // Merge successful batch results
+        if (data) {
+          if (!lastResult) {
+            lastResult = data
+          } else {
+            if (data.units && Array.isArray(data.units)) {
+              lastResult.units = [...(lastResult.units || []), ...data.units]
+            }
+            if (data.stats) {
+              lastResult.stats = {
+                ...lastResult.stats,
+                totalUnits: (lastResult.stats?.totalUnits || 0) + (data.stats.totalUnits || 0),
+              }
             }
           }
         }
       }
 
+      // If ALL batches failed, throw
+      if (!lastResult) {
+        throw new Error("Failed to parse any PDF files. Please try again.")
+      }
+
       // ── 3. Wait for image rendering to finish and merge ──
       const brochureImages = await renderPromise
 
-      // Update to success
+      // Update to success (partial or full)
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: "success" as const, progress: 100 }))
       )
+
+      if (failedBatches > 0) {
+        console.warn(`[pdf-upload] ${failedBatches} of ${batches.length} batches failed, but continuing with partial results`)
+      }
 
       // Return full extraction result from Claude Opus + brochure images
       if (lastResult) {

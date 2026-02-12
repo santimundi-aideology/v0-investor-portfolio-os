@@ -285,9 +285,17 @@ export default async function MemoPage({ params }: MemoPageProps) {
 
   const normalizedContent = toNarrative(rawContent)
 
+  // Detect off-plan memos
+  const isOffplan = structuredContent?.type === "offplan"
+  const offplanProject = isOffplan ? (structuredContent?.project as Record<string, unknown> | undefined) : undefined
+  const offplanUnit = isOffplan ? (structuredContent?.unit as Record<string, unknown> | undefined) : undefined
+  const offplanAnalysis = isOffplan ? (structuredContent?.analysis as Record<string, unknown> | undefined) : undefined
+  const offplanPaymentPlan = isOffplan ? (structuredContent?.paymentPlan as Record<string, unknown> | undefined) : undefined
+
   // Derive the best title
   const derivedTitle =
     (typeof rawMemo.title === "string" && rawMemo.title.trim()) ||
+    (isOffplan && offplanProject?.name ? `IC Memo: ${offplanProject.name}` : null) ||
     (property?.title ? `IC Memo: ${property.title}` : null) ||
     (contentProperty?.title ? `IC Memo: ${contentProperty.title}` : null) ||
     (typeof contentEvaluation?.headline === "string" ? String(contentEvaluation.headline) : null) ||
@@ -428,7 +436,250 @@ export default async function MemoPage({ params }: MemoPageProps) {
             </Card>
           ) : null}
 
-          {analysis ? (
+          {/* ── Off-Plan Memo Rendering ── */}
+          {isOffplan && offplanAnalysis ? (
+            <>
+              {/* Project Summary */}
+              <AnalysisSection title="Project Summary" description={offplanProject?.developer ? `by ${String(offplanProject.developer)}` : undefined}>
+                <p className="text-gray-500">{String(offplanAnalysis.projectSummary ?? "")}</p>
+                {Array.isArray(offplanAnalysis.projectHighlights) && offplanAnalysis.projectHighlights.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(offplanAnalysis.projectHighlights as string[]).map((h, idx) => (
+                      <Badge key={idx} variant="outline">{h}</Badge>
+                    ))}
+                  </div>
+                )}
+              </AnalysisSection>
+
+              {/* Unit Details */}
+              {offplanUnit && (
+                <AnalysisSection title="Unit Analysis" description={`Unit ${offplanUnit.unitNumber} • Level ${offplanUnit.level}`}>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatTile label="Type" value={String(offplanUnit.type ?? "")} />
+                    <StatTile label="Size" value={`${Number(offplanUnit.sizeSqft ?? 0).toLocaleString()} sqft`} />
+                    <StatTile label="Price / sqft" value={formatCurrency(Number(offplanUnit.pricePerSqft ?? 0))} />
+                    <StatTile label="Total Price" value={formatCurrency(Number(offplanUnit.totalPrice ?? 0))} />
+                  </div>
+                  {offplanUnit.views && <p className="text-sm text-gray-500">Views: {String(offplanUnit.views)}</p>}
+                  {typeof (offplanAnalysis.unitAnalysis as Record<string, unknown>)?.valueAssessment === "string" && (
+                    <p className="text-sm text-gray-500">{String((offplanAnalysis.unitAnalysis as Record<string, unknown>).valueAssessment)}</p>
+                  )}
+                </AnalysisSection>
+              )}
+
+              {/* Developer Assessment */}
+              {offplanAnalysis.developerAssessment && (() => {
+                const dev = offplanAnalysis.developerAssessment as Record<string, unknown>
+                return (
+                  <AnalysisSection title="Developer Assessment" description={offplanProject?.developer ? String(offplanProject.developer) : undefined}>
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+                        <span className="text-xl font-bold text-amber-700">{String(dev.grade ?? "")}</span>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold">{String(dev.score ?? "")}/100</p>
+                        <p className="text-sm text-gray-500">{String(dev.trackRecordSummary ?? "")}</p>
+                      </div>
+                    </div>
+                    {Array.isArray(dev.strengths) && dev.strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Strengths</p>
+                        <ul className="space-y-1">
+                          {(dev.strengths as string[]).map((s, idx) => (
+                            <li key={idx} className="flex gap-2 text-sm"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{s}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {Array.isArray(dev.concerns) && dev.concerns.length > 0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Concerns</p>
+                        <ul className="space-y-1">
+                          {(dev.concerns as string[]).map((c, idx) => (
+                            <li key={idx} className="flex gap-2 text-sm"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-amber-500" /><span>{c}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </AnalysisSection>
+                )
+              })()}
+
+              {/* Location Analysis */}
+              {offplanAnalysis.locationAnalysis && (() => {
+                const loc = offplanAnalysis.locationAnalysis as Record<string, unknown>
+                return (
+                  <AnalysisSection title="Location Analysis" description={`Grade ${loc.grade ?? ""} • ${String(loc.areaProfile ?? "")}`}>
+                    {Array.isArray(loc.highlights) && loc.highlights.length > 0 && (
+                      <ul className="space-y-2 text-sm">
+                        {(loc.highlights as string[]).map((h, idx) => (
+                          <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{h}</span></li>
+                        ))}
+                      </ul>
+                    )}
+                    {loc.proximity && typeof loc.proximity === "object" && (
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {Object.entries(loc.proximity as Record<string, string>).map(([key, value]) => (
+                          <StatTile key={key} label={key} value={String(value)} />
+                        ))}
+                      </div>
+                    )}
+                  </AnalysisSection>
+                )
+              })()}
+
+              {/* Payment Plan */}
+              {offplanPaymentPlan && offplanAnalysis.paymentPlanAnalysis && (() => {
+                const ppa = offplanAnalysis.paymentPlanAnalysis as Record<string, unknown>
+                return (
+                  <AnalysisSection title="Payment Plan Analysis" description={String(ppa.summary ?? "")}>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <StatTile label="During Construction" value={`${offplanPaymentPlan.constructionPercent ?? 0}%`} />
+                      <StatTile label="On Completion" value={`${offplanPaymentPlan.postHandoverPercent ?? 0}%`} />
+                      <StatTile label="DLD Fee" value={`${offplanPaymentPlan.dldFeePercent ?? 4}%`} />
+                    </div>
+                    {Array.isArray(ppa.insights) && ppa.insights.length > 0 && (
+                      <ul className="space-y-1 text-sm">
+                        {(ppa.insights as string[]).map((insight, idx) => (
+                          <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-blue-500" /><span>{insight}</span></li>
+                        ))}
+                      </ul>
+                    )}
+                  </AnalysisSection>
+                )
+              })()}
+
+              {/* Financial Projections */}
+              {offplanAnalysis.financialProjections && (() => {
+                const fp = offplanAnalysis.financialProjections as Record<string, unknown>
+                return (
+                  <AnalysisSection title="Financial Projections">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <StatTile label="Purchase Price" value={formatCurrency(Number(fp.purchasePrice ?? 0))} />
+                      <StatTile label="Completion Value" value={formatCurrency(Number(fp.estimatedCompletionValue ?? 0))} />
+                      <StatTile label="Expected Appreciation" value={`${Number(fp.expectedAppreciation ?? 0).toFixed(1)}%`} />
+                      <StatTile label="Est. Annual Rent" value={formatCurrency(Number(fp.estimatedAnnualRent ?? 0))} />
+                      <StatTile label="Gross Yield" value={`${fp.projectedRentalYieldGross ?? 0}%`} />
+                      <StatTile label="Net Yield" value={`${fp.projectedRentalYieldNet ?? 0}%`} />
+                    </div>
+                  </AnalysisSection>
+                )
+              })()}
+
+              {/* Risk Assessment */}
+              {Array.isArray(offplanAnalysis.riskAssessment) && (offplanAnalysis.riskAssessment as unknown[]).length > 0 && (
+                <AnalysisSection title="Risk Assessment" description={`Overall: ${String(offplanAnalysis.overallRiskLevel ?? "").toUpperCase()}`}>
+                  <div className="space-y-3">
+                    {(offplanAnalysis.riskAssessment as Record<string, unknown>[]).map((risk, idx) => (
+                      <div key={idx} className="rounded-lg border p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{String(risk.category ?? "")}</span>
+                          <Badge variant={risk.level === "low" ? "default" : risk.level === "high" ? "destructive" : "secondary"}>{String(risk.level ?? "")}</Badge>
+                        </div>
+                        <p className="text-sm text-gray-500">{String(risk.description ?? "")}</p>
+                        {risk.mitigation && <p className="text-sm text-green-700 mt-1">Mitigation: {String(risk.mitigation)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </AnalysisSection>
+              )}
+
+              {/* Market Comparables */}
+              {Array.isArray(offplanAnalysis.marketComparables) && (offplanAnalysis.marketComparables as unknown[]).length > 0 && (
+                <AnalysisSection title="Market Comparables">
+                  <div className="space-y-3">
+                    {(offplanAnalysis.marketComparables as Record<string, unknown>[]).map((comp, idx) => (
+                      <div key={idx} className="rounded-lg border p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{String(comp.project ?? comp.name ?? "")}</span>
+                          {comp.completionStatus && <Badge variant="secondary">{String(comp.completionStatus).replace("_", " ")}</Badge>}
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div><p className="text-xs text-gray-500">Price/sqft</p><p className="font-medium">{comp.pricePerSqft ? `AED ${Number(comp.pricePerSqft).toLocaleString()}` : "N/A"}</p></div>
+                          {comp.completionDate && <div><p className="text-xs text-gray-500">Completion</p><p className="font-medium">{String(comp.completionDate)}</p></div>}
+                          {comp.appreciation && <div><p className="text-xs text-gray-500">Appreciation</p><p className="font-medium text-green-600">+{comp.appreciation}%</p></div>}
+                        </div>
+                        {comp.note && <p className="text-xs text-gray-500 mt-2">{String(comp.note)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </AnalysisSection>
+              )}
+
+              {/* Investment Thesis */}
+              {offplanAnalysis.investmentThesis && (
+                <AnalysisSection title="Investment Thesis">
+                  <p className="text-gray-500">{String(offplanAnalysis.investmentThesis)}</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {Array.isArray(offplanAnalysis.keyStrengths) && (offplanAnalysis.keyStrengths as string[]).length > 0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Key Strengths</p>
+                        <ul className="space-y-1">
+                          {(offplanAnalysis.keyStrengths as string[]).map((s, idx) => (
+                            <li key={idx} className="flex gap-2 text-sm"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{s}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {Array.isArray(offplanAnalysis.keyConsiderations) && (offplanAnalysis.keyConsiderations as string[]).length > 0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Key Considerations</p>
+                        <ul className="space-y-1">
+                          {(offplanAnalysis.keyConsiderations as string[]).map((c, idx) => (
+                            <li key={idx} className="flex gap-2 text-sm"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-amber-500" /><span>{c}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </AnalysisSection>
+              )}
+
+              {/* Final Recommendation */}
+              {offplanAnalysis.recommendation && (() => {
+                const rec = offplanAnalysis.recommendation as Record<string, unknown>
+                const decision = String(rec.decision ?? "")
+                return (
+                  <Card className={decision === "PROCEED" ? "border-green-200 bg-green-50" : decision === "CONDITIONAL" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Final Recommendation</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-2xl font-bold">{decision}</p>
+                      {rec.reasoning && <p className="text-gray-600">{String(rec.reasoning)}</p>}
+                      {Array.isArray(rec.conditions) && (rec.conditions as string[]).length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Conditions:</p>
+                          <ul className="space-y-1">
+                            {(rec.conditions as string[]).map((c, idx) => (
+                              <li key={idx} className="text-sm text-gray-600 flex gap-2"><span>•</span><span>{c}</span></li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {Array.isArray(rec.suggestedNegotiationPoints) && (rec.suggestedNegotiationPoints as string[]).length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Negotiation Points:</p>
+                          <ul className="space-y-1">
+                            {(rec.suggestedNegotiationPoints as string[]).map((p, idx) => (
+                              <li key={idx} className="text-sm text-gray-600 flex gap-2"><span>•</span><span>{p}</span></li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })()}
+
+              {/* Realtor Notes */}
+              {typeof structuredContent?.realtorNotes === "string" && structuredContent.realtorNotes.trim() ? (
+                <AnalysisSection title="Realtor Notes" description="Internal notes added at intake">
+                  <p className="text-sm text-gray-500 italic">{structuredContent.realtorNotes as string}</p>
+                </AnalysisSection>
+              ) : null}
+            </>
+          ) : analysis ? (
             <>
               <AnalysisSection title="Executive Summary" description="How this property meets the mandate">
                 <p className="text-gray-500">{analysis.summary}</p>
@@ -926,12 +1177,25 @@ export default async function MemoPage({ params }: MemoPageProps) {
               <CardContent className="space-y-3">
                 {contentEvaluation.factors && typeof contentEvaluation.factors === "object" ? (() => {
                   const factors = contentEvaluation.factors as Record<string, number>
+                  // Off-plan factors use different keys
+                  const isOffplanFactors = factors.developerCredibility != null || factors.locationPremium != null
                   return (
                     <div className="space-y-2 text-sm">
-                      {factors.mandateFit != null ? <div className="flex justify-between"><span className="text-gray-300">Mandate Fit</span><span className="font-semibold">{factors.mandateFit}/25</span></div> : null}
-                      {factors.marketTiming != null ? <div className="flex justify-between"><span className="text-gray-300">Market Timing</span><span className="font-semibold">{factors.marketTiming}/25</span></div> : null}
-                      {factors.portfolioFit != null ? <div className="flex justify-between"><span className="text-gray-300">Portfolio Fit</span><span className="font-semibold">{factors.portfolioFit}/25</span></div> : null}
-                      {factors.riskAlignment != null ? <div className="flex justify-between"><span className="text-gray-300">Risk Alignment</span><span className="font-semibold">{factors.riskAlignment}/25</span></div> : null}
+                      {isOffplanFactors ? (
+                        <>
+                          {factors.developerCredibility != null ? <div className="flex justify-between"><span className="text-gray-300">Developer Credibility</span><span className="font-semibold">{factors.developerCredibility}/25</span></div> : null}
+                          {factors.locationPremium != null ? <div className="flex justify-between"><span className="text-gray-300">Location Premium</span><span className="font-semibold">{factors.locationPremium}/25</span></div> : null}
+                          {factors.paymentPlanAttractiveness != null ? <div className="flex justify-between"><span className="text-gray-300">Payment Plan</span><span className="font-semibold">{factors.paymentPlanAttractiveness}/25</span></div> : null}
+                          {factors.appreciationPotential != null ? <div className="flex justify-between"><span className="text-gray-300">Appreciation Potential</span><span className="font-semibold">{factors.appreciationPotential}/25</span></div> : null}
+                        </>
+                      ) : (
+                        <>
+                          {factors.mandateFit != null ? <div className="flex justify-between"><span className="text-gray-300">Mandate Fit</span><span className="font-semibold">{factors.mandateFit}/25</span></div> : null}
+                          {factors.marketTiming != null ? <div className="flex justify-between"><span className="text-gray-300">Market Timing</span><span className="font-semibold">{factors.marketTiming}/25</span></div> : null}
+                          {factors.portfolioFit != null ? <div className="flex justify-between"><span className="text-gray-300">Portfolio Fit</span><span className="font-semibold">{factors.portfolioFit}/25</span></div> : null}
+                          {factors.riskAlignment != null ? <div className="flex justify-between"><span className="text-gray-300">Risk Alignment</span><span className="font-semibold">{factors.riskAlignment}/25</span></div> : null}
+                        </>
+                      )}
                     </div>
                   )
                 })() : null}

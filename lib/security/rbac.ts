@@ -203,7 +203,7 @@ export function hasPermission(
     agent: {
       investors: ["read", "write"],
       listings: ["read", "write"],
-      memos: ["read", "write"],
+      memos: ["read", "write", "delete"],
       tasks: ["read", "write"],
       users: ["read"],
       settings: ["read"],

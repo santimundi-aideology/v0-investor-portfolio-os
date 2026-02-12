@@ -10,7 +10,20 @@ import { CardContent, CardDescription, CardHeader, CardTitle } from "@/component
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Calendar, FileText, Loader2, User } from "lucide-react"
+import { ArrowRight, Calendar, FileText, Loader2, Search, SlidersHorizontal, Trash2, User, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
 import { mapListingToProperty } from "@/lib/utils/map-listing"
@@ -61,7 +74,37 @@ function formatDate(dateString: string) {
 
 export function MemosPageClient() {
   const { role, scopedInvestorId } = useApp()
-  const { data: allMemos, isLoading: memosLoading } = useAPI<Memo[]>("/api/memos")
+  const { data: allMemos, isLoading: memosLoading, mutate } = useAPI<Memo[]>("/api/memos")
+  const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
+
+  // Filters
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState<string>("all")
+  const [sortOrder, setSortOrder] = React.useState<"newest" | "oldest">("newest")
+
+  const canDelete = role !== "investor"
+
+  const handleDeleteConfirm = React.useCallback(async () => {
+    if (!pendingDeleteId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/memos/${pendingDeleteId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? "Failed to delete memo")
+      }
+      toast.success("IC memo deleted")
+      await mutate()
+    } catch (err) {
+      toast.error("Could not delete memo", {
+        description: (err as Error)?.message ?? "Please try again.",
+      })
+    } finally {
+      setDeleting(false)
+      setPendingDeleteId(null)
+    }
+  }, [pendingDeleteId, mutate])
   const { data: listings, isLoading: listingsLoading } = useAPI<Record<string, unknown>[]>("/api/listings")
 
   const propertiesMap = React.useMemo(() => {
@@ -108,6 +151,10 @@ export function MemosPageClient() {
           enrichedTitle ||
           (property?.title ? `IC Memo: ${property.title}` : "Investment Committee Memo"),
         status: normalizeStatus(raw.status, raw.state),
+        createdAt:
+          (typeof raw.createdAt === "string" && raw.createdAt) ||
+          (typeof raw.created_at === "string" && raw.created_at) ||
+          new Date().toISOString(),
         updatedAt:
           (typeof raw.updatedAt === "string" && raw.updatedAt) ||
           (typeof raw.updated_at === "string" && raw.updated_at) ||
@@ -121,6 +168,46 @@ export function MemosPageClient() {
       ? memos.filter((m) => m.investorId === scopedInvestorId)
       : memos
   }, [allMemos, role, scopedInvestorId, propertiesMap])
+
+  // Apply filters + sorting on the normalized list
+  const filtered = React.useMemo(() => {
+    let result = visible
+
+    // Status filter
+    if (statusFilter !== "all") {
+      result = result.filter((m) => m.status === statusFilter)
+    }
+
+    // Text search (title, property, investor name)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.propertyTitle.toLowerCase().includes(q) ||
+          m.investorName.toLowerCase().includes(q)
+      )
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      const aTs = Date.parse(a.createdAt || a.updatedAt || "")
+      const bTs = Date.parse(b.createdAt || b.updatedAt || "")
+      const aTime = Number.isNaN(aTs) ? 0 : aTs
+      const bTime = Number.isNaN(bTs) ? 0 : bTs
+      return sortOrder === "newest" ? bTime - aTime : aTime - bTime
+    })
+
+    return result
+  }, [visible, statusFilter, searchQuery, sortOrder])
+
+  // Unique statuses for the filter dropdown
+  const availableStatuses = React.useMemo(() => {
+    const set = new Set(visible.map((m) => m.status))
+    return Array.from(set).sort()
+  }, [visible])
+
+  const hasActiveFilters = statusFilter !== "all" || searchQuery.trim() !== ""
 
   const isLoading = memosLoading || listingsLoading
 
@@ -147,7 +234,7 @@ export function MemosPageClient() {
     <div className="space-y-6">
       <PageHeader
         title="IC Memos"
-        subtitle={`${visible.length} investment committee memos`}
+        subtitle={`${filtered.length} of ${visible.length} investment committee memos`}
         primaryAction={
           <Button asChild>
             <Link href="/memos/new">Generate memo</Link>
@@ -155,13 +242,104 @@ export function MemosPageClient() {
         }
       />
 
+      {/* Filter bar */}
+      {visible.length > 0 && (
+        <Card className="p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Search by title, property, investor..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 pl-9 pr-8 text-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Status */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-36 text-sm">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {availableStatuses.map((s) => (
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Sort */}
+            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
+              <SelectTrigger className="h-9 w-36 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest first</SelectItem>
+                <SelectItem value="oldest">Oldest first</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Clear */}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 text-xs text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  setSearchQuery("")
+                  setStatusFilter("all")
+                }}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(open) => !open && !deleting && setPendingDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete IC memo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The memo and its versions will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-red-500 text-white shadow-sm hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500/50"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {visible.map((memo) => {
+        {filtered.map((memo) => {
           const property = memo.propertyId ? propertiesMap.get(memo.propertyId) : undefined
           const coverImageUrl = property?.imageUrl || (memo as Memo & { _coverImage?: string })._coverImage
           return (
-            <Link key={memo.id} href={`/memos/${memo.id}`} className="group block">
-              <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
+            <div key={memo.id} className="relative group">
+              <Link href={`/memos/${memo.id}`} className="block">
+                <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
                 {/* Property Image Header */}
                 {coverImageUrl && (
                   <div className="relative h-36 overflow-hidden">
@@ -183,6 +361,22 @@ export function MemosPageClient() {
                     >
                       {memo.status}
                     </Badge>
+                    {/* Delete button - internal roles only */}
+                    {canDelete && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-3 left-3 h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:opacity-100 z-10"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setPendingDeleteId(memo.id)
+                        }}
+                        aria-label="Delete memo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     
                     {/* Property Info Overlay */}
                     <div className="absolute bottom-3 left-3 right-3">
@@ -235,11 +429,27 @@ export function MemosPageClient() {
                 </CardContent>
               </Card>
             </Link>
+              {canDelete && !coverImageUrl && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8 text-gray-400 hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setPendingDeleteId(memo.id)
+                  }}
+                  aria-label="Delete memo"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           )
         })}
       </div>
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && (
         <EmptyState
           title="No memos yet"
           description="Investment committee memos will appear here once created."
@@ -250,7 +460,26 @@ export function MemosPageClient() {
             </Button>
           }
         />
-      ) : null}
+      )}
+
+      {visible.length > 0 && filtered.length === 0 && (
+        <EmptyState
+          title="No matching memos"
+          description="Try adjusting your search or filters."
+          icon={<Search className="size-5" />}
+          action={
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchQuery("")
+                setStatusFilter("all")
+              }}
+            >
+              Clear filters
+            </Button>
+          }
+        />
+      )}
     </div>
   )
 }
