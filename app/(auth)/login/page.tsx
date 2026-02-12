@@ -20,7 +20,7 @@ const DEMO_ACCOUNTS = [
     role: "Realtor",
     description: "Full CRM: investors, properties, memos",
     icon: Building2,
-    redirect: "/dashboard",
+    redirect: "/realtor",
   },
   {
     email: "demo-investor@aideology.ai",
