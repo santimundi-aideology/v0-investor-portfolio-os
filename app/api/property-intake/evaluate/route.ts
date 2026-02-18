@@ -161,6 +161,30 @@ interface EvaluationResult {
     }
     
     investmentThesis: string
+
+    developerProfile?: {
+      name: string
+      tier: "tier_1" | "tier_2" | "tier_3" | "unknown"
+      overview: string
+      trackRecord: string
+      notableProjects: string[]
+      strengths: string[]
+      concerns: string[]
+      escrowStatus: string
+      riskAssessment: string
+    }
+
+    investmentDecision?: {
+      verdict: "PROCEED" | "CONDITIONAL" | "PASS"
+      confidenceLevel: "high" | "medium" | "low"
+      rationale: string
+      keyDrivers: string[]
+      conditionsToMeet: string[]
+      dealBreakers: string[]
+      suggestedNextSteps: string[]
+      exitStrategy: string
+      timelineGuidance: string
+    }
     
     financialAnalysis: {
       noi: number
@@ -493,7 +517,29 @@ Evaluate this property and provide your assessment in the following JSON format:
     "risks": ["<specific risk 1>", "<specific risk 2>", "<specific risk 3>"],
     "opportunities": ["<specific opportunity 1 with numbers>", "<specific opportunity 2>"],
     "assumptions": ["<key assumption 1>", "<key assumption 2>", "<key assumption 3>"],
-    "recommendation": "<full recommendation paragraph with investment thesis>"
+    "recommendation": "<full recommendation paragraph with investment thesis>",
+    "developerProfile": {
+      "name": "<developer name or 'Unknown'>",
+      "tier": "<tier_1 = top-10 UAE (Emaar, Nakheel, DAMAC, Meraas, Aldar, Dubai Properties, Sobha, Omniyat, Select Group, Azizi) | tier_2 = established mid-market | tier_3 = small/new | unknown>",
+      "overview": "<1-2 paragraph developer overview: history, market positioning, reputation>",
+      "trackRecord": "<paragraph assessing delivery track record: on-time completions, quality, handover experience>",
+      "notableProjects": ["<project 1>", "<project 2>"],
+      "strengths": ["<strength 1>", "<strength 2>"],
+      "concerns": ["<concern 1>"],
+      "escrowStatus": "<escrow assessment: registered/unverified/unknown — always flag if unknown>",
+      "riskAssessment": "<1 paragraph: overall developer risk level and what it means for this investment>"
+    },
+    "investmentDecision": {
+      "verdict": "<PROCEED|CONDITIONAL|PASS>",
+      "confidenceLevel": "<high|medium|low — based on data quality and analysis depth>",
+      "rationale": "<2-3 paragraph detailed explanation of WHY this verdict. Reference specific numbers: yield vs target, price vs market, developer quality, area trajectory. Explain the investment logic as you would to an IC committee. Be candid about weaknesses.>",
+      "keyDrivers": ["<what makes or breaks this deal — max 4 items>"],
+      "conditionsToMeet": ["<specific condition 1 that must be met before capital deployment>", "<condition 2>"],
+      "dealBreakers": ["<factor that would flip the decision to PASS>"],
+      "suggestedNextSteps": ["<concrete action 1 for the realtor/investor>", "<action 2>", "<action 3>"],
+      "exitStrategy": "<1 paragraph: recommended exit approach, timeline, target buyer profile, expected proceeds>",
+      "timelineGuidance": "<1 sentence: how urgently should the investor act and why>"
+    }
   }
 }
 
@@ -532,6 +578,15 @@ SCORING GUIDELINES:
 - 50-64: Moderate opportunity, specific use case
 - 35-49: Below average, significant concerns
 - 0-34: Pass, fundamental issues
+
+CRITICAL UNDERWRITING RULES:
+- If developer is "Unknown" or absent, cap score at 55 max and flag for enhanced due diligence
+- If completion date is TBD for off-plan, penalize Risk Alignment by 5+ points
+- ONLY reference comparables from the SAME micro-market/community (${property.area}). Never use comps from different submarkets
+- Growth assumptions MUST be supported by the market data provided — do not use generic 3-6% unless justified
+- All financial projections must reference specific market data points, not generic templates
+- Marketing claims from developer brochures must be labeled as "developer-stated" not verified
+- Every risk must have specific probability and impact assessment, not placeholder text
 
 Be specific and reference actual numbers in your analysis. Include specific data points in strengths/considerations.`
 
@@ -1162,6 +1217,8 @@ function createFallbackEvaluation(
   else if (property.completionStatus === "off_plan") riskAlignment -= 3
   if (marketContext.averageDaysOnMarket <= 35) riskAlignment += 3
   else if (marketContext.averageDaysOnMarket <= 50) riskAlignment += 1
+  // Developer risk penalty in fallback scoring
+  if (!property.developer || property.developer.toLowerCase() === "unknown") riskAlignment -= 6
   riskAlignment = Math.max(0, Math.min(25, riskAlignment))
 
   const score = mandateFit + marketTiming + portfolioFit + riskAlignment
@@ -1320,6 +1377,97 @@ function createFallbackEvaluation(
       },
       
       investmentThesis: `The property aligns with ${marketContext.investorProfile === "core" ? "Core" : marketContext.investorProfile === "core_plus" ? "Core Plus" : "Value-Add"} strategy, offering ${marketContext.areaAverageYield > 6 ? "attractive yield" : "stable income"} with ${marketContext.marketTrend === "rising" ? "appreciation upside" : "defensive characteristics"}.`,
+
+      developerProfile: (() => {
+        const devName = property.developer || "Unknown"
+        const devUnknown = !property.developer || property.developer.toLowerCase() === "unknown"
+        const tier1 = ["emaar", "nakheel", "damac", "meraas", "aldar", "dubai properties", "sobha", "omniyat", "select group", "azizi", "majid al futtaim"]
+        const isTier1 = !devUnknown && tier1.some(t => devName.toLowerCase().includes(t))
+        const tier = devUnknown ? "unknown" as const : isTier1 ? "tier_1" as const : "tier_2" as const
+
+        return {
+          name: devName,
+          tier,
+          overview: devUnknown
+            ? "Developer identity is unknown or not disclosed in the listing. This is a significant data gap that prevents proper developer due diligence."
+            : isTier1
+              ? `${devName} is a Tier 1 developer in the UAE with an established reputation for quality developments and on-time delivery. They are one of the top developers in the Dubai market.`
+              : `${devName} is an established developer in the Dubai market. Further due diligence on their delivery track record and financial stability is recommended.`,
+          trackRecord: devUnknown
+            ? "No track record data available. Escrow status, completion history, and litigation records must be verified independently before proceeding."
+            : isTier1
+              ? `${devName} has a proven track record of delivering large-scale projects on schedule. Their portfolio demonstrates consistent build quality and strong post-handover management.`
+              : `${devName} has delivered projects in the Dubai market. Specific completion timelines and quality assessments should be verified through RERA records and site visits.`,
+          notableProjects: devUnknown ? [] : isTier1 ? [`${devName} flagship developments`] : [`${devName} prior developments in ${property.area}`],
+          strengths: devUnknown
+            ? []
+            : isTier1
+              ? ["Established brand and market trust", "Proven delivery track record", "Strong resale value retention"]
+              : ["Active developer in the market"],
+          concerns: devUnknown
+            ? ["Developer unknown — unable to assess delivery risk", "Escrow status unverified", "No track record for quality assessment"]
+            : isTier1
+              ? ["Premium pricing typically associated with Tier 1 developers"]
+              : ["Delivery track record should be independently verified", "Escrow registration must be confirmed"],
+          escrowStatus: devUnknown ? "Unknown — must be verified with RERA/DLD" : "Verification recommended",
+          riskAssessment: devUnknown
+            ? "ELEVATED RISK: Unknown developer represents the single largest risk factor in this investment. Without developer verification, there is no basis to assess construction quality, delivery probability, or financial stability. This alone warrants a CONDITIONAL status on any approval."
+            : isTier1
+              ? `LOW RISK: ${devName} is a well-established Tier 1 developer with strong market credibility. Developer risk is minimal, though standard escrow and SPA verification should still be performed.`
+              : `MODERATE RISK: ${devName} is present in the market but requires independent verification of their delivery history. Recommend reviewing RERA complaint records and visiting prior completed projects before committing capital.`,
+        }
+      })(),
+
+      investmentDecision: (() => {
+        const devName = property.developer || "Unknown"
+        const devUnknown = !property.developer || property.developer.toLowerCase() === "unknown"
+        const verdict = score >= 60 ? "PROCEED" as const : score >= 45 ? "CONDITIONAL" as const : "PASS" as const
+        const confidence = devUnknown ? "low" as const : marketContext.liquidityScore >= 7 ? "high" as const : "medium" as const
+
+        const yieldAssessment = marketContext.areaAverageYield >= 7 ? "attractive" : marketContext.areaAverageYield >= 5 ? "acceptable" : "below target"
+        const trendAssessment = marketContext.marketTrend === "rising" ? "positive momentum" : marketContext.marketTrend === "stable" ? "stable conditions" : "softening conditions"
+
+        return {
+          verdict,
+          confidenceLevel: confidence,
+          rationale: verdict === "PROCEED"
+            ? `This ${property.bedrooms}BR ${property.propertyType.toLowerCase()} in ${property.area} presents a sound investment case. At AED ${property.price.toLocaleString()} (AED ${property.pricePerSqft?.toLocaleString() ?? "N/A"}/sqft), the entry point is ${marketContext.areaAverageYield >= 6 ? "supported by" : "partially offset by"} an estimated ${marketContext.areaAverageYield}% gross yield, translating to approximately AED ${Math.round(estimatedMonthlyRent).toLocaleString()}/month in rental income. The ${property.area} micro-market shows ${trendAssessment} with ${marketContext.historicalAppreciation}% historical appreciation, ${marketContext.occupancyRate}% occupancy, and ${marketContext.tenantDemand} tenant demand.\n\nThe financial structure supports a ${Math.round(capRate * 10) / 10}% cap rate with projected ${growth.annualGrowthBase}% annual value appreciation over a 5-year hold. Key value drivers include ${marketContext.newSupplyUnits < 2000 ? "limited competing supply" : "strong area fundamentals"} and ${marketContext.liquidityScore >= 7 ? "high exit liquidity" : "reasonable exit prospects"}. ${devUnknown ? "However, the unknown developer status is a material concern that must be resolved." : `${devName} provides ${devName.toLowerCase().includes("emaar") || devName.toLowerCase().includes("nakheel") ? "strong" : "adequate"} developer credibility.`}`
+            : verdict === "CONDITIONAL"
+              ? `This property has potential but presents material concerns that must be addressed before capital deployment. At AED ${property.price.toLocaleString()}, the ${yieldAssessment} yield of ${marketContext.areaAverageYield}% and ${trendAssessment} in ${property.area} provide a baseline investment case. However, ${devUnknown ? "the unknown developer represents a critical risk — without verified track record, escrow status, and financial stability, the delivery risk is unquantifiable" : "certain factors require additional verification"}.\n\nThe underwriting assumes ${growth.annualGrowthBase}% annual growth and ${marketContext.occupancyRate}% occupancy, which ${marketContext.marketTrend === "rising" ? "are supported by current trends" : "should be stress-tested against downside scenarios"}. ${marketContext.newSupplyUnits > 2000 ? `The supply pipeline of ${marketContext.newSupplyUnits.toLocaleString()} units introduces absorption risk.` : ""} This investment can proceed ONLY once the stated conditions are met.`
+              : `This property does not meet the threshold for investment recommendation at current terms. The combination of ${devUnknown ? "unknown developer, " : ""}${marketContext.marketTrend === "declining" ? "declining market conditions, " : ""}${marketContext.areaAverageYield < 5 ? "below-target yield, " : ""}and ${score < 35 ? "fundamental structural concerns" : "multiple risk factors"} makes the risk-reward profile unattractive.\n\nAt AED ${property.price.toLocaleString()}, the property would need to demonstrate ${marketContext.areaAverageYield < 6 ? "materially higher rental yields" : "stronger capital growth prospects"} or a significant price correction to become viable. We recommend monitoring the asset for price adjustments and revisiting if conditions change.`,
+          keyDrivers: [
+            `${yieldAssessment.charAt(0).toUpperCase() + yieldAssessment.slice(1)} yield at ${marketContext.areaAverageYield}% gross`,
+            `${trendAssessment.charAt(0).toUpperCase() + trendAssessment.slice(1)} in ${property.area}`,
+            `${devUnknown ? "Unknown developer — critical risk" : `${devName} developer credibility`}`,
+            `${marketContext.newSupplyUnits < 2000 ? "Favorable" : "Elevated"} supply dynamics (${marketContext.newSupplyUnits.toLocaleString()} units)`,
+          ],
+          conditionsToMeet: verdict === "PASS" ? [] : [
+            ...(devUnknown ? ["Verify developer identity and RERA registration", "Confirm escrow account status"] : []),
+            "Complete site inspection / unit inspection",
+            "Verify service charges and any capped-rate agreements",
+            ...(property.completionStatus === "off_plan" ? ["Verify construction progress and milestone schedule"] : []),
+            "Confirm rental comparable rates with at least 2 active market listings",
+          ],
+          dealBreakers: [
+            ...(devUnknown ? ["Developer cannot be identified or has RERA complaints/defaults"] : []),
+            "Escrow account not registered or underfunded",
+            `Achievable rent below AED ${Math.round(estimatedMonthlyRent * 0.8).toLocaleString()}/month (20% below underwriting)`,
+            "Material undisclosed defects or pending litigation on the property",
+          ],
+          suggestedNextSteps: [
+            ...(devUnknown ? ["Run developer background check via RERA and DLD records"] : []),
+            verdict !== "PASS" ? "Schedule site visit within 2 weeks" : "Monitor for 15%+ price reduction",
+            verdict !== "PASS" ? "Obtain 3 rental comparables from active Bayut/PF listings" : "Set price alert on portal",
+            verdict !== "PASS" ? "Request SPA template and review with legal counsel" : "Explore alternative properties in the pipeline",
+          ],
+          exitStrategy: `Recommended exit via ${marketContext.investorProfile === "core" ? "direct sale to institutional buyer or REIT" : "open market listing"} after ${score >= 60 ? "3-5" : "5-7"} year hold period. Target buyer profile: ${marketContext.investorProfile === "core" ? "income-focused institutional investors" : "end-users or private investors"} seeking ${property.area} exposure. Projected exit value: AED ${growth.projectedValue5Y.toLocaleString()} (base case). Pre-exit strategy: optimize rental yield to maximize cap-rate-based valuation.`,
+          timelineGuidance: verdict === "PROCEED"
+            ? `Act within 2-4 weeks — ${marketContext.marketTrend === "rising" ? "rising market conditions favor early entry" : "stable conditions allow measured due diligence"}.`
+            : verdict === "CONDITIONAL"
+              ? "Address conditions within 4-6 weeks. Do not deploy capital until all conditions are met."
+              : "No urgency to act. Monitor the asset and revisit if pricing or conditions materially improve.",
+        }
+      })(),
       
       financialAnalysis: {
         noi,
@@ -1330,6 +1478,10 @@ function createFallbackEvaluation(
       },
       
       risks: [
+        ...(!property.developer || property.developer.toLowerCase() === "unknown" ? [{
+          risk: "Unknown developer — delivery risk, quality risk, and escrow risk are all unquantifiable",
+          mitigation: "Must verify developer identity, RERA registration, escrow account, and completed project portfolio before any capital commitment",
+        }] : []),
         {
           risk: marketContext.newSupplyUnits > 2000 ? "High new supply in pipeline" : "Market conditions may change",
           mitigation: marketContext.newSupplyUnits > 2000 ? "Focus on premium positioning and tenant retention" : "Maintain flexible exit timeline",
@@ -1409,13 +1561,116 @@ export async function POST(req: Request) {
     // Evaluate with AI (or fallback)
     const evaluation = await evaluateWithAI(property, marketContext)
 
+    // ── Underwriting Guards ──────────────────────────────────────
+    // Apply investment-grade discipline on top of AI output
+    const {
+      applyDeveloperRiskGate,
+      generateMandatoryRisks,
+      buildSensitivityAnalysis,
+      validateComparables,
+      assessDataConfidence,
+      runUnderwritingChecklist,
+    } = await import("@/lib/underwriting/guards")
+
+    const isOffPlan = property.completionStatus === "off_plan" || property.completionStatus === "under_construction"
+
+    // 1. Developer risk gate — cap recommendation for unknown developers
+    const devGate = applyDeveloperRiskGate({
+      developer: property.developer,
+      completionStatus: property.completionStatus,
+      handoverDate: property.handoverDate,
+      currentRecommendation: evaluation.recommendation,
+      currentScore: evaluation.overallScore,
+    })
+    if (devGate.penaltyApplied) {
+      evaluation.overallScore = devGate.score
+      evaluation.recommendation = devGate.recommendation as EvaluationResult["recommendation"]
+      // Merge conditions into final recommendation
+      if (evaluation.analysis?.finalRecommendation) {
+        evaluation.analysis.finalRecommendation.decision =
+          devGate.recommendation === "hold" || devGate.recommendation === "pass" ? "CONDITIONAL" : evaluation.analysis.finalRecommendation.decision
+        evaluation.analysis.finalRecommendation.condition =
+          devGate.conditions.join(". ") + (evaluation.analysis.finalRecommendation.condition ? ". " + evaluation.analysis.finalRecommendation.condition : "")
+      }
+      evaluation.considerations = [
+        ...(evaluation.considerations || []),
+        ...devGate.conditions,
+      ]
+    }
+
+    // 2. Mandatory sensitivity analysis (deterministic, never AI-generated)
+    const sensitivityAnalysis = buildSensitivityAnalysis({
+      currentValue: property.price,
+      annualRent: (property.price * (marketContext.areaAverageYield / 100)),
+      annualExpenses: (property.price * (marketContext.areaAverageYield / 100)) * 0.15,
+      equityInvested: Math.round(property.price * 0.36),
+      baseGrowthRate: evaluation.analysis?.growth?.annualGrowthBase ?? marketContext.historicalAppreciation,
+      holdYears: 5,
+      isOffPlan,
+    })
+
+    // 3. Risk matrix with probability-impact scoring
+    const scoredRisks = generateMandatoryRisks({
+      developer: property.developer,
+      completionStatus: property.completionStatus,
+      handoverDate: property.handoverDate,
+      newSupplyUnits: marketContext.newSupplyUnits,
+      priceVolatility: marketContext.priceVolatility,
+      area: property.area,
+      areaGrade: marketContext.areaGrade,
+    })
+
+    // 4. Data confidence assessment
+    const dldCompsCount = 0 // Will be updated after enhanced PDF data
+    const dataConfidence = assessDataConfidence({
+      developer: property.developer,
+      completionStatus: property.completionStatus,
+      dldCompsCount, // placeholder, updated below
+      hasDLDAreaData: marketContext.areaMedianPricePerSqft > 0,
+      sourceType: property.source || "portal",
+      verified: property.verified ?? false,
+    })
+
     // Build enhanced PDF data (cash flow, expenses, scenarios, DLD comps)
     let enhancedPdfData: EnhancedPdfData | null = null
     try {
       enhancedPdfData = await buildEnhancedPdfData(property as PropertyData, marketContext, evaluation)
+
+      // 5. Validate comparables after build
+      if (enhancedPdfData?.comparables) {
+        const validated = validateComparables(
+          enhancedPdfData.comparables.map(c => ({ ...c, name: c.name ?? "" })),
+          property.area
+        )
+        // Attach confidence to each comparable
+        enhancedPdfData.comparables = validated as unknown as typeof enhancedPdfData.comparables
+      }
+
+      // Update data confidence with actual DLD comp count
+      const actualDldComps = (enhancedPdfData?.comparables ?? []).filter(
+        (c) => (c as unknown as { source?: string }).source === "DLD"
+      ).length
+      dataConfidence.score = Math.min(100, dataConfidence.score + actualDldComps * 4)
+      dataConfidence.level = dataConfidence.score >= 70 ? "high" : dataConfidence.score >= 40 ? "medium" : "low"
     } catch (err) {
       console.warn("[evaluate] Enhanced PDF data build failed (non-fatal):", err)
     }
+
+    // 6. Pre-flight underwriting checklist
+    const underwritingChecklist = runUnderwritingChecklist({
+      developer: property.developer,
+      completionStatus: property.completionStatus,
+      handoverDate: property.handoverDate,
+      dldCompsCount: (enhancedPdfData?.comparables ?? []).filter(
+        (c) => (c as unknown as { source?: string }).source === "DLD"
+      ).length,
+      hasDLDAreaData: marketContext.areaMedianPricePerSqft > 0,
+      hasSensitivityAnalysis: true,
+      hasRiskMatrix: true,
+      hasPaymentPlanModeling: !!property.paymentPlan,
+      sourceType: property.source || "portal",
+      isOffPlan,
+    })
     
     // Log the AI evaluation for usage tracking
     try {
@@ -1440,6 +1695,18 @@ export async function POST(req: Request) {
       evaluation,
       marketContext,
       enhancedPdfData,
+      // Underwriting quality layer
+      underwriting: {
+        sensitivityAnalysis,
+        scoredRisks,
+        dataConfidence,
+        checklist: underwritingChecklist,
+        developerGate: devGate.penaltyApplied ? {
+          penaltyApplied: true,
+          originalRecommendation: evaluation.recommendation,
+          conditions: devGate.conditions,
+        } : null,
+      },
     })
   } catch (error) {
     console.error("Property evaluation error:", error)

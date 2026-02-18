@@ -171,6 +171,14 @@ REQUIRED ANALYSIS — be as thorough as a professional IC memo:
 11. Investment Thesis: 2-3 paragraph comprehensive thesis.
 12. Recommendation: Clear decision (PROCEED/CONDITIONAL/PASS) with reasoning and negotiation points.
 
+CRITICAL UNDERWRITING RULES:
+- If developer track record is unknown or absent, DEVELOPER CREDIBILITY score MUST be ≤10/25 and recommendation MUST be CONDITIONAL at best
+- Marketing claims from developer brochures MUST be labeled as "developer-stated, not independently verified"
+- Comparables MUST be from the SAME micro-market/community only. Cross-submarket comparisons are not acceptable
+- Growth assumptions MUST reference specific data (area appreciation %, absorption rate) — never use generic "3-6% growth"
+- All risks MUST include probability (high/medium/low) and impact (high/medium/low) — no undefined or placeholder fields
+- Payment plan cash flows MUST be modeled with actual milestone timing, not assumed as lump-sum equity
+
 OUTPUT: Return valid JSON with structure matching OffPlanEvaluationResult type.
 Be specific, use actual numbers, and reference the provided data. Always respond with valid JSON only — no explanation or markdown.`
 
@@ -253,7 +261,92 @@ export async function POST(req: NextRequest) {
       aiResult,
     )
 
-    return NextResponse.json({ ...evaluation, enhancedPdfData })
+    // ── Underwriting Guards (off-plan) ──────────────────────────
+    const {
+      applyDeveloperRiskGate,
+      generateMandatoryRisks,
+      buildSensitivityAnalysis,
+      assessDataConfidence,
+      runUnderwritingChecklist,
+    } = await import("@/lib/underwriting/guards")
+
+    const devGate = applyDeveloperRiskGate({
+      developer: project.developer,
+      completionStatus: "off_plan",
+      handoverDate: project.completionDate,
+      currentRecommendation: evaluation.memoContent?.recommendation?.decision?.toLowerCase() === "proceed" ? "buy"
+        : evaluation.memoContent?.recommendation?.decision?.toLowerCase() === "conditional" ? "hold" : "pass",
+      currentScore: evaluation.overallScore,
+    })
+
+    if (devGate.penaltyApplied) {
+      evaluation.overallScore = devGate.score
+      if (evaluation.memoContent?.recommendation) {
+        evaluation.memoContent.recommendation.decision =
+          devGate.recommendation === "hold" || devGate.recommendation === "pass" ? "CONDITIONAL" : evaluation.memoContent.recommendation.decision
+        evaluation.memoContent.recommendation.conditions = [
+          ...(evaluation.memoContent.recommendation.conditions ?? []),
+          ...devGate.conditions,
+        ]
+      }
+    }
+
+    const sensitivityAnalysis = buildSensitivityAnalysis({
+      currentValue: selectedUnit.totalPrice,
+      annualRent: selectedUnit.totalPrice * (areaData.rentalYield / 100),
+      annualExpenses: selectedUnit.totalPrice * (areaData.rentalYield / 100) * 0.20,
+      equityInvested: Math.round(selectedUnit.totalPrice * 0.40),
+      baseGrowthRate: areaData.appreciation5yr / 5,
+      holdYears: 5,
+      isOffPlan: true,
+    })
+
+    const scoredRisks = generateMandatoryRisks({
+      developer: project.developer,
+      completionStatus: "off_plan",
+      handoverDate: project.completionDate,
+      newSupplyUnits: 0,
+      priceVolatility: "medium",
+      area: project.location.area,
+      areaGrade: areaData.grade,
+    })
+
+    const dataConfidence = assessDataConfidence({
+      developer: project.developer,
+      completionStatus: "off_plan",
+      dldCompsCount: 0,
+      hasDLDAreaData: true, // we use DUBAI_AREA_DATA
+      sourceType: "brochure",
+      verified: false,
+    })
+
+    const checklist = runUnderwritingChecklist({
+      developer: project.developer,
+      completionStatus: "off_plan",
+      handoverDate: project.completionDate,
+      dldCompsCount: 0,
+      hasDLDAreaData: true,
+      hasSensitivityAnalysis: true,
+      hasRiskMatrix: true,
+      hasPaymentPlanModeling: true,
+      sourceType: "brochure",
+      isOffPlan: true,
+    })
+
+    return NextResponse.json({
+      ...evaluation,
+      enhancedPdfData,
+      underwriting: {
+        sensitivityAnalysis,
+        scoredRisks,
+        dataConfidence,
+        checklist,
+        developerGate: devGate.penaltyApplied ? {
+          penaltyApplied: true,
+          conditions: devGate.conditions,
+        } : null,
+      },
+    })
   } catch (error) {
     console.error("Off-plan evaluation error:", error)
 
