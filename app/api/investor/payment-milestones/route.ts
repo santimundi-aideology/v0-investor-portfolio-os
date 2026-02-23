@@ -29,7 +29,18 @@ export async function GET(req: Request) {
       .eq("investor_id", investorId)
 
     if (!holdings || holdings.length === 0) {
-      return NextResponse.json({ milestones: [], summary: { totalAmount: 0, totalPaid: 0, totalUpcoming: 0, holdingCount: 0 } })
+      return NextResponse.json({
+        milestones: [],
+        summary: {
+          totalAmount: 0,
+          totalPaid: 0,
+          totalUpcoming: 0,
+          paidPct: 0,
+          holdingCount: 0,
+          nextPayment: null,
+          upcomingPayments: [],
+        },
+      })
     }
 
     const holdingIds = holdingIdFilter
@@ -37,7 +48,18 @@ export async function GET(req: Request) {
       : holdings.map(h => h.id)
 
     if (holdingIds.length === 0) {
-      return NextResponse.json({ milestones: [], summary: { totalAmount: 0, totalPaid: 0, totalUpcoming: 0, holdingCount: 0 } })
+      return NextResponse.json({
+        milestones: [],
+        summary: {
+          totalAmount: 0,
+          totalPaid: 0,
+          totalUpcoming: 0,
+          paidPct: 0,
+          holdingCount: 0,
+          nextPayment: null,
+          upcomingPayments: [],
+        },
+      })
     }
 
     // Get milestones for those holdings

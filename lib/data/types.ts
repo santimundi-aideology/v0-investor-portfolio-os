@@ -19,6 +19,7 @@ export type InvestorRecord = {
   totalDeals: number
   assignedAgentId: string
   ownerUserId?: string | null
+  preferredContactMethod?: "email" | "phone" | "whatsapp"
   thesisReturnStyle?: "income" | "appreciation" | "balanced"
   thesisHoldPeriod?: string
   thesisPreferredExits?: string[]

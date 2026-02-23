@@ -47,7 +47,7 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>
           {children}
-          <Toaster position="top-right" />
+          <Toaster position="top-right" richColors closeButton toastOptions={{ duration: 4000 }} />
         </Providers>
         <Analytics />
       </body>

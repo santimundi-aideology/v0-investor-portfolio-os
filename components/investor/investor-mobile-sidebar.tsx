@@ -3,29 +3,16 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  LineChart,
-  Sparkles,
-  User,
-} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { VantageIcon } from "@/components/brand/logo"
+import { investorNavItems } from "@/lib/investor-nav"
 
 interface InvestorMobileSidebarProps {
   open: boolean
   onClose: () => void
 }
-
-// Investor-specific navigation items (simplified: 4 main sections)
-const investorNavItems = [
-  { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
-  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart, alsoMatch: ["/investor/analytics"] },
-  { label: "Opportunities", href: "/investor/opportunities", icon: Sparkles },
-  { label: "Profile", href: "/investor/profile", icon: User },
-]
 
 export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarProps) {
   const pathname = usePathname()
@@ -61,7 +48,7 @@ export function InvestorMobileSidebar({ open, onClose }: InvestorMobileSidebarPr
                   item.href === "/investor/dashboard"
                     ? pathname === "/investor/dashboard" || pathname === "/investor"
                     : pathname.startsWith(item.href) ||
-                      ((item as { alsoMatch?: string[] }).alsoMatch?.some((p: string) => pathname.startsWith(p)) ?? false)
+                      (item.alsoMatch?.some((p) => pathname.startsWith(p)) ?? false)
                 const Icon = item.icon
                 return (
                   <Link

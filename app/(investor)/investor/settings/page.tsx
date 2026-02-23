@@ -124,7 +124,7 @@ export default function InvestorSettingsPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/dashboard">
@@ -165,7 +165,7 @@ export default function InvestorSettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-6">
           {/* Notification Settings */}
           <Card>

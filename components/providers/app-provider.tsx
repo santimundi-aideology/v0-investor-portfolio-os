@@ -364,21 +364,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSuperAdminInvestorId(id)
   }, [])
 
+  // Default demo investor ID used when /api/investor/me returns nothing (e.g. demo account without DB link)
+  const defaultDemoInvestorId = persona.scopedInvestorId ?? "a1111111-1111-1111-1111-111111111111"
+
   const scopedInvestorId = React.useMemo(() => {
     // Demo mode: always use persona's scoped investor ID
     if (demoModeActive) {
-      return persona.scopedInvestorId
+      return persona.scopedInvestorId ?? defaultDemoInvestorId
     }
-    // Real investor users: use their resolved ID
+    // Real investor users: use their resolved ID, or fallback so portal always has content
     if (shouldUseRealAuth && auth.user?.role === "investor") {
+      if (resolvedInvestorId) return resolvedInvestorId
+      // After fetch completed with no ID (e.g. demo user), use default so Overview/Portfolio/etc. load
+      if (investorIdFetched && isOnInvestorRoute) return defaultDemoInvestorId
       return resolvedInvestorId
     }
     // Super admins on investor routes: use auto-resolved or manually selected investor
     if (shouldUseRealAuth && auth.user?.role === "super_admin" && isOnInvestorRoute && superAdminInvestorId) {
       return superAdminInvestorId
     }
+    // Fallback: we're on /investor and auth has settled (e.g. session exists but no profile in DB).
+    // Use demo investor ID so the portal always shows content instead of endless loading.
+    if (isOnInvestorRoute && !auth.isLoading) {
+      return defaultDemoInvestorId
+    }
     return undefined
-  }, [demoModeActive, shouldUseRealAuth, auth.user, persona.scopedInvestorId, resolvedInvestorId, isOnInvestorRoute, superAdminInvestorId])
+  }, [demoModeActive, shouldUseRealAuth, auth.user, auth.isLoading, persona.scopedInvestorId, resolvedInvestorId, investorIdFetched, isOnInvestorRoute, superAdminInvestorId, defaultDemoInvestorId])
 
   const value = React.useMemo<AppContextValue>(
     () => ({

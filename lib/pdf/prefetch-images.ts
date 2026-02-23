@@ -93,6 +93,16 @@ async function resolveUrl(
 }
 
 /**
+ * Resolve a single image URL to a data URI for use in PDFs.
+ * Exported for use in investor profile and other PDF exports.
+ */
+export async function resolveImageUrl(
+  url: string | undefined | null,
+): Promise<string | undefined> {
+  return resolveUrl(url)
+}
+
+/**
  * Resolve an array of URLs in parallel.
  * Failed images keep their original URL as fallback.
  */

@@ -67,6 +67,8 @@ export async function updateInvestorDb(id: string, patch: Partial<InvestorRecord
   if (patch.ownerUserId !== undefined) payload.owner_user_id = patch.ownerUserId
   if (patch.avatar !== undefined) payload.avatar = patch.avatar
   if (patch.description !== undefined) payload.description = patch.description
+  if (patch.preferredContactMethod !== undefined)
+    payload.preferred_contact_method = patch.preferredContactMethod
   if (patch.thesisReturnStyle !== undefined) payload.thesis_return_style = patch.thesisReturnStyle
   if (patch.thesisHoldPeriod !== undefined) payload.thesis_hold_period = patch.thesisHoldPeriod
   if (patch.thesisPreferredExits !== undefined) payload.thesis_preferred_exits = patch.thesisPreferredExits
@@ -101,6 +103,7 @@ function mapRow(row: Record<string, unknown>): InvestorRecord {
     assignedAgentId: row.assigned_agent_id as string,
     ownerUserId: (row.owner_user_id as string) ?? undefined,
     avatar: (row.avatar as string) ?? undefined,
+    preferredContactMethod: (row.preferred_contact_method as InvestorRecord["preferredContactMethod"]) ?? undefined,
     thesisReturnStyle: (row.thesis_return_style as InvestorRecord["thesisReturnStyle"]) ?? undefined,
     thesisHoldPeriod: (row.thesis_hold_period as string) ?? undefined,
     thesisPreferredExits: (row.thesis_preferred_exits as string[]) ?? undefined,
