@@ -8,7 +8,11 @@ import { getSupabaseAdminClient } from "@/lib/db/client"
  * - area: Area name to search (e.g., "Dubai Marina")
  * - purpose: "for-sale" or "for-rent"
  * - bedrooms: Number of bedrooms
+ * - bathrooms: Number of bathrooms
  * - price_min, price_max: Price range
+ * - area_min, area_max: Size in sqm
+ * - property_type: Apartment, Villa, Townhouse, Penthouse, etc.
+ * - sort: date_desc, price_asc, price_desc
  * - page: Page number
  */
 export async function GET(req: Request) {
@@ -17,8 +21,13 @@ export async function GET(req: Request) {
     const area = searchParams.get("area") || "Dubai Marina"
     const purpose = (searchParams.get("purpose") as "for-sale" | "for-rent") || "for-sale"
     const bedrooms = searchParams.get("bedrooms")
+    const bathrooms = searchParams.get("bathrooms")
     const priceMin = searchParams.get("price_min")
     const priceMax = searchParams.get("price_max")
+    const areaMin = searchParams.get("area_min")
+    const areaMax = searchParams.get("area_max")
+    const propertyType = searchParams.get("property_type")
+    const sort = searchParams.get("sort")
     const page = parseInt(searchParams.get("page") || "1")
 
     // First, get the location ID for the area
@@ -34,16 +43,22 @@ export async function GET(req: Request) {
     // Get the first matching community-level location
     const location = locations.results.find(l => l.level === "community") || locations.results[0]
 
+    const propertyTypes = propertyType ? [propertyType] : undefined
+
     // Search properties
     const properties = await searchProperties({
       location_ids: [location.id],
       purpose,
       category: "residential",
+      property_types: propertyTypes,
       bedrooms_min: bedrooms ? parseInt(bedrooms) : undefined,
       bedrooms_max: bedrooms ? parseInt(bedrooms) : undefined,
       price_min: priceMin ? parseInt(priceMin) : undefined,
       price_max: priceMax ? parseInt(priceMax) : undefined,
+      area_min: areaMin ? parseFloat(areaMin) : undefined,
+      area_max: areaMax ? parseFloat(areaMax) : undefined,
       page,
+      sort: sort === "price_asc" || sort === "price_desc" ? sort : "date_desc",
     })
 
     // Filter to Dubai only and convert to our format

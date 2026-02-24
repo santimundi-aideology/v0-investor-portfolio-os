@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronUp,
   DollarSign,
+  Download,
   Edit2,
   FileText,
   Mail,
@@ -22,6 +23,7 @@ import {
   TrendingUp,
   User,
   X,
+  BarChart3,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
+import { ProfileSummary as ProfileSummaryBlock } from "@/components/investor/profile-summary"
 import { cn } from "@/lib/utils"
 import { formatAED } from "@/lib/real-estate"
 import { useAPI } from "@/lib/hooks/use-api"
@@ -275,10 +278,12 @@ function InvestorDescription({
 
 export default function InvestorProfilePage() {
   const { scopedInvestorId } = useApp()
-  const [editingSection, setEditingSection] = React.useState<"identity" | "thesis" | "mandate" | null>(null)
+  const [editingSection, setEditingSection] = React.useState<"identity" | "thesis" | "mandate" | "description" | null>(null)
   const [savingSection, setSavingSection] = React.useState<
     "identity" | "thesis" | "mandate" | "description" | null
   >(null)
+  const [lastSavedAt, setLastSavedAt] = React.useState<number | null>(null)
+  const [downloadingPdf, setDownloadingPdf] = React.useState(false)
   const [openSections, setOpenSections] = React.useState({
     identity: true,
     about: true,
@@ -289,6 +294,7 @@ export default function InvestorProfilePage() {
   const aboutSectionRef = React.useRef<HTMLDivElement | null>(null)
   const thesisSectionRef = React.useRef<HTMLDivElement | null>(null)
   const mandateSectionRef = React.useRef<HTMLDivElement | null>(null)
+  const profileContentRef = React.useRef<HTMLDivElement | null>(null)
   const [descriptionEditToken, setDescriptionEditToken] = React.useState(0)
 
   // Fetch investor data from API
@@ -316,6 +322,7 @@ export default function InvestorProfilePage() {
     email: "",
     phone: "",
     company: "",
+    avatar: "",
     preferredContactMethod: "email" as "email" | "phone" | "whatsapp",
   })
   const [descriptionValue, setDescriptionValue] = React.useState("")
@@ -349,6 +356,7 @@ export default function InvestorProfilePage() {
       email: currentInvestor.email ?? "",
       phone: currentInvestor.phone ?? "",
       company: currentInvestor.company ?? "",
+      avatar: currentInvestor.avatar ?? "",
       preferredContactMethod: currentInvestor.preferredContactMethod ?? "email",
     })
   }, [])
@@ -399,9 +407,11 @@ export default function InvestorProfilePage() {
         email: identityForm.email,
         phone: identityForm.phone,
         company: identityForm.company,
+        avatar: identityForm.avatar?.trim() || undefined,
         preferredContactMethod: identityForm.preferredContactMethod,
       })
       setEditingSection(null)
+      setLastSavedAt(Date.now())
       toast.success("Identity updated")
       return true
     } catch (err) {
@@ -446,6 +456,7 @@ export default function InvestorProfilePage() {
         thesisNotes: thesisForm.thesisNotes,
       })
       setEditingSection(null)
+      setLastSavedAt(Date.now())
       toast.success("Investment thesis updated")
       return true
     } catch (err) {
@@ -501,6 +512,7 @@ export default function InvestorProfilePage() {
         mandate: mandateForm,
       })
       setEditingSection(null)
+      setLastSavedAt(Date.now())
       toast.success("Investment mandate updated")
       return true
     } catch (err) {
@@ -526,6 +538,7 @@ export default function InvestorProfilePage() {
     identityForm.email !== (investor?.email ?? "") ||
     identityForm.phone !== (investor?.phone ?? "") ||
     identityForm.company !== (investor?.company ?? "") ||
+    (identityForm.avatar ?? "") !== (investor?.avatar ?? "") ||
     identityForm.preferredContactMethod !== (investor?.preferredContactMethod ?? "email")
 
   const mandateDirty = React.useMemo(() => {
@@ -717,6 +730,36 @@ export default function InvestorProfilePage() {
     return value === "ready" ? "Ready" : "Off-plan"
   }
 
+  /** For "How I want to invest" card: friendly readiness label */
+  const formatReadinessLabel = (value?: "ready" | "off_plan" | "any") => {
+    if (!value || value === "any") return "Any"
+    return value === "ready" ? "Ready to move" : "Off-plan"
+  }
+
+  /** Friendly asset/property type labels for display */
+  const formatPropertyTypeLabel = (raw: string) => {
+    const s = raw.trim().toLowerCase()
+    const map: Record<string, string> = {
+      apartment: "Apartments",
+      apartments: "Apartments",
+      villa: "Luxury villas",
+      villas: "Luxury villas",
+      hotel: "Hotels",
+      hotels: "Hotels",
+      townhouse: "Townhouses",
+      townhouses: "Townhouses",
+      penthouse: "Penthouses",
+      penthouses: "Penthouses",
+      luxury: "Luxury homes",
+      "luxury home": "Luxury homes",
+      "luxury homes": "Luxury homes",
+      office: "Office",
+      retail: "Retail",
+      land: "Land",
+    }
+    return map[s] ?? raw.trim().replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+
   const formatDecisionTimeline = (
     value?: "immediate" | "1-2_weeks" | "1_month" | "flexible"
   ) => {
@@ -756,97 +799,218 @@ export default function InvestorProfilePage() {
     return "Not set"
   }
 
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true)
+    try {
+      const res = await fetch("/api/investor/profile/export-pdf")
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? "Failed to generate PDF")
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${(investor?.name || "Investor").replace(/[^a-zA-Z0-9]/g, "_")}_Profile.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success("Profile downloaded as PDF")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to download PDF")
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
+  const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=500&fit=crop"
+  const avatarUrl = (identityForm.avatar || investor?.avatar || "").trim() || DEFAULT_AVATAR
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-      {/* ── Identity ───────────────────────────────────────────── */}
-      <div ref={identitySectionRef}>
-      <Card>
-        <Collapsible
-          open={openSections.identity}
-          onOpenChange={(isOpen) =>
-            setOpenSections((prev) => ({
-              ...prev,
-              identity: isOpen,
-            }))
-          }
-        >
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="-ml-2 mt-0.5 size-8">
-                    {openSections.identity ? (
-                      <ChevronUp className="size-4" />
-                    ) : (
-                      <ChevronDown className="size-4" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <User className="size-4 text-primary" />
-                    Identity
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Basic profile and preferred contact details.
-                  </p>
-                </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-background">
+      {/* Hero: green gradient, personal profile header (Overview mood) */}
+      <div
+        className="relative -mx-4 -mt-4 min-h-[280px] overflow-hidden sm:-mx-6 lg:-mx-8 lg:-mt-6"
+        style={{
+          backgroundImage: "linear-gradient(180deg, rgba(15,41,34,0.92) 0%, rgba(15,41,34,0.88) 60%, rgba(15,41,34,0.95) 100%), url('https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80')",
+          backgroundSize: "115%",
+          backgroundPosition: "center 40%",
+          backgroundColor: "#0f2922",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.12),transparent)]" />
+        <div className="relative mx-auto max-w-[90rem] px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl border-2 border-white/20 shadow-lg">
+                {avatarUrl.startsWith("http") ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-emerald-800/80 text-2xl font-bold text-white">
+                    {(investor?.name ?? "I").charAt(0)}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <AskAIBankerWidget
-                  agentId="portfolio_advisor"
-                  title="Profile Advisor"
-                  description="Get help with your profile and mandate"
-                  suggestedQuestions={[
-                    "Is my mandate well-defined?",
-                    "What areas should I consider?",
-                    "How does my portfolio align with my goals?",
-                  ]}
-                  pagePath="/investor/profile"
-                  scopedInvestorId={scopedInvestorId}
-                  variant="inline"
-                />
-                <Button
-                  variant={isIdentityEditing ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setOpenSections((prev) => ({ ...prev, identity: true }))
-                    setEditingSection("identity")
-                  }}
-                  disabled={editingSection !== null && !isIdentityEditing}
-                >
-                  <Edit2 className="size-3.5 mr-1.5" />
-                  Edit
-                </Button>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  {investor?.name ?? "Investor"}
+                </h1>
+                <p className="text-sm text-white/80 mt-0.5">{investor?.company ?? "—"}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {lastSavedAt != null && Date.now() - lastSavedAt < 60000 && (
+                    <span className="text-[11px] text-emerald-300/90">Updated just now</span>
+                  )}
+                  <span className="text-[11px] text-white/60">
+                    Member since {investor?.createdAt ? new Date(investor.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}
+                  </span>
+                </div>
               </div>
             </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-lg font-bold">
-                  {investor.name.charAt(0)}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-lg border border-white/15 bg-white/10 backdrop-blur-sm px-3 py-2">
+                <p className="text-[10px] font-medium text-white/60 uppercase tracking-wider">Profile completeness</p>
+                <p className="text-sm font-semibold text-emerald-300">{aiContextCompletion}%</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white/90 hover:bg-white/10 hover:text-white"
+                onClick={() => profileContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              >
+                <Edit2 className="size-3.5 mr-1.5" />
+                Edit profile
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/90 text-emerald-900 hover:bg-white"
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+              >
+                {downloadingPdf ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4 mr-1.5" />}
+                Download PDF
+              </Button>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="rounded-md border border-white/20 bg-emerald-900/60 backdrop-blur-sm px-3 py-2 min-w-[100px]">
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Properties</p>
+              <p className="text-xs sm:text-sm font-semibold text-white/90">{summary.propertyCount}</p>
+            </div>
+            <div className="rounded-md border border-white/20 bg-emerald-900/60 backdrop-blur-sm px-3 py-2 min-w-[100px]">
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Portfolio value</p>
+              <p className="text-xs sm:text-sm font-semibold text-emerald-300">{formatAED(summary.totalValue)}</p>
+            </div>
+            <div className="rounded-md border border-white/20 bg-emerald-900/60 backdrop-blur-sm px-3 py-2 min-w-[100px]">
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Avg yield</p>
+              <p className="text-xs sm:text-sm font-semibold text-white/90">{summary.avgYieldPct.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-md border border-white/20 bg-emerald-900/60 backdrop-blur-sm px-3 py-2 min-w-[100px]">
+              <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Appreciation</p>
+              <p className="text-xs sm:text-sm font-semibold text-emerald-300">+{summary.appreciationPct.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content: wider container, 2-column layout */}
+      <div id="profile-content" ref={profileContentRef} className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
+        {topMissingAiFields.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200/80 bg-white px-4 py-3 dark:border-border dark:bg-card">
+            <div className="flex-1 min-w-[120px]">
+              <div className="mb-1 flex justify-between text-xs">
+                <span className="text-muted-foreground">Profile completeness</span>
+                <span className="font-medium">{aiContextCompletion}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-muted">
+                <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${aiContextCompletion}%` }} />
+              </div>
+            </div>
+            {topMissingAiFields.slice(0, 3).map((m) => (
+              <Button key={m.key} variant="ghost" size="sm" className="h-8 text-xs" onClick={() => handleAiContextAction(m.section)}>
+                Add {m.label}
+                <ChevronRight className="size-3 ml-0.5" />
+              </Button>
+            ))}
+          </div>
+        )}
+        <div className="grid gap-6 lg:grid-cols-2 mb-6">
+          {/* Left column: Profile Summary + Identity */}
+          <div className="space-y-6">
+            {/* Profile Summary card (summary from description + show full toggle; edit = description) */}
+            <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border bg-gradient-to-br from-white via-primary/[0.03] to-emerald-50/20 dark:from-card dark:via-primary/5 dark:to-emerald-950/10 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                    <FileText className="size-4 text-primary" />
+                    Profile Summary
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg hover:bg-primary/10"
+                    onClick={() => { setDescriptionEditToken((t) => t + 1); setEditingSection("description"); aboutSectionRef.current?.scrollIntoView({ behavior: "smooth" }) }}
+                    disabled={editingSection !== null && editingSection !== "description"}
+                  >
+                    <Edit2 className="size-3.5 text-muted-foreground" />
+                  </Button>
                 </div>
-                <div>
-                  <p className="font-semibold">{investor.name}</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-muted-foreground">{investor.company}</p>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px]",
-                        investor.status === "active"
-                          ? "border-green-500/30 bg-green-500/10 text-green-700"
-                          : ""
-                      )}
-                    >
-                      {investor.status}
-                    </Badge>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Generated from your About me. Edit there to update.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ProfileSummaryBlock fullDescription={investor?.description ?? ""} />
+              </CardContent>
+            </Card>
+
+            {/* Identity card */}
+            <div ref={identitySectionRef}>
+            <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                      <User className="size-4 text-primary" />
+                      Identity
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-0.5">Contact and preferred method.</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <AskAIBankerWidget agentId="portfolio_advisor" title="Profile Advisor" suggestedQuestions={["Is my mandate well-defined?", "What areas should I consider?"]} pagePath="/investor/profile" scopedInvestorId={scopedInvestorId} variant="inline" />
+                    <Button variant="ghost" size="icon" className="size-8 rounded-lg hover:bg-primary/10" onClick={() => { setOpenSections((p) => ({ ...p, identity: true })); setEditingSection("identity") }} disabled={editingSection !== null && !isIdentityEditing}>
+                      <Edit2 className="size-3.5 text-muted-foreground" />
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </CardHeader>
+              <Collapsible open={openSections.identity} onOpenChange={(o) => setOpenSections((p) => ({ ...p, identity: o }))}>
+                <CollapsibleContent>
+                  <CardContent>
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary text-lg font-bold">
+                        {(investor?.name ?? "I").charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold">{investor?.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-muted-foreground">{investor?.company}</p>
+                          <Badge variant="outline" className={cn("text-[10px]", investor?.status === "active" ? "border-green-500/30 bg-green-500/10 text-green-700" : "")}>{investor?.status}</Badge>
+                        </div>
+                      </div>
+                    </div>
               {isIdentityEditing ? (
                 <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="identity-avatar" className="text-xs">Profile photo URL</Label>
+                    <Input
+                      id="identity-avatar"
+                      type="url"
+                      placeholder="https://..."
+                      value={identityForm.avatar}
+                      onChange={(e) => setIdentityForm((prev) => ({ ...prev, avatar: e.target.value }))}
+                      className="w-full"
+                    />
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="identity-name" className="text-xs">
@@ -1002,121 +1166,203 @@ export default function InvestorProfilePage() {
         </Collapsible>
       </Card>
       </div>
-
-      {/* ── AI Context Health ─────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="size-4 text-primary" />
-            AI Context Health
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            More complete profile context improves recommendation quality.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Completeness</span>
-                <span className="font-semibold">{aiContextCompletion}%</span>
-              </div>
-              <div className="h-2 w-full rounded-full bg-muted">
-                <div
-                  className="h-2 rounded-full bg-primary transition-all"
-                  style={{ width: `${aiContextCompletion}%` }}
-                />
-              </div>
-            </div>
           </div>
-          {topMissingAiFields.length > 0 ? (
-            <div className="space-y-2">
-              {topMissingAiFields.map((missing) => (
-                <Button
-                  key={missing.key}
-                  variant="ghost"
-                  className="h-auto w-full justify-between p-2 text-left"
-                  onClick={() => handleAiContextAction(missing.section)}
-                >
-                  <span className="text-sm">
-                    Add {missing.label} to improve recommendations
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </Button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-emerald-700">
-              Great job - your AI context is fully complete.
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* ── Portfolio Summary (compact KPI strip) ─────────────── */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{summary.propertyCount}</p>
-            <p className="text-[11px] text-muted-foreground">Properties</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{formatAED(summary.totalValue)}</p>
-            <p className="text-[11px] text-muted-foreground">Total Value</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{summary.avgYieldPct.toFixed(1)}%</p>
-            <p className="text-[11px] text-muted-foreground">Avg Yield</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">+{summary.appreciationPct.toFixed(1)}%</p>
-            <p className="text-[11px] text-muted-foreground">Appreciation</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── About Me & Investment Goals ───────────────────────── */}
-      <div ref={aboutSectionRef}>
-      <Card>
-        <Collapsible
-          open={openSections.about}
-          onOpenChange={(isOpen) =>
-            setOpenSections((prev) => ({
-              ...prev,
-              about: isOpen,
-            }))
-          }
-        >
-          <CardHeader>
-            <div className="flex items-start gap-3">
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="-ml-2 mt-0.5 size-8">
-                  {openSections.about ? (
-                    <ChevronUp className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <User className="size-4 text-primary" />
-                  About Me & Investment Goals
-                </CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Describe yourself and what you&apos;re looking for. This helps your AI advisor
-                  give you better, more personalized recommendations.
+          {/* Right column: How I want to invest + Investment Thesis + Mandate highlights */}
+          <div className="space-y-6">
+            {/* How I want to invest: timeline, risk, off-plan vs ready, asset focus */}
+            <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border bg-gradient-to-br from-white via-primary/[0.03] to-emerald-50/20 dark:from-card dark:to-emerald-950/10 overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                    <BarChart3 className="size-4 text-primary" />
+                    How I want to invest
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg hover:bg-primary/10"
+                    onClick={() => { mandateSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); setOpenSections((p) => ({ ...p, mandate: true })); if (!mandateForm) setMandateForm(createDefaultMandate()); setEditingSection("mandate") }}
+                  >
+                    <Edit2 className="size-3.5 text-muted-foreground" />
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Timeline, risk, readiness & asset focus. Edit in full Mandate below.
                 </p>
-              </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Investment timeline</p>
+                    <p className="mt-0.5 font-semibold">
+                      {activeMandate?.investmentHorizon?.trim() || thesisForm.thesisHoldPeriod?.trim() || "Not set"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">e.g. Long-term, 5–10 years, Flexible</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Decision speed</p>
+                    <p className="mt-0.5 font-semibold">{formatDecisionTimeline(activeMandate?.decisionTimeline)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Immediate to Flexible</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Risk & security</p>
+                    <p className="mt-0.5 font-semibold">{formatTitleCase(activeMandate?.riskTolerance ?? "") || "Not set"}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Low / Medium / High</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Property readiness</p>
+                    <p className="mt-0.5 font-semibold">{formatReadinessLabel(activeMandate?.completionStatus)}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Ready to move, Off-plan or Any</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Asset focus</p>
+                  {(activeMandate?.propertyTypes?.length ?? 0) > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(activeMandate?.propertyTypes ?? []).map((t) => (
+                        <Badge key={t} variant="secondary" className="text-[11px] font-normal">
+                          {formatPropertyTypeLabel(t)}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not set — e.g. Luxury homes, Apartments, Hotels, Villas</p>
+                  )}
+                </div>
+                <Button variant="link" className="h-auto p-0 text-primary font-medium text-sm" onClick={() => mandateSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                  Edit in full Investment Mandate
+                  <ChevronRight className="size-3.5 ml-0.5 inline" />
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div ref={thesisSectionRef}>
+              <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                      <Sparkles className="size-4 text-primary" />
+                      Investment Thesis
+                    </CardTitle>
+                    <Button variant="ghost" size="icon" className="size-8 rounded-lg hover:bg-primary/10" onClick={() => { setOpenSections((p) => ({ ...p, thesis: true })); setEditingSection("thesis") }} disabled={editingSection !== null && !isThesisEditing}>
+                      <Edit2 className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">Return style, hold period, exits.</p>
+                </CardHeader>
+                <CardContent>
+                  {!isThesisEditing ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Return style</p>
+                          <p className="mt-0.5 font-semibold">{formatTitleCase(thesisForm.thesisReturnStyle)}</p>
+                        </div>
+                        <div className="rounded-lg border border-gray-100 dark:border-border bg-muted/30 p-3">
+                          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Hold period</p>
+                          <p className="mt-0.5 font-semibold">{thesisForm.thesisHoldPeriod || "Not set"}</p>
+                        </div>
+                      </div>
+                      {thesisForm.thesisPreferredExits.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {thesisForm.thesisPreferredExits.map((item) => (
+                            <Badge key={item} variant="outline" className="text-[11px]">{item}</Badge>
+                          ))}
+                        </div>
+                      )}
+                      {thesisForm.thesisNotes?.trim() && (
+                        <p className="text-sm text-muted-foreground line-clamp-3">{thesisForm.thesisNotes.trim()}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Return Style</Label>
+                          <Select value={thesisForm.thesisReturnStyle} onValueChange={(v) => setThesisForm((p) => ({ ...p, thesisReturnStyle: v as "income" | "appreciation" | "balanced" }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="income">Income</SelectItem>
+                              <SelectItem value="appreciation">Appreciation</SelectItem>
+                              <SelectItem value="balanced">Balanced</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Hold Period</Label>
+                          <Input value={thesisForm.thesisHoldPeriod} placeholder="e.g. 5-7 years" onChange={(e) => setThesisForm((p) => ({ ...p, thesisHoldPeriod: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <Label className="text-xs">Preferred Exits (comma separated)</Label>
+                          <Input value={thesisForm.thesisPreferredExits.join(", ")} placeholder="secondary sale, refinance" onChange={(e) => setThesisForm((p) => ({ ...p, thesisPreferredExits: parseList(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <Label className="text-xs">Thesis Notes</Label>
+                          <Textarea value={thesisForm.thesisNotes} onChange={(e) => setThesisForm((p) => ({ ...p, thesisNotes: e.target.value }))} rows={3} className="w-full" />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 border-t pt-4">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingSection(null); resetThesisForm(investor!) }}><X className="size-3.5 mr-1.5" />Cancel</Button>
+                        <Button size="sm" onClick={handleThesisSave} disabled={isThesisSaving || !thesisDirty}>
+                          {isThesisSaving ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Saving...</> : <><Save className="size-3.5 mr-1.5" />Save</>}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          </CardHeader>
-          <CollapsibleContent>
+
+            {/* Mandate highlights: compact + link to full */}
+            <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border bg-gradient-to-br from-white via-primary/[0.02] to-emerald-50/20 dark:from-card dark:to-emerald-950/10 overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                  <Target className="size-4 text-primary" />
+                  Mandate highlights
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-0.5">Strategy, budget, areas. Edit full mandate below.</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {activeMandate ? (
+                  <>
+                    {activeMandate.strategy?.trim() && <p className="text-sm"><span className="text-muted-foreground">Strategy:</span> {activeMandate.strategy}</p>}
+                    {(activeMandate.preferredAreas?.length ?? 0) > 0 && <p className="text-sm"><span className="text-muted-foreground">Areas:</span> {activeMandate.preferredAreas?.join(", ")}</p>}
+                    {activeMandate.yieldTarget?.trim() && <p className="text-sm"><span className="text-muted-foreground">Yield target:</span> {activeMandate.yieldTarget}</p>}
+                    {(typeof activeMandate.minInvestment === "number" && activeMandate.minInvestment > 0) || (typeof activeMandate.maxInvestment === "number" && activeMandate.maxInvestment > 0) ? (
+                      <p className="text-sm"><span className="text-muted-foreground">Budget:</span> {formatAED(activeMandate.minInvestment || 0)} – {formatAED(activeMandate.maxInvestment || 0)}</p>
+                    ) : null}
+                    {(activeMandate.dealBreakers?.length ?? 0) > 0 && <p className="text-sm"><span className="text-muted-foreground">Deal breakers:</span> {activeMandate.dealBreakers?.slice(0, 3).join(", ")}{(activeMandate.dealBreakers?.length ?? 0) > 3 ? "…" : ""}</p>}
+                    <Button variant="link" className="h-auto p-0 text-primary font-medium" onClick={() => mandateSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                      See full Investment Mandate
+                      <ChevronRight className="size-3.5 ml-0.5 inline" />
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No mandate yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* About me: canonical place to edit long description (summary shown in Profile Summary card) */}
+        <div ref={aboutSectionRef} className="mb-6">
+          <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                    <User className="size-4 text-primary" />
+                    About me & investment objectives
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-0.5">Full description. Summary appears in Profile Summary above.</p>
+                </div>
+                <Button variant="ghost" size="icon" className="size-8 rounded-lg hover:bg-primary/10" onClick={() => { setDescriptionEditToken((t) => t + 1); setEditingSection("description") }} disabled={editingSection !== null && editingSection !== "description"}>
+                  <Edit2 className="size-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+            </CardHeader>
             <CardContent>
               <InvestorDescription
                 value={descriptionValue}
@@ -1127,245 +1373,37 @@ export default function InvestorProfilePage() {
                 forceEditToken={descriptionEditToken}
               />
             </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
-      </div>
+          </Card>
+        </div>
 
-      {/* ── Investment Thesis ─────────────────────────────────── */}
-      <div ref={thesisSectionRef}>
-      <Card>
-        <Collapsible
-          open={openSections.thesis}
-          onOpenChange={(isOpen) =>
-            setOpenSections((prev) => ({
-              ...prev,
-              thesis: isOpen,
-            }))
-          }
-        >
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="-ml-2 mt-0.5 size-8">
-                    {openSections.thesis ? (
-                      <ChevronUp className="size-4" />
-                    ) : (
-                      <ChevronDown className="size-4" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
+        {/* Full Investment Mandate (editable) */}
+        <div id="mandate" ref={mandateSectionRef}>
+          <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Sparkles className="size-4 text-primary" />
-                    Investment Thesis
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    High-level philosophy: why you invest and how you think about exits.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant={isThesisEditing ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setOpenSections((prev) => ({ ...prev, thesis: true }))
-                  setEditingSection("thesis")
-                }}
-                disabled={editingSection !== null && !isThesisEditing}
-              >
-                <Edit2 className="size-3.5 mr-1.5" />
-                Edit
-              </Button>
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              {isThesisEditing ? (
-                <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Return Style</Label>
-                      <Select
-                        value={thesisForm.thesisReturnStyle}
-                        onValueChange={(value) =>
-                          setThesisForm((prev) => ({
-                            ...prev,
-                            thesisReturnStyle: value as "income" | "appreciation" | "balanced",
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="income">Income</SelectItem>
-                          <SelectItem value="appreciation">Appreciation</SelectItem>
-                          <SelectItem value="balanced">Balanced</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Hold Period</Label>
-                      <Input
-                        value={thesisForm.thesisHoldPeriod}
-                        placeholder="e.g. 5-7 years"
-                        onChange={(e) =>
-                          setThesisForm((prev) => ({ ...prev, thesisHoldPeriod: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Preferred Exits (comma separated)</Label>
-                      <Input
-                        value={thesisForm.thesisPreferredExits.join(", ")}
-                        placeholder="secondary sale, refinance, hold indefinitely"
-                        onChange={(e) =>
-                          setThesisForm((prev) => ({
-                            ...prev,
-                            thesisPreferredExits: parseList(e.target.value),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Thesis Notes</Label>
-                      <Textarea
-                        value={thesisForm.thesisNotes}
-                        onChange={(e) =>
-                          setThesisForm((prev) => ({ ...prev, thesisNotes: e.target.value }))
-                        }
-                        rows={4}
-                        placeholder="Any additional principles, constraints, or exit logic..."
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 border-t pt-4">
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingSection(null)
-                        resetThesisForm(investor)
-                      }}
-                    >
-                      <X className="size-3.5 mr-1.5" />
-                      Cancel
-                    </Button>
-                    <Button onClick={handleThesisSave} disabled={isThesisSaving || !thesisDirty}>
-                      {isThesisSaving ? (
-                        <>
-                          <Loader2 className="size-3.5 mr-1.5 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="size-3.5 mr-1.5" />
-                          Save
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg border bg-muted/40 p-4">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                        Return Style
-                      </p>
-                      <p className="mt-1 font-semibold">
-                        {formatTitleCase(thesisForm.thesisReturnStyle)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/40 p-4">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                        Hold Period
-                      </p>
-                      <p className="mt-1 font-semibold">{thesisForm.thesisHoldPeriod || "Not set"}</p>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/40 p-4">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                      Preferred Exits
-                    </p>
-                    {thesisForm.thesisPreferredExits.length ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {thesisForm.thesisPreferredExits.map((item) => (
-                          <Badge key={item} variant="outline" className="text-[11px]">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Not set</p>
-                    )}
-                  </div>
-                  <div className="rounded-lg border bg-muted/40 p-4">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                      Thesis Notes
-                    </p>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {thesisForm.thesisNotes.trim() || "Not set"}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
-      </div>
-
-      {/* ── Investment Mandate ────────────────────────────────── */}
-      <div ref={mandateSectionRef}>
-      <Card>
-        <Collapsible
-          open={openSections.mandate}
-          onOpenChange={(isOpen) =>
-            setOpenSections((prev) => ({
-              ...prev,
-              mandate: isOpen,
-            }))
-          }
-        >
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="-ml-2 mt-0.5 size-8">
-                    {openSections.mandate ? (
-                      <ChevronUp className="size-4" />
-                    ) : (
-                      <ChevronDown className="size-4" />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
+                  <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                     <Target className="size-4 text-primary" />
                     Investment Mandate
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Strategy, preferences, and execution constraints.
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">Strategy, preferences, and execution constraints.</p>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 rounded-lg hover:bg-primary/10"
+                  onClick={() => {
+                    setOpenSections((prev) => ({ ...prev, mandate: true }))
+                    if (!mandateForm) setMandateForm(createDefaultMandate())
+                    setEditingSection("mandate")
+                  }}
+                  disabled={editingSection !== null && !isMandateEditing}
+                >
+                  <Edit2 className="size-3.5 text-muted-foreground" />
+                </Button>
               </div>
-              <Button
-                variant={isMandateEditing ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setOpenSections((prev) => ({ ...prev, mandate: true }))
-                  if (!mandateForm) setMandateForm(createDefaultMandate())
-                  setEditingSection("mandate")
-                }}
-                disabled={editingSection !== null && !isMandateEditing}
-              >
-                <Edit2 className="size-3.5 mr-1.5" />
-                Edit
-              </Button>
-            </div>
-          </CardHeader>
+            </CardHeader>
+            <Collapsible open={openSections.mandate} onOpenChange={(o) => setOpenSections((p) => ({ ...p, mandate: o }))}>
           <CollapsibleContent>
             <CardContent>
               {!mandateForm && !isMandateEditing ? (
@@ -1400,8 +1438,9 @@ export default function InvestorProfilePage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Investment Horizon</Label>
+                        <Label className="text-xs">Investment Horizon / Timeline</Label>
                         <Input
+                          placeholder="e.g. Long-term, 5–10 years, Flexible"
                           value={mandateForm.investmentHorizon}
                           onChange={(e) =>
                             setMandateForm((prev) =>
@@ -1485,8 +1524,9 @@ export default function InvestorProfilePage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Property Types (comma separated)</Label>
+                        <Label className="text-xs">Property Types / Asset focus (comma separated)</Label>
                         <Input
+                          placeholder="e.g. Luxury homes, Apartments, Hotels, Villas, Townhouses, Penthouses"
                           value={mandateForm.propertyTypes.join(", ")}
                           onChange={(e) =>
                             setMandateForm((prev) =>
@@ -1494,6 +1534,7 @@ export default function InvestorProfilePage() {
                             )
                           }
                         />
+                        <p className="text-[10px] text-muted-foreground">Defines how you want to invest: luxury homes, hotels, apartments, etc.</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Preferred Bedrooms (e.g. 1,2,3)</Label>
@@ -1551,7 +1592,7 @@ export default function InvestorProfilePage() {
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Completion Status</Label>
+                        <Label className="text-xs">Property readiness (Ready to move / Off-plan)</Label>
                         <Select
                           value={mandateForm.completionStatus ?? "any"}
                           onValueChange={(value) =>
@@ -1570,7 +1611,7 @@ export default function InvestorProfilePage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="any">Any</SelectItem>
-                            <SelectItem value="ready">Ready</SelectItem>
+                            <SelectItem value="ready">Ready to move</SelectItem>
                             <SelectItem value="off_plan">Off-plan</SelectItem>
                           </SelectContent>
                         </Select>
@@ -2205,6 +2246,7 @@ export default function InvestorProfilePage() {
       <React.Suspense fallback={<ActivitySummaryCardSkeleton />}>
         <ActivitySummaryCard />
       </React.Suspense>
+      </div>
     </div>
   )
 }

@@ -8,17 +8,24 @@ import {
   Users,
   TrendingUp,
   TrendingDown,
+  ChevronRight,
 } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MiniAreaSparkline } from "@/components/charts/mini-area-sparkline"
-import { MiniLineSparkline } from "@/components/charts/mini-line-sparkline"
 import { cn } from "@/lib/utils"
 import { formatAED } from "@/lib/real-estate"
+import {
+  PortfolioValuePanel,
+  MonthlyIncomePanel,
+  AverageYieldPanel,
+  OccupancyRatePanel,
+  type PortfolioHoldingForPanels,
+} from "./portfolio-kpi-expandable-panels"
 
 export interface KPIData {
   totalPortfolioValue: number
+  totalCost?: number
   appreciationPct: number
   monthlyRentalIncome: number
   monthlyRentalTrend: number
@@ -26,7 +33,11 @@ export interface KPIData {
   occupancyPct: number
   valueSeries: { m: string; v: number }[]
   incomeSeries: { m: string; n: number }[]
+  holdings?: PortfolioHoldingForPanels[]
+  historicalPortfolioValue?: { date: string; totalValue: number }[]
 }
+
+const MASKED_LABEL = "—"
 
 function TrendBadge({
   value,
@@ -42,8 +53,8 @@ function TrendBadge({
       className={cn(
         "gap-1 font-medium",
         isPositive
-          ? "border-green-200 bg-green-50 text-green-700"
-          : "border-red-200 bg-red-50 text-red-700"
+          ? "border-emerald-200 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 dark:border-emerald-800"
+          : "border-red-200 bg-red-500/10 text-red-700 dark:text-red-300 dark:border-red-800"
       )}
     >
       {isPositive ? (
@@ -65,8 +76,8 @@ function KPICard({
   subtext,
   trend,
   trendSuffix,
-  sparkline,
   className,
+  onClick,
 }: {
   icon: React.ElementType
   label: string
@@ -74,85 +85,123 @@ function KPICard({
   subtext?: string
   trend?: number
   trendSuffix?: string
-  sparkline?: React.ReactNode
   className?: string
+  onClick?: () => void
 }) {
   return (
     <Card
+      onClick={onClick}
       className={cn(
-        "relative overflow-hidden border-gray-100 bg-white shadow-sm transition-all hover:shadow-md",
+        "relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-emerald-50/70 shadow-sm shadow-emerald-200/30 transition-all duration-200 hover:shadow-md hover:shadow-emerald-200/40 hover:border-emerald-300/80 dark:border-emerald-800/80 dark:bg-emerald-950/30 dark:shadow-none dark:hover:border-emerald-700/80",
+        onClick && "cursor-pointer active:scale-[0.99]",
         className
       )}
     >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-green-50">
-                <Icon className="size-4 text-green-600" />
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                <Icon className="size-4.5" />
               </div>
-              <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800/80 dark:text-emerald-200/80">
                 {label}
               </span>
+              {onClick && <ChevronRight className="size-4 text-emerald-600/70 dark:text-emerald-400/70 ml-auto" />}
             </div>
-            <div className="mt-3 text-2xl font-bold tracking-tight text-gray-900">{value}</div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-3.5 text-2xl font-bold tracking-tight text-emerald-900 tabular-nums dark:text-emerald-100">{value}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {trend !== undefined && (
                 <TrendBadge value={trend} suffix={trendSuffix} />
               )}
               {subtext && (
-                <span className="text-xs text-gray-500">{subtext}</span>
+                <span className="text-xs text-emerald-700/80 dark:text-emerald-300/80">{subtext}</span>
               )}
             </div>
           </div>
-          {sparkline && (
-            <div className="w-[120px] shrink-0">{sparkline}</div>
-          )}
         </div>
       </CardContent>
     </Card>
   )
 }
 
-export function PortfolioKPICards({ data }: { data: KPIData }) {
+export function PortfolioKPICards({
+  data,
+  maskFinancials = false,
+}: {
+  data: KPIData
+  maskFinancials?: boolean
+}) {
+  const [openPanel, setOpenPanel] = React.useState<"value" | "income" | "yield" | "occupancy" | null>(null)
+  const holdings = data.holdings ?? []
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <KPICard
-        icon={Building2}
-        label="Portfolio Value"
-        value={formatAED(data.totalPortfolioValue)}
-        trend={data.appreciationPct}
-        trendSuffix="% YTD"
-        sparkline={
-          <MiniAreaSparkline data={data.valueSeries} dataKey="v" />
-        }
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
+        <KPICard
+          icon={Building2}
+          label="Portfolio Value"
+          value={maskFinancials ? MASKED_LABEL : formatAED(data.totalPortfolioValue)}
+          trend={maskFinancials ? undefined : data.appreciationPct}
+          trendSuffix="% YTD"
+          onClick={() => setOpenPanel("value")}
+        />
+        <KPICard
+          icon={Coins}
+          label="Monthly Income"
+          value={maskFinancials ? MASKED_LABEL : formatAED(data.monthlyRentalIncome)}
+          trend={maskFinancials ? undefined : data.monthlyRentalTrend}
+          trendSuffix="% vs LM"
+          onClick={() => setOpenPanel("income")}
+        />
+        <KPICard
+          icon={Percent}
+          label="Average Yield"
+          value={maskFinancials ? MASKED_LABEL : `${data.avgYieldPct.toFixed(2)}%`}
+          subtext="Net annual yield"
+          trend={maskFinancials ? undefined : (data.avgYieldPct > 7 ? 0.5 : -0.3)}
+          trendSuffix="% QoQ"
+          onClick={() => setOpenPanel("yield")}
+        />
+        <KPICard
+          icon={Users}
+          label="Occupancy Rate"
+          value={maskFinancials ? MASKED_LABEL : `${data.occupancyPct.toFixed(1)}%`}
+          subtext="Across all properties"
+          trend={maskFinancials ? undefined : (data.occupancyPct > 90 ? 1.2 : -0.8)}
+          trendSuffix="%"
+          onClick={() => setOpenPanel("occupancy")}
+        />
+      </div>
+
+      <PortfolioValuePanel
+        open={openPanel === "value"}
+        onOpenChange={(open) => !open && setOpenPanel(null)}
+        totalValue={data.totalPortfolioValue}
+        totalCost={data.totalCost ?? data.totalPortfolioValue / (1 + data.appreciationPct / 100)}
+        appreciationPct={data.appreciationPct}
+        valueSeries={data.valueSeries}
+        historicalPortfolioValue={data.historicalPortfolioValue}
       />
-      <KPICard
-        icon={Coins}
-        label="Monthly Income"
-        value={formatAED(data.monthlyRentalIncome)}
-        trend={data.monthlyRentalTrend}
-        trendSuffix="% vs LM"
-        sparkline={
-          <MiniLineSparkline data={data.incomeSeries} dataKey="n" />
-        }
+      <MonthlyIncomePanel
+        open={openPanel === "income"}
+        onOpenChange={(open) => !open && setOpenPanel(null)}
+        totalMonthlyIncome={data.monthlyRentalIncome}
+        holdings={holdings}
       />
-      <KPICard
-        icon={Percent}
-        label="Average Yield"
-        value={`${data.avgYieldPct.toFixed(2)}%`}
-        subtext="Net annual yield"
-        trend={data.avgYieldPct > 7 ? 0.5 : -0.3}
-        trendSuffix="% QoQ"
+      <AverageYieldPanel
+        open={openPanel === "yield"}
+        onOpenChange={(open) => !open && setOpenPanel(null)}
+        avgYieldPct={data.avgYieldPct}
+        holdings={holdings}
+        incomeSeries={data.incomeSeries}
       />
-      <KPICard
-        icon={Users}
-        label="Occupancy Rate"
-        value={`${data.occupancyPct.toFixed(1)}%`}
-        subtext="Across all properties"
-        trend={data.occupancyPct > 90 ? 1.2 : -0.8}
-        trendSuffix="%"
+      <OccupancyRatePanel
+        open={openPanel === "occupancy"}
+        onOpenChange={(open) => !open && setOpenPanel(null)}
+        avgOccupancy={data.occupancyPct}
+        holdings={holdings}
       />
-    </div>
+    </>
   )
 }

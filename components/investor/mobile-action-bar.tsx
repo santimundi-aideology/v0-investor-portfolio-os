@@ -21,7 +21,7 @@ interface MobileActionBarProps {
 }
 
 const navItems = [
-  { label: "Home", href: "/investor", icon: Home },
+  { label: "Overview", href: "/investor/dashboard", icon: Home },
   { label: "Portfolio", href: "/investor/portfolio", icon: LineChart },
 ]
 

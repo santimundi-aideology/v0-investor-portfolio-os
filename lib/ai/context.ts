@@ -484,8 +484,7 @@ export function buildPageContext(pagePath?: string): string {
     "/dashboard": "User is viewing the main dashboard with portfolio overview and key metrics.",
     "/memos": "User is viewing or creating investment memos for specific properties.",
     "/recommendations": "User is viewing AI-generated property recommendations.",
-    "/investor/dashboard": "Investor is viewing their personal dashboard with portfolio KPIs, new recommendations, and holdings overview.",
-    "/investor/portfolio": "Investor is viewing their owned property holdings with market data, valuations, and AI recommendations.",
+    "/investor/dashboard": "Investor is viewing their personal dashboard with portfolio KPIs, new recommendations, holdings overview, and allocation.",
     "/investor/analytics": "Investor is viewing portfolio analytics including value appreciation, rental income trends, and property comparisons.",
     "/investor/opportunities": "Investor is reviewing properties recommended by their advisor. They can indicate interest level and chat about each opportunity.",
     "/investor/profile": "Investor is viewing and editing their profile, investment mandate, and preferences.",
@@ -502,6 +501,9 @@ export function buildPageContext(pagePath?: string): string {
   }
   if (pagePath.startsWith("/investor/opportunities/")) {
     return "Investor is reviewing a specific opportunity recommended by their advisor. They may ask about the property details, market conditions, risks, expected returns, or want to compare it with other options. Help them evaluate the opportunity."
+  }
+  if (pagePath.startsWith("/investor/portfolio/") && pagePath !== "/investor/portfolio") {
+    return "Investor is viewing a specific portfolio holding (property) with value trend, income forecast, AI recommendation (hold/sell/improve), payment milestones, and market signals. Help with scenario analysis and decisions for this asset."
   }
 
   return ""

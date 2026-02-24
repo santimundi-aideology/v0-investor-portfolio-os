@@ -24,6 +24,10 @@ interface PropertyComparisonChartProps {
   data: PropertyData[]
   metric: "yield" | "appreciation" | "occupancy"
   average?: number
+  /** Optional per-bar colors (same order as data). When provided, bars use these instead of metric-based colors. */
+  barColors?: string[]
+  /** Optional: highlight index on hover (e.g. for syncing with table) */
+  activeIndex?: number
 }
 
 const metricConfig = {
@@ -32,9 +36,10 @@ const metricConfig = {
   occupancy: { color: "#8b5cf6", label: "Occupancy %" },
 }
 
-export function PropertyComparisonChart({ data, metric, average }: PropertyComparisonChartProps) {
+export function PropertyComparisonChart({ data, metric, average, barColors, activeIndex }: PropertyComparisonChartProps) {
   const config = metricConfig[metric]
-  
+  const usePropertyColors = Array.isArray(barColors) && barColors.length === data.length
+
   return (
     <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -78,15 +83,29 @@ export function PropertyComparisonChart({ data, metric, average }: PropertyCompa
           )}
           <Bar dataKey={metric} radius={[0, 4, 4, 0]} barSize={20}>
             {data.map((entry, index) => {
-              const value = entry[metric]
-              let fill = config.color
-              if (metric === "yield" || metric === "appreciation") {
-                fill = value >= (average || 0) ? "#16a34a" : "#f59e0b"
+              let fill: string
+              if (usePropertyColors && barColors![index]) {
+                fill = barColors![index]
+              } else {
+                const value = entry[metric]
+                if (metric === "yield" || metric === "appreciation") {
+                  fill = value >= (average || 0) ? "#16a34a" : "#f59e0b"
+                } else if (metric === "occupancy") {
+                  fill = value >= 90 ? "#16a34a" : value >= 75 ? "#f59e0b" : "#ef4444"
+                } else {
+                  fill = config.color
+                }
               }
-              if (metric === "occupancy") {
-                fill = value >= 90 ? "#16a34a" : value >= 75 ? "#f59e0b" : "#ef4444"
-              }
-              return <Cell key={`cell-${index}`} fill={fill} />
+              const isActive = activeIndex !== undefined && activeIndex === index
+              return (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={fill}
+                  opacity={isActive ? 1 : activeIndex !== undefined ? 0.5 : 1}
+                  stroke={isActive ? "#0f2922" : undefined}
+                  strokeWidth={isActive ? 2 : 0}
+                />
+              )
             })}
           </Bar>
         </BarChart>

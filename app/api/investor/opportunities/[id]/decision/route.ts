@@ -16,7 +16,7 @@ const LEGACY_DECISIONS: InvestorDecision[] = [
   "very_interested",
   "not_interested",
 ]
-const VALID_ACTIONS = ["interested", "not_now", "pass"] as const
+const VALID_ACTIONS = ["interested", "very_interested", "not_now", "pass"] as const
 type DecisionAction = (typeof VALID_ACTIONS)[number]
 
 const TERMINAL_STATUSES: OpportunityStatus[] = ["acquired", "expired"]
@@ -56,10 +56,9 @@ function mapIncomingDecision(input: string): InvestorDecision | null {
     const action = input as DecisionAction
     if (action === "pass") return "not_interested"
     if (action === "not_now") return "pending"
-    return "interested"
+    return action as InvestorDecision
   }
   if ((LEGACY_DECISIONS as readonly string[]).includes(input)) {
-    if (input === "very_interested") return "interested"
     return input as InvestorDecision
   }
   return null

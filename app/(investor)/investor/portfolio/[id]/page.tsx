@@ -151,15 +151,15 @@ function getAIRecommendation(holding: PropertyHolding): {
 // Comparables and market signals are now loaded from API within the component
 
 const actionColors = {
-  hold: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
-  sell: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
-  improve: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
+  hold: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  improve: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  sell: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
 }
 
 const severityColors = {
   info: "bg-muted text-muted-foreground",
   watch: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  urgent: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  urgent: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
 }
 
 export default function HoldingDetailPage() {
@@ -311,9 +311,9 @@ export default function HoldingDetailPage() {
   if (!holding || !property) {
     return (
       <div className="p-6">
-        <Card className="p-12 text-center">
+        <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border p-12 text-center">
           <Building2 className="mx-auto size-12 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-semibold">Holding not found</h3>
+          <h3 className="mt-4 text-2xl font-semibold">Holding not found</h3>
           <p className="mt-2 text-sm text-muted-foreground">
             The holding you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
           </p>
@@ -345,7 +345,7 @@ export default function HoldingDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{property.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{property.title}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="size-4 shrink-0" />
             <span className="truncate">{property.address}</span>
@@ -375,13 +375,13 @@ export default function HoldingDetailPage() {
           />
 
           {/* What-if analysis widget */}
-          <Card>
+          <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CardTitle className="flex items-center gap-2 text-2xl">
                 <Sparkles className="size-5 text-primary" />
                 What-If Analysis
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm text-muted-foreground">
                 Ask AI to stress test different scenarios for this property before making a decision.
               </CardDescription>
             </CardHeader>
@@ -416,10 +416,10 @@ export default function HoldingDetailPage() {
               <TabsTrigger value="forecast" className="min-h-[44px] sm:min-h-0">Forecast</TabsTrigger>
             </TabsList>
             <TabsContent value="value">
-              <Card>
+              <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
                 <CardHeader>
-                  <CardTitle>Property Value Trend</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-2xl">Property Value Trend</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground">
                     Historical value from purchase to current valuation
                   </CardDescription>
                 </CardHeader>
@@ -433,10 +433,10 @@ export default function HoldingDetailPage() {
               </Card>
             </TabsContent>
             <TabsContent value="income">
-              <Card>
+              <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
                 <CardHeader>
-                  <CardTitle>Rental Income Forecast</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-2xl">Rental Income Forecast</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground">
                     12-month projection of net rental income
                   </CardDescription>
                 </CardHeader>
@@ -455,13 +455,13 @@ export default function HoldingDetailPage() {
 
           {/* Comparable Properties */}
           {comparables.length > 0 && (
-            <Card>
+            <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <CardTitle className="flex items-center gap-2 text-2xl">
                   <Building2 className="size-5" />
                   Comparables
                 </CardTitle>
-                <CardDescription className="text-sm">
+                <CardDescription className="text-sm text-muted-foreground">
                   Similar in {property.area}
                 </CardDescription>
               </CardHeader>
@@ -508,9 +508,9 @@ export default function HoldingDetailPage() {
         <div className="space-y-4 sm:space-y-6 order-last lg:order-none">
           {/* AI Recommendation Card */}
           {recommendation && (
-            <Card className={cn("border-2", actionColors[recommendation.action])}>
+            <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border bg-gradient-to-br from-primary/5 to-transparent dark:from-emerald-950/30 dark:to-transparent">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-2xl">
                   <Sparkles className="size-5" />
                   AI Recommendation
                 </CardTitle>
@@ -572,13 +572,13 @@ export default function HoldingDetailPage() {
 
           {/* Market Signals */}
           {marketSignals.length > 0 && (
-            <Card>
+            <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-2xl">
                   <Radar className="size-5" />
                   Related Market Signals
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-muted-foreground">
                   Signals relevant to this property&apos;s area and type
                 </CardDescription>
               </CardHeader>
@@ -622,14 +622,14 @@ export default function HoldingDetailPage() {
           )}
 
           {/* Quick Stats */}
-          <Card>
+          <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border">
             <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
+              <CardTitle className="text-2xl">Quick Stats</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="size-4" />
+                  <Calendar className="size-4 text-primary" />
                   Purchase Date
                 </div>
                 <span className="font-medium">
@@ -638,28 +638,28 @@ export default function HoldingDetailPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <DollarSign className="size-4" />
+                  <DollarSign className="size-4 text-primary" />
                   Purchase Price
                 </div>
                 <span className="font-medium">{formatAED(holding.purchasePrice)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Home className="size-4" />
+                  <Home className="size-4 text-primary" />
                   Property Type
                 </div>
                 <span className="font-medium capitalize">{property.type}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="size-4" />
+                  <Users className="size-4 text-primary" />
                   Occupancy
                 </div>
                 <span className="font-medium">{(holding.occupancyRate * 100).toFixed(0)}%</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Percent className="size-4" />
+                  <Percent className="size-4 text-primary" />
                   Monthly Rent
                 </div>
                 <span className="font-medium">{formatAED(holding.monthlyRent)}</span>

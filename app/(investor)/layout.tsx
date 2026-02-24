@@ -3,8 +3,8 @@
 import type React from "react"
 import { useCallback, useState } from "react"
 
-import { InvestorSidebar } from "@/components/investor/investor-sidebar"
 import { InvestorTopbar } from "@/components/investor/investor-topbar"
+import { InvestorTopNav } from "@/components/investor/investor-top-nav"
 import { InvestorMobileSidebar } from "@/components/investor/investor-mobile-sidebar"
 import { MobileActionBar } from "@/components/investor/mobile-action-bar"
 import { InvestorAIPanel } from "@/components/investor/investor-ai-panel"
@@ -16,7 +16,6 @@ import { InsightProvider, InsightAnnotator, InsightToggle } from "@/components/i
 import { isDemoMode } from "@/lib/demo-mode"
 
 function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [aiPanelOpen, setAIPanelOpen] = useState(false)
   const { user, scopedInvestorId, platformRole, availableInvestors, setScopedInvestorId, demoModeActive } = useApp()
@@ -65,15 +64,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
     >
       <InsightProvider>
         <div className="flex h-screen overflow-hidden bg-white">
-          {/* Desktop Sidebar */}
-          <div className="hidden lg:flex">
-            <InvestorSidebar
-              collapsed={sidebarCollapsed}
-              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            />
-          </div>
-
-          {/* Mobile Sidebar */}
+          {/* Mobile Sidebar (hamburger menu) */}
           <InvestorMobileSidebar open={mobileMenuOpen} onClose={handleMobileMenuClose} />
 
           {/* Main Content */}
@@ -89,9 +80,12 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
               onInvestorChange={setScopedInvestorId}
             />
 
-            <main className="flex-1 overflow-y-auto bg-gray-50">
-              {/* Add bottom padding on mobile for action bar */}
-              <div className="mx-auto w-full max-w-7xl p-4 lg:p-6 pb-20 lg:pb-6">
+            {/* Top navigation: Overview | Portfolio | Opportunities | ... */}
+            <InvestorTopNav />
+
+            <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50">
+              {/* Full width with padding so content uses horizontal space without empty sides */}
+              <div className="w-full px-4 sm:px-6 lg:px-8 pt-4 lg:pt-6 pb-20 lg:pb-6">
                 {children}
               </div>
             </main>

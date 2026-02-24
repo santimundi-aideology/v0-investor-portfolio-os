@@ -19,6 +19,7 @@ import { InvestmentTimeline } from "@/components/investor/investment-timeline"
 import { HoldingsGrid } from "@/components/investor/holdings-grid"
 import { PipelineView } from "@/components/investor/pipeline-view"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
+import { formatAED } from "@/lib/real-estate"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
 
@@ -100,12 +101,6 @@ type ShortlistResponse = {
       status: string | null
     } | null
   }>
-}
-
-function formatCurrency(amount: number) {
-  if (amount >= 1_000_000) return `AED ${(amount / 1_000_000).toFixed(1)}M`
-  if (amount >= 1_000) return `AED ${(amount / 1_000).toFixed(0)}K`
-  return `AED ${amount.toLocaleString()}`
 }
 
 export default function InvestorInvestmentsPage() {
@@ -453,7 +448,7 @@ export default function InvestorInvestmentsPage() {
                         </p>
 
                         <div className="mt-4 flex items-center justify-between text-sm">
-                          <span className="font-semibold">{formatCurrency(recommendation.price)}</span>
+                          <span className="font-semibold">{formatAED(recommendation.price)}</span>
                           <span className="text-xs text-muted-foreground">
                             Added {new Date(recommendation.addedAt).toLocaleDateString()}
                           </span>

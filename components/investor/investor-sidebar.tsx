@@ -2,32 +2,18 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  ChevronLeft,
-  ChevronRight,
-  LayoutDashboard,
-  LineChart,
-  Sparkles,
-  User,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
 import { VantageIcon } from "@/components/brand/logo"
+import { investorNavItems } from "@/lib/investor-nav"
 
 interface InvestorSidebarProps {
   collapsed: boolean
   onToggle: () => void
 }
-
-// Investor-specific navigation items (simplified: 4 main sections)
-const investorNavItems = [
-  { label: "Dashboard", href: "/investor/dashboard", icon: LayoutDashboard },
-  { label: "Portfolio", href: "/investor/portfolio", icon: LineChart, alsoMatch: ["/investor/analytics"] },
-  { label: "Opportunities", href: "/investor/opportunities", icon: Sparkles },
-  { label: "Profile", href: "/investor/profile", icon: User },
-]
 
 export function InvestorSidebar({ collapsed, onToggle }: InvestorSidebarProps) {
   const pathname = usePathname()

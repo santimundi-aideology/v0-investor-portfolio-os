@@ -75,19 +75,29 @@ export function HoldingDetailCard({
 
   return (
     <>
-      <Card className="overflow-hidden">
-        {/* Image Gallery */}
-        <div className="relative h-64 md:h-80 bg-muted">
+      <Card className="overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-border bg-gradient-to-br from-primary/5 to-transparent dark:from-primary/10 dark:to-transparent">
+        {/* Hero Image - aspect 4/3, object-cover, elegant fallback */}
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
           {images.length > 0 ? (
             <>
               <Image
                 src={images[currentImageIndex].url}
                 alt={images[currentImageIndex].title || "Property"}
                 fill
-                className="object-cover"
+                className="object-cover w-full h-full"
                 priority
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+
+              {/* Hero title + address overlay */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 text-white">
+                <h2 className="text-xl md:text-3xl font-bold tracking-tight drop-shadow-sm">
+                  {property.title}
+                </h2>
+                <p className="mt-1 text-sm md:text-base text-white/90 truncate">
+                  {property.address ?? property.area ?? ""}
+                </p>
+              </div>
 
               {/* Image Navigation */}
               {images.length > 1 && (
@@ -166,7 +176,7 @@ export function HoldingDetailCard({
               subValue={
                 <span className={cn(
                   "flex items-center gap-1",
-                  appreciationPct >= 0 ? "text-emerald-600" : "text-red-600"
+                  appreciationPct >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"
                 )}>
                   {appreciationPct >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                   {appreciationPct >= 0 ? "+" : ""}{appreciationPct.toFixed(1)}%
@@ -180,7 +190,7 @@ export function HoldingDetailCard({
               subValue={
                 <span className={cn(
                   "flex items-center gap-1",
-                  isAboveTarget ? "text-emerald-600" : "text-amber-600"
+                  isAboveTarget ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"
                 )}>
                   {isAboveTarget ? "+" : ""}{yieldVsMandate.toFixed(1)}% vs target
                 </span>
@@ -198,10 +208,10 @@ export function HoldingDetailCard({
               value={`${(holding.occupancyRate * 100).toFixed(0)}%`}
               subValue={
                 holding.occupancyRate >= 0.95
-                  ? <span className="text-emerald-600">Excellent</span>
+                  ? <span className="text-emerald-700 dark:text-emerald-300">Excellent</span>
                   : holding.occupancyRate >= 0.85
-                    ? <span className="text-amber-600">Good</span>
-                    : <span className="text-red-600">Needs attention</span>
+                    ? <span className="text-amber-700 dark:text-amber-300">Good</span>
+                    : <span className="text-red-700 dark:text-red-300">Needs attention</span>
               }
             />
           </div>
@@ -210,7 +220,7 @@ export function HoldingDetailCard({
 
           {/* Performance vs Mandate */}
           <div className="space-y-4">
-            <h3 className="font-semibold flex items-center gap-2">
+            <h3 className="text-2xl font-semibold flex items-center gap-2">
               <TrendingUp className="size-4" />
               Performance vs Mandate
             </h3>
@@ -223,7 +233,7 @@ export function HoldingDetailCard({
               </div>
               <div className="rounded-lg border p-3">
                 <div className="text-sm text-muted-foreground">Total Return</div>
-                <div className="mt-1 text-lg font-semibold text-emerald-600">
+                <div className="mt-1 text-lg font-semibold text-emerald-700 dark:text-emerald-300">
                   {formatAED(incomeToDate + (holding.currentValue - holding.purchasePrice))}
                 </div>
                 <div className="text-xs text-muted-foreground">Income + appreciation</div>
@@ -242,7 +252,7 @@ export function HoldingDetailCard({
 
           {/* AI Insights Section */}
           <div className="space-y-4">
-            <h3 className="font-semibold">Property Details</h3>
+            <h3 className="text-2xl font-semibold">Property Details</h3>
             <p className="text-sm text-muted-foreground">{property.description}</p>
 
             {property.features && property.features.length > 0 && (
@@ -263,7 +273,7 @@ export function HoldingDetailCard({
                 <h4 className="text-sm font-medium mb-2 text-amber-600">Known Risks</h4>
                 <div className="flex flex-wrap gap-2">
                   {property.risks.map((risk, idx) => (
-                    <Badge key={idx} variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700">
+                    <Badge key={idx} variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 dark:border-amber-600">
                       {risk}
                     </Badge>
                   ))}

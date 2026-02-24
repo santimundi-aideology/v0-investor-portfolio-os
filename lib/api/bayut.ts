@@ -166,6 +166,7 @@ export function bayutToPortalListing(property: BayutProperty) {
 
   return {
     portal: "bayut",
+    title: property.title,
     listing_id: property.id.toString(),
     listing_url: property.meta.url,
     property_type: property.type.sub || property.type.main,

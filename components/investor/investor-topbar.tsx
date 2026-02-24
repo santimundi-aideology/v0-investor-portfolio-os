@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Bell, Menu, Moon, Search, Sparkles, Sun, User2 } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { InvestorSearchCommand } from "@/components/investor/investor-search-command"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import type { Notification } from "@/lib/types"
 import { useAuth } from "@/components/providers/auth-provider"
+import { VantageIcon } from "@/components/brand/logo"
 
 interface InvestorTopbarProps {
   onMenuClick: () => void
@@ -59,6 +61,20 @@ export function InvestorTopbar({
   const unreadCount = notificationItems.filter((n) => n.unread).length
   const [isHydrated, setIsHydrated] = useState(false)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  const openSearch = useCallback(() => setSearchOpen(true), [])
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
 
   useEffect(() => {
     const timeout = setTimeout(() => setIsHydrated(true), 0)
@@ -134,9 +150,13 @@ export function InvestorTopbar({
     .toUpperCase()
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
-      {/* Left side - Mobile menu & Investor info / selector */}
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-green-50 px-4 lg:px-6">
+      {/* Left side - Logo, mobile menu & Investor info / selector */}
       <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 shrink-0">
+          <VantageIcon size={28} className="text-primary" />
+          <span className="font-semibold text-foreground hidden sm:inline">Vantage</span>
+        </div>
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
           <span className="sr-only">Open navigation</span>
@@ -171,7 +191,7 @@ export function InvestorTopbar({
             </Select>
           </div>
         ) : (
-          <div className="hidden sm:flex flex-col">
+          <div className="hidden sm:flex flex-col border-l border-gray-200 pl-4">
             <span className="text-sm font-semibold text-foreground leading-tight">
               {safeInvestorName}
             </span>
@@ -187,9 +207,10 @@ export function InvestorTopbar({
         <Button
           variant="outline"
           className="text-gray-500 w-full justify-start gap-2 border-gray-200 hover:border-green-300 hover:bg-green-50"
+          onClick={openSearch}
         >
           <Search className="size-4" />
-          <span className="flex-1 text-left">Search portfolio…</span>
+          <span className="flex-1 text-left">Buscar cartera, pagos, oportunidades…</span>
           <span className="hidden text-xs tracking-widest lg:inline">
             <kbd className="bg-muted rounded px-1.5 py-0.5">⌘</kbd>
             <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
@@ -258,6 +279,7 @@ export function InvestorTopbar({
               id="user-menu-trigger"
               variant="ghost"
               className="relative h-9 w-9 rounded-full ml-1"
+              aria-label="Open user menu"
             >
               <Avatar className="h-9 w-9 ring-2 ring-gray-200 hover:ring-green-300 transition-all">
                 <AvatarImage src={investorAvatar || "/placeholder.svg"} alt={safeInvestorName} />
@@ -308,6 +330,8 @@ export function InvestorTopbar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <InvestorSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
 
       {/* AI Assistant Dialog — suggestion buttons are informational for now */}
       {aiDialogOpen && (

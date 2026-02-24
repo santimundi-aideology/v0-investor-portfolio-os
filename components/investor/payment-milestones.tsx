@@ -14,15 +14,16 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { formatAED } from "@/lib/real-estate"
 import { useAPI } from "@/lib/hooks/use-api"
 
-/* ─── Types ─────────────────────────────────────────────── */
+/* ─── Types (exported for payments page) ─────────────────── */
 
-type Milestone = {
+export type Milestone = {
   id: string
   holdingId: string
   propertyTitle: string
@@ -39,7 +40,7 @@ type Milestone = {
   notes: string | null
 }
 
-type PaymentSummary = {
+export type PaymentSummary = {
   totalAmount: number
   totalPaid: number
   totalUpcoming: number
@@ -60,7 +61,7 @@ type PaymentSummary = {
   }[]
 }
 
-type APIResponse = {
+export type PaymentMilestonesAPIResponse = {
   milestones: Milestone[]
   summary: PaymentSummary
 }
@@ -74,7 +75,16 @@ const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string; l
   overdue: { icon: AlertCircle, color: "text-rose-600", label: "Overdue" },
 }
 
-function formatDate(d: string | null): string {
+const today = () => new Date().toISOString().slice(0, 10)
+
+/** Resolve display status: treat past-due unpaid as overdue */
+export function getDisplayStatus(m: Milestone): string {
+  if (m.status === "paid") return "paid"
+  if (m.dueDate && m.dueDate < today()) return "overdue"
+  return m.status || "upcoming"
+}
+
+export function formatDate(d: string | null): string {
   if (!d) return "TBD"
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
     month: "short",
@@ -82,7 +92,7 @@ function formatDate(d: string | null): string {
   })
 }
 
-function formatDateFull(d: string | null): string {
+export function formatDateFull(d: string | null): string {
   if (!d) return "TBD"
   return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
     day: "numeric",
@@ -91,10 +101,41 @@ function formatDateFull(d: string | null): string {
   })
 }
 
+/* ─── Mark as paid button ───────────────────────────────── */
+
+function MarkAsPaidButton({ milestoneId, onSuccess }: { milestoneId: string; onSuccess: () => void }) {
+  const [loading, setLoading] = React.useState(false)
+  const handleClick = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/investor/payment-milestones/${milestoneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) onSuccess()
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="shrink-0 h-7 text-xs border-emerald-500/50 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+      onClick={handleClick}
+      disabled={loading}
+    >
+      {loading ? <Loader2 className="size-3.5 animate-spin" /> : "Mark paid"}
+    </Button>
+  )
+}
+
 /* ─── Holding-level milestone list ──────────────────────── */
 
 export function HoldingPaymentMilestones({ holdingId }: { holdingId: string }) {
-  const { data, isLoading } = useAPI<APIResponse>(
+  const { data, isLoading } = useAPI<PaymentMilestonesAPIResponse>(
     holdingId ? `/api/investor/payment-milestones?holdingId=${holdingId}` : null
   )
 
@@ -145,30 +186,30 @@ export function HoldingPaymentMilestones({ holdingId }: { holdingId: string }) {
         {/* Milestones timeline */}
         <div className="relative space-y-0">
           {milestones.map((m, idx) => {
-            const sc = statusConfig[m.status] ?? statusConfig.upcoming
+            const displayStatus = getDisplayStatus(m)
+            const sc = statusConfig[displayStatus] ?? statusConfig.upcoming
             const Icon = sc.icon
             const isLast = idx === milestones.length - 1
+            const isOverdue = displayStatus === "overdue"
 
             return (
               <div key={m.id} className="flex gap-3">
-                {/* Timeline line + icon */}
                 <div className="flex flex-col items-center">
                   <Icon className={cn("size-5 shrink-0 z-10 bg-background", sc.color)} />
                   {!isLast && (
                     <div className={cn(
                       "w-px flex-1 min-h-[24px]",
-                      m.status === "paid" ? "bg-emerald-300" : "bg-border"
+                      m.status === "paid" ? "bg-emerald-300" : isOverdue ? "bg-rose-300" : "bg-border"
                     )} />
                   )}
                 </div>
-
-                {/* Content */}
-                <div className={cn("flex-1 pb-4", isLast && "pb-0")}>
+                <div className={cn("flex-1 pb-4", isLast && "pb-0", isOverdue && "rounded-md bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800 px-2 py-1 -mx-2")}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className={cn(
                         "text-sm font-medium",
-                        m.status === "paid" && "text-muted-foreground"
+                        m.status === "paid" && "text-muted-foreground",
+                        isOverdue && "text-rose-700 dark:text-rose-300"
                       )}>
                         {m.label}
                       </p>
@@ -181,7 +222,8 @@ export function HoldingPaymentMilestones({ holdingId }: { holdingId: string }) {
                     <div className="text-right shrink-0">
                       <p className={cn(
                         "text-sm font-semibold",
-                        m.status === "paid" ? "text-muted-foreground" : "text-foreground"
+                        m.status === "paid" ? "text-muted-foreground" : "text-foreground",
+                        isOverdue && "text-rose-700 dark:text-rose-300"
                       )}>
                         {formatAED(m.amount)}
                       </p>
@@ -202,8 +244,30 @@ export function HoldingPaymentMilestones({ holdingId }: { holdingId: string }) {
 
 /* ─── Portfolio-wide payment overview ───────────────────── */
 
-export function PortfolioPaymentOverview() {
-  const { data, isLoading } = useAPI<APIResponse>("/api/investor/payment-milestones")
+type PortfolioPaymentOverviewProps = {
+  /** When provided, use this data instead of fetching (for payments page with filters) */
+  data?: PaymentMilestonesAPIResponse | null
+  /** Callback after marking a milestone as paid */
+  onMarkPaid?: (milestoneId: string) => void
+  /** Revalidate after mark paid */
+  mutate?: () => void
+  /** Show "Mark as paid" button on unpaid milestones */
+  showMarkAsPaid?: boolean
+  /** When true, do not render the summary KPI cards (e.g. when shown in page hero) */
+  hideSummaryKpis?: boolean
+}
+
+export function PortfolioPaymentOverview({
+  data: dataProp,
+  onMarkPaid,
+  mutate,
+  showMarkAsPaid = false,
+  hideSummaryKpis = false,
+}: PortfolioPaymentOverviewProps = {}) {
+  const { data: fetchedData, isLoading, mutate: swrMutate } = useAPI<PaymentMilestonesAPIResponse>(
+    dataProp === undefined ? "/api/investor/payment-milestones" : null
+  )
+  const data = dataProp !== undefined ? dataProp : fetchedData
 
   if (isLoading) {
     return (
@@ -216,7 +280,27 @@ export function PortfolioPaymentOverview() {
   }
 
   if (!data || data.milestones.length === 0) {
-    return null
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-12 px-6 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <CreditCard className="size-10 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">No payment milestones yet</h3>
+          <p className="text-sm text-muted-foreground max-w-md mb-6">
+            Payment milestones are installments linked to properties in your portfolio (e.g. down payment, stage payments, or handover). Add assets with a payment plan to see your schedule here.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button asChild variant="default">
+              <Link href="/investor/portfolio">Go to Portfolio</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/investor/opportunities">Browse opportunities</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   const { summary, milestones } = data
@@ -237,36 +321,40 @@ export function PortfolioPaymentOverview() {
 
   return (
     <div className="space-y-4">
-      {/* Summary KPIs */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{formatAED(summary.totalAmount)}</p>
-            <p className="text-[11px] text-muted-foreground">Total Commitments</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-600">{formatAED(summary.totalPaid)}</p>
-            <p className="text-[11px] text-muted-foreground">Total Paid</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{formatAED(summary.totalUpcoming)}</p>
-            <p className="text-[11px] text-muted-foreground">Remaining</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{summary.paidPct}%</p>
-            <p className="text-[11px] text-muted-foreground">Overall Progress</p>
-          </CardContent>
-        </Card>
-      </div>
+      {!hideSummaryKpis && (
+        <>
+          {/* Summary KPIs — responsive grid, touch-friendly on mobile */}
+          <div className="grid gap-2 grid-cols-2 sm:gap-3 sm:grid-cols-4">
+            <Card className="min-h-[72px] sm:min-h-0">
+              <CardContent className="p-3 text-center sm:p-4">
+                <p className="text-lg font-bold tabular-nums sm:text-2xl">{formatAED(summary.totalAmount)}</p>
+                <p className="text-[11px] text-muted-foreground">Total Commitments</p>
+              </CardContent>
+            </Card>
+            <Card className="min-h-[72px] sm:min-h-0">
+              <CardContent className="p-3 text-center sm:p-4">
+                <p className="text-lg font-bold tabular-nums text-emerald-600 sm:text-2xl">{formatAED(summary.totalPaid)}</p>
+                <p className="text-[11px] text-muted-foreground">Total Paid</p>
+              </CardContent>
+            </Card>
+            <Card className="min-h-[72px] sm:min-h-0">
+              <CardContent className="p-3 text-center sm:p-4">
+                <p className="text-lg font-bold tabular-nums text-blue-600 sm:text-2xl">{formatAED(summary.totalUpcoming)}</p>
+                <p className="text-[11px] text-muted-foreground">Remaining</p>
+              </CardContent>
+            </Card>
+            <Card className="min-h-[72px] sm:min-h-0">
+              <CardContent className="p-3 text-center sm:p-4">
+                <p className="text-lg font-bold tabular-nums sm:text-2xl">{summary.paidPct}%</p>
+                <p className="text-[11px] text-muted-foreground">Overall Progress</p>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
-      {/* Overall progress bar */}
-      <Card>
+      {/* Progress bar: always show (when KPIs hidden, show as first element in schedule) */}
+      <Card className="rounded-xl border border-gray-200/80 dark:border-border">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Portfolio Payment Progress</span>
@@ -288,25 +376,31 @@ export function PortfolioPaymentOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {summary.upcomingPayments.map((p, idx) => (
-                <Link
-                  key={idx}
-                  href={`/investor/portfolio/${p.holdingId}`}
-                  className="flex items-center justify-between rounded-lg border p-3 transition-all hover:border-primary hover:shadow-sm"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{p.propertyTitle}</p>
-                    <p className="text-xs text-muted-foreground">{p.label}</p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">{formatAED(p.amount)}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateFull(p.dueDate)}</p>
+              {summary.upcomingPayments.map((p, idx) => {
+                const isOverdue = p.dueDate && p.dueDate < today()
+                return (
+                  <Link
+                    key={idx}
+                    href={`/investor/portfolio/${p.holdingId}`}
+                    className={cn(
+                      "flex items-center justify-between rounded-lg border p-3 transition-all hover:border-primary hover:shadow-sm",
+                      isOverdue && "border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/20"
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-sm font-medium truncate", isOverdue && "text-rose-800 dark:text-rose-200")}>{p.propertyTitle}</p>
+                      <p className={cn("text-xs text-muted-foreground", isOverdue && "text-rose-600 dark:text-rose-400")}>{p.label}</p>
                     </div>
-                    <ArrowUpRight className="size-4 text-muted-foreground" />
-                  </div>
-                </Link>
-              ))}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className={cn("text-sm font-semibold", isOverdue && "text-rose-700 dark:text-rose-300")}>{formatAED(p.amount)}</p>
+                        <p className={cn("text-xs text-muted-foreground", isOverdue && "text-rose-600 dark:text-rose-400")}>{formatDateFull(p.dueDate)}</p>
+                      </div>
+                      <ArrowUpRight className="size-4 text-muted-foreground" />
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
@@ -361,23 +455,42 @@ export function PortfolioPaymentOverview() {
                 {/* Compact milestone list */}
                 <div className="grid gap-1.5">
                   {group.milestones.map(m => {
-                    const sc = statusConfig[m.status] ?? statusConfig.upcoming
+                    const displayStatus = getDisplayStatus(m)
+                    const sc = statusConfig[displayStatus] ?? statusConfig.upcoming
                     const Icon = sc.icon
+                    const isOverdue = displayStatus === "overdue"
                     return (
-                      <div key={m.id} className="flex items-center gap-2 text-xs">
+                      <div
+                        key={m.id}
+                        className={cn(
+                          "flex items-center gap-2 text-xs rounded px-2 py-1 -mx-2",
+                          isOverdue && "bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800"
+                        )}
+                      >
                         <Icon className={cn("size-3.5 shrink-0", sc.color)} />
-                        <span className={cn("flex-1 truncate", m.status === "paid" && "text-muted-foreground")}>
+                        <span className={cn("flex-1 truncate min-w-0", m.status === "paid" && "text-muted-foreground", isOverdue && "text-rose-700 dark:text-rose-300 font-medium")}>
                           {m.label}
                         </span>
-                        <span className="text-muted-foreground shrink-0">
+                        <span className={cn("text-muted-foreground shrink-0", isOverdue && "text-rose-600 dark:text-rose-400")}>
                           {m.status === "paid" ? formatDate(m.paidDate) : formatDate(m.dueDate)}
                         </span>
                         <span className={cn(
                           "font-medium tabular-nums shrink-0 w-20 text-right",
-                          m.status === "paid" ? "text-muted-foreground" : "text-foreground"
+                          m.status === "paid" ? "text-muted-foreground" : "text-foreground",
+                          isOverdue && "text-rose-700 dark:text-rose-300"
                         )}>
                           {formatAED(m.amount)}
                         </span>
+                        {showMarkAsPaid && m.status !== "paid" && (
+                          <MarkAsPaidButton
+                            milestoneId={m.id}
+                            onSuccess={() => {
+                              onMarkPaid?.(m.id)
+                              mutate?.()
+                              swrMutate?.()
+                            }}
+                          />
+                        )}
                       </div>
                     )
                   })}
@@ -385,12 +498,29 @@ export function PortfolioPaymentOverview() {
 
                 {/* Next payment callout */}
                 {nextUnpaid && (
-                  <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 px-3 py-2 flex items-center justify-between">
+                  <div className={cn(
+                    "rounded-md px-3 py-2 flex items-center justify-between",
+                    getDisplayStatus(nextUnpaid) === "overdue"
+                      ? "bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800"
+                      : "bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800"
+                  )}>
                     <div className="text-xs">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium">Next: </span>
-                      <span className="text-blue-600 dark:text-blue-400">{nextUnpaid.label}</span>
+                      <span className={cn(
+                        "font-medium",
+                        getDisplayStatus(nextUnpaid) === "overdue"
+                          ? "text-rose-700 dark:text-rose-300"
+                          : "text-blue-700 dark:text-blue-300"
+                      )}>
+                        {getDisplayStatus(nextUnpaid) === "overdue" ? "Overdue: " : "Next: "}
+                      </span>
+                      <span className={getDisplayStatus(nextUnpaid) === "overdue" ? "text-rose-600 dark:text-rose-400" : "text-blue-600 dark:text-blue-400"}>
+                        {nextUnpaid.label}
+                      </span>
                     </div>
-                    <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    <div className={cn(
+                      "text-xs font-semibold",
+                      getDisplayStatus(nextUnpaid) === "overdue" ? "text-rose-700 dark:text-rose-300" : "text-blue-700 dark:text-blue-300"
+                    )}>
                       {formatAED(nextUnpaid.amount)} &middot; {formatDateFull(nextUnpaid.dueDate)}
                     </div>
                   </div>
