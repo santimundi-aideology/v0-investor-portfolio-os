@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Building2, Loader2, AlertCircle, CheckCircle, Mail, Briefcase, UserRound, Check } from "lucide-react"
-import { signUp } from "@/lib/auth/actions"
+import { Building2, Loader2, AlertCircle, CheckCircle, Mail, Briefcase, UserRound, Check, RefreshCw } from "lucide-react"
+import { signUp, resendVerification } from "@/lib/auth/actions"
 import { VantageIcon } from "@/components/brand/logo"
 
 export default function SignupPage() {
@@ -18,6 +18,8 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false)
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<"realtor" | "investor">("realtor")
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -38,6 +40,16 @@ export default function SignupPage() {
     setIsLoading(false)
   }
 
+  async function handleResendVerification() {
+    setResending(true)
+    setResendSuccess(false)
+    const result = await resendVerification(email)
+    if (result.success) {
+      setResendSuccess(true)
+    }
+    setResending(false)
+  }
+
   if (success) {
     return (
       <Card className="w-full">
@@ -55,11 +67,37 @@ export default function SignupPage() {
                 Click the link in your email to verify your account and complete signup.
               </p>
             </div>
-            <div className="flex gap-2 mt-2">
+            <div className="flex flex-col gap-2 mt-2 w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleResendVerification}
+                disabled={resending || resendSuccess}
+              >
+                {resending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Resending...
+                  </>
+                ) : resendSuccess ? (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
+                    Email resent
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Resend verification email
+                  </>
+                )}
+              </Button>
               <Button variant="outline" asChild>
                 <Link href="/login">Back to sign in</Link>
               </Button>
             </div>
+            <p className="text-xs text-gray-500">
+              Didn&apos;t receive the email? Check your spam folder.
+            </p>
           </div>
         </CardContent>
       </Card>

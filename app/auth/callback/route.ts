@@ -50,19 +50,19 @@ export async function GET(request: NextRequest) {
     })
 
     if (!error) {
-      // For recovery, redirect to reset password page
       if (type === "recovery") {
-        return NextResponse.redirect(`${origin}/auth/reset-password`)
+        return NextResponse.redirect(`${origin}/reset-password`)
       }
-      // For invite, redirect to set-password page with invite context
       if (type === "invite") {
-        return NextResponse.redirect(`${origin}/auth/reset-password?type=invite`)
+        return NextResponse.redirect(`${origin}/reset-password?type=invite`)
       }
 
-      // Role-based redirect after auth
       const redirectUrl = await resolveRedirectForUser(supabase, origin, next)
       return NextResponse.redirect(redirectUrl)
     }
+
+    const errorType = error.message?.toLowerCase().includes("expired") ? "link_expired" : "invalid_link"
+    return NextResponse.redirect(`${origin}/login?error=${errorType}`)
   }
 
   // Handle code exchange (used by PKCE flow)
@@ -70,23 +70,22 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // For invite links (PKCE/code flow), send user to password setup first
       if (type === "invite") {
-        return NextResponse.redirect(`${origin}/auth/reset-password?type=invite`)
+        return NextResponse.redirect(`${origin}/reset-password?type=invite`)
       }
-
-      // For recovery type, redirect to reset password page
       if (type === "recovery") {
-        return NextResponse.redirect(`${origin}/auth/reset-password`)
+        return NextResponse.redirect(`${origin}/reset-password`)
       }
 
-      // Role-based redirect after auth
       const redirectUrl = await resolveRedirectForUser(supabase, origin, next)
       return NextResponse.redirect(redirectUrl)
     }
+
+    const errorType = error.message?.toLowerCase().includes("expired") ? "link_expired" : "invalid_link"
+    return NextResponse.redirect(`${origin}/login?error=${errorType}`)
   }
 
-  // Redirect to error page if code exchange fails
+  // No code or token_hash provided
   return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
 }
 

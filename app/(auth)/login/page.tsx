@@ -54,6 +54,14 @@ function LoginForm() {
   const redirect = searchParams.get("redirect") || "/dashboard"
   const callbackError = searchParams.get("error")
 
+  const errorMessages: Record<string, string> = {
+    account_disabled: "Your account has been deactivated. Contact your administrator.",
+    link_expired: "This link has expired. Please request a new one.",
+    invalid_link: "This link is invalid. Please request a new one.",
+    auth_callback_error: "Authentication failed. The link may be invalid or expired.",
+    config: "System configuration error. Please contact support.",
+  }
+
   const handleDemoLogin = useCallback(async (account: typeof DEMO_ACCOUNTS[number]) => {
     setDemoLoading(account.email)
     setError(null)
@@ -102,7 +110,7 @@ function LoginForm() {
         <div className="flex items-start gap-3 p-3 text-sm bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-900">
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            {error || "Authentication failed. Please try again."}
+            {error || (callbackError && errorMessages[callbackError]) || "Authentication failed. Please try again."}
           </div>
         </div>
       )}

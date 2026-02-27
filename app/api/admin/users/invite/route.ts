@@ -98,7 +98,7 @@ export async function POST(req: Request) {
           role: userRole,
           tenant_id: targetTenantId || undefined,
         },
-        redirectTo: `${appUrl}/auth/callback?next=/dashboard`,
+        redirectTo: `${appUrl}/auth/callback?type=invite`,
       }
     )
 
