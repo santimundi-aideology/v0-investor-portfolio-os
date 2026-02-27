@@ -44,13 +44,12 @@ export async function POST(req: Request, { params }: RouteParams) {
     // Send password reset email via Supabase Auth
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
-    const { error: resetError } = await supabase.auth.admin.generateLink({
-      type: "recovery",
-      email: user.email,
-      options: {
-        redirectTo: `${appUrl}/auth/reset-password`,
-      },
-    })
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      user.email,
+      {
+        redirectTo: `${appUrl}/auth/callback?type=recovery`,
+      }
+    )
 
     if (resetError) {
       console.error("Error sending reset email:", resetError)

@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from "lucide-react"
+import { Loader2, AlertCircle, ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react"
 import { resetPassword } from "@/lib/auth/actions"
 
 export default function ForgotPasswordPage() {
@@ -14,6 +14,8 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [email, setEmail] = useState("")
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -32,6 +34,18 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(false)
+  }
+
+  async function handleResend() {
+    setResending(true)
+    setResendSuccess(false)
+    const formData = new FormData()
+    formData.set("email", email)
+    const result = await resetPassword(formData)
+    if (result.success) {
+      setResendSuccess(true)
+    }
+    setResending(false)
   }
 
   if (success) {
@@ -62,7 +76,30 @@ export default function ForgotPasswordPage() {
 
         {/* Actions */}
         <div className="space-y-3">
-          <Button variant="outline" className="w-full" onClick={() => { setSuccess(false); setEmail(""); }}>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleResend}
+            disabled={resending || resendSuccess}
+          >
+            {resending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Resending...
+              </>
+            ) : resendSuccess ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+                Reset link resent
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Resend reset link
+              </>
+            )}
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => { setSuccess(false); setEmail(""); setResendSuccess(false); }}>
             Try a different email
           </Button>
           <Button asChild className="w-full">

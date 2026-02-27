@@ -30,7 +30,7 @@ type AuthContextValue = AuthState & {
 const AuthContext = React.createContext<AuthContextValue | null>(null)
 
 // Public routes that don't require auth
-const publicRoutes = ["/login", "/signup", "/forgot-password", "/auth"]
+const publicRoutes = ["/login", "/signup", "/forgot-password", "/reset-password", "/auth"]
 
 export function AuthProvider({ 
   children, 
