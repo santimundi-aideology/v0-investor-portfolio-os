@@ -138,7 +138,7 @@ export default function ManagerPage() {
 
   return (
     <>
-      <RoleRedirect allow={["admin"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["admin"]} redirectTo="/realtor/dashboard" />
       <div className="space-y-6">
         <PageHeader
           title="Manager Cockpit"

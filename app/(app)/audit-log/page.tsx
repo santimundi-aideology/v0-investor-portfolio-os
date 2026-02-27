@@ -44,7 +44,7 @@ export default function AuditLogPage() {
 
   return (
     <>
-      <RoleRedirect allow={["owner", "admin"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin"]} redirectTo="/realtor/dashboard" />
       <div className="space-y-6">
         <PageHeader
           title="Audit log"

@@ -77,7 +77,7 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
       <PropertyPageContent id={id} />
     </>
   )

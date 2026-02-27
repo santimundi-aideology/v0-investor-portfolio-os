@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code")
   const token_hash = searchParams.get("token_hash")
   const type = searchParams.get("type")
-  const next = searchParams.get("next") ?? "/dashboard"
+  const next = searchParams.get("next") ?? "/realtor/dashboard"
 
   const cookieStore = await cookies()
 
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
  * Resolves the correct redirect URL based on the user's role.
  * - super_admin with no tenant → /admin
  * - investor → /investor/dashboard
- * - everyone else → the provided `next` URL (defaults to /dashboard)
+ * - everyone else → the provided `next` URL (defaults to /realtor/dashboard)
  */
 async function resolveRedirectForUser(
   supabase: ReturnType<typeof createServerClient>,

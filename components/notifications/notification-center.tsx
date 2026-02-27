@@ -134,7 +134,7 @@ export function NotificationCenter({
       {showViewAll && variant === "page" ? (
         <div className="flex justify-end">
           <Button variant="outline" asChild>
-            <Link href="/dashboard">Back to dashboard</Link>
+            <Link href="/realtor/dashboard">Back to dashboard</Link>
           </Button>
         </div>
       ) : null}

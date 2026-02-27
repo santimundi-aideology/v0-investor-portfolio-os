@@ -27,7 +27,7 @@ export default function RecommendationsPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>

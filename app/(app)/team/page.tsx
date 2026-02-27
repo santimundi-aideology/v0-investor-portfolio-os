@@ -44,7 +44,7 @@ import { useApp } from "@/components/providers/app-provider"
 export default function TeamPage() {
   return (
     <>
-      <RoleRedirect allow={["owner", "admin"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin"]} redirectTo="/realtor/dashboard" />
       <TeamPageInner />
     </>
   )

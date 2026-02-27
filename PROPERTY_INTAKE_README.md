@@ -75,7 +75,7 @@ Status badges appear in:
 ## Access Control
 
 - **Internal roles** (owner, admin, realtor): Full access
-- **Investor role**: Redirected to `/dashboard` if accessing `/properties/*` routes
+- **Investor role**: Redirected to `/investor/dashboard` if accessing `/properties/*` routes
 - Implemented via `RoleRedirect` component
 
 ## Mock Data

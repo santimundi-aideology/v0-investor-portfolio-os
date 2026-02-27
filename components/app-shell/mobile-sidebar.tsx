@@ -46,7 +46,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                   </div>
                   {section.items.map((item) => {
                     const isActive =
-                      item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href)
+                      item.href === "/realtor/dashboard" ? pathname === "/realtor/dashboard" : pathname.startsWith(item.href)
                     const Icon = item.icon
                     return (
                       <Link

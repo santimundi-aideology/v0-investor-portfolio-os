@@ -33,7 +33,7 @@ const DEMO_PERSONAS: DemoPersona[] = [
     shortLabel: "Realtor",
     icon: <Building2 className="size-4" />,
     description: "Full CRM access, manage investors & properties",
-    route: "/dashboard",
+    route: "/realtor/dashboard",
   },
   {
     id: "investor-external",
@@ -61,7 +61,7 @@ export function DemoBanner() {
 
   const handleExitDemo = useCallback(() => {
     setDemoModeActive(false)
-    router.push("/dashboard")
+    router.push("/realtor/dashboard")
   }, [setDemoModeActive, router])
 
   const currentPersona = DEMO_PERSONAS.find((p) => p.id === personaId) ?? DEMO_PERSONAS[0]

@@ -29,6 +29,7 @@ const roleRoutes: Record<string, string[]> = {
 // They should use the /admin portal instead. Demos use separate demo accounts.
 const superAdminBlockedRoutes = [
   "/dashboard",
+  "/realtor",
   "/properties",
   "/investors",
   "/tasks",
@@ -38,7 +39,7 @@ const superAdminBlockedRoutes = [
   "/investor",
 ]
 
-// Page routes gated by feature flags (disabled → redirect to /dashboard)
+// Page routes gated by feature flags (disabled → redirect to /realtor/dashboard)
 const featureRouteMap: Record<string, string> = {
   "/executive-summary": "NEXT_PUBLIC_FF_EXECUTIVE_SUMMARY",
   "/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
@@ -75,10 +76,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Feature flag: block disabled page routes → redirect to /dashboard
+  // Feature flag: block disabled page routes → redirect to realtor dashboard (or /investors for /realtor to avoid loop)
   for (const [routePrefix, envVar] of Object.entries(featureRouteMap)) {
     if (pathname.startsWith(routePrefix) && process.env[envVar] !== "true") {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      const fallback = routePrefix === "/realtor" ? "/investors" : "/realtor/dashboard"
+      return NextResponse.redirect(new URL(fallback, request.url))
     }
   }
 
@@ -178,14 +180,15 @@ export async function middleware(request: NextRequest) {
 
     // If on login/signup page while authenticated, redirect to role-appropriate dashboard
     if (pathname === "/login" || pathname === "/signup") {
-      let home = "/dashboard"
+      let home = "/realtor/dashboard"
       if (userRole === "investor") home = "/investor/dashboard"
       else if (userRole === "super_admin") home = "/admin"
       return NextResponse.redirect(new URL(home, request.url))
     }
 
     // Investor users on main app dashboard should go to investor portal
-    if (userRole === "investor" && pathname === "/dashboard") {
+    // Redirect investors away from realtor routes
+    if (userRole === "investor" && (pathname === "/dashboard" || pathname.startsWith("/realtor"))) {
       return NextResponse.redirect(new URL("/investor/dashboard", request.url))
     }
 
@@ -203,7 +206,7 @@ export async function middleware(request: NextRequest) {
     for (const [routePrefix, allowedRoles] of Object.entries(roleRoutes)) {
       if (pathname.startsWith(routePrefix)) {
         if (!allowedRoles.includes(userRole)) {
-          const fallback = userRole === "investor" ? "/investor/dashboard" : "/dashboard"
+          const fallback = userRole === "investor" ? "/investor/dashboard" : "/realtor/dashboard"
           return NextResponse.redirect(new URL(fallback, request.url))
         }
       }

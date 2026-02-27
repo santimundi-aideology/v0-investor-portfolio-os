@@ -19,7 +19,7 @@ const DEMO_ACCOUNTS = [
     role: "Realtor",
     description: "Full CRM: investors, properties, memos",
     icon: Building2,
-    redirect: "/realtor",
+    redirect: "/realtor/dashboard",
   },
   {
     email: "demo-investor@aideology.ai",
@@ -37,7 +37,7 @@ const DEMO_ACCOUNTS = [
     role: "Manager",
     description: "Team management, settings, audit",
     icon: Shield,
-    redirect: "/dashboard",
+    redirect: "/realtor/dashboard",
   },
 ] as const
 
@@ -50,7 +50,7 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showDemoAccounts, setShowDemoAccounts] = useState(false)
 
-  const redirect = searchParams.get("redirect") || "/dashboard"
+  const redirect = searchParams.get("redirect") || "/realtor/dashboard"
   const callbackError = searchParams.get("error")
 
   const errorMessages: Record<string, string> = {

@@ -216,7 +216,7 @@ function EvaluationTimer({ estimatedSeconds = 30, area, isOffplan }: { estimated
 export default function PropertyIntakePage() {
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
       <PropertyIntakeContent />
     </>
   )

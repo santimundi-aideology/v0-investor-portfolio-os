@@ -250,7 +250,7 @@ function NewRecommendationContent() {
 
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
 
       <div className="space-y-6">
         {/* Back + Header */}

@@ -164,7 +164,7 @@ export default function RecommendationDetailPage() {
   if (!rec) {
     return (
       <>
-        <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+        <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
         <EmptyState
           title="Recommendation not found"
           description="This recommendation may have been deleted or the link is invalid."
@@ -249,7 +249,7 @@ export default function RecommendationDetailPage() {
 
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
 
       <div className="space-y-6">
         <div className="flex items-center gap-4">

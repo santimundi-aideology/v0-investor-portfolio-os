@@ -44,7 +44,7 @@ export default function Error({
               <RefreshCw className="mr-2 size-4" />
               Try again
             </Button>
-            <Button onClick={() => window.location.href = "/dashboard"} variant="outline" className="flex-1">
+            <Button onClick={() => window.location.href = "/realtor/dashboard"} variant="outline" className="flex-1">
               <Home className="mr-2 size-4" />
               Go to Dashboard
             </Button>

@@ -218,7 +218,7 @@ export function useRequireRole(...roles: PlatformRole[]) {
 
   React.useEffect(() => {
     if (!auth.isLoading && auth.user && !roles.includes(auth.user.role)) {
-      router.push("/dashboard")
+      router.push("/realtor/dashboard")
     }
   }, [auth.isLoading, auth.user, roles, router])
 

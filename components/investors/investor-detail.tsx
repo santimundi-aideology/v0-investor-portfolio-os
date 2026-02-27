@@ -69,7 +69,7 @@ export function InvestorDetail({
   return (
     <>
       {/* Internal-only: investors must never see internal CRM views */}
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
 
     <ScopedInvestorGuard investorId={investor.id}>
       <div className="space-y-6">

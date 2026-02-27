@@ -24,7 +24,7 @@ export default function NotFound() {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button asChild variant="default">
-              <Link href="/dashboard">
+              <Link href="/realtor/dashboard">
                 <Home className="mr-2 size-4" />
                 Go to Dashboard
               </Link>

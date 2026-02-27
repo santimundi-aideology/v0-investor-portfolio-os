@@ -63,7 +63,7 @@ Returns:
 Provides page-specific context based on current route:
 - `/properties` - Portfolio view context
 - `/real-estate` - Listings view context
-- `/dashboard` - Dashboard context
+- `/realtor/dashboard` - Realtor dashboard context
 - etc.
 
 ### 3. AI Agent API (`app/api/chat/route.ts`)

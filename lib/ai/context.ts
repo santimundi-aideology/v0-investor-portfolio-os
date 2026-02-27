@@ -481,7 +481,7 @@ export function buildPageContext(pagePath?: string): string {
     "/properties": "User is viewing their property portfolio with detailed holdings, valuations, and rental income.",
     "/real-estate": "User is browsing available real estate listings and investment opportunities.",
     "/investors": "User is managing investor profiles and portfolios.",
-    "/dashboard": "User is viewing the main dashboard with portfolio overview and key metrics.",
+    "/realtor/dashboard": "User is viewing the realtor dashboard with portfolio overview and key metrics.",
     "/memos": "User is viewing or creating investment memos for specific properties.",
     "/recommendations": "User is viewing AI-generated property recommendations.",
     "/investor/dashboard": "Investor is viewing their personal dashboard with portfolio KPIs, new recommendations, holdings overview, and allocation.",

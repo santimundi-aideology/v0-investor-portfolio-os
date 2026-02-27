@@ -152,7 +152,7 @@ export async function updatePassword(formData: FormData): Promise<AuthResult> {
  * Resolves the correct redirect path after password setup/reset based on user role.
  * - super_admin (no tenant) → /admin
  * - investor → /investor/dashboard
- * - everyone else → /dashboard
+ * - everyone else → /realtor/dashboard
  */
 export async function resolveUserRedirect(): Promise<string> {
   try {
@@ -178,7 +178,7 @@ export async function resolveUserRedirect(): Promise<string> {
     console.warn("[resolveUserRedirect] Error:", err)
   }
 
-  return "/dashboard"
+  return "/realtor/dashboard"
 }
 
 /**

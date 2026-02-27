@@ -22,7 +22,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const sections = filterNavByFeatureFlags(filterNavByRole(role))
 
   const renderNavItem = (item: { label: string; href: string; icon: React.ComponentType<{ className?: string }> }) => {
-    const isActive = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href)
+    const isActive = item.href === "/realtor/dashboard" ? pathname === "/realtor/dashboard" : pathname.startsWith(item.href)
     const Icon = item.icon
 
     const linkContent = (
@@ -66,13 +66,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
           {!collapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/realtor/dashboard" className="flex items-center gap-2">
               <VantageIcon size={32} />
               <span className="font-semibold text-gray-900">Vantage</span>
             </Link>
           )}
           {collapsed && (
-            <Link href="/dashboard" className="mx-auto">
+            <Link href="/realtor/dashboard" className="mx-auto">
               <VantageIcon size={32} />
             </Link>
           )}

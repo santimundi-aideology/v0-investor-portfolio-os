@@ -7,7 +7,7 @@ import { InvestorsPageClient } from "@/components/investors/investors-page-clien
 export default function InvestorsPage() {
   return (
     <>
-      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/dashboard" />
+      <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/realtor/dashboard" />
       <Suspense fallback={<LoadingSkeleton />}>
         <InvestorsPageClient />
       </Suspense>
