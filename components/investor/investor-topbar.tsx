@@ -206,14 +206,14 @@ export function InvestorTopbar({
       <div className="hidden flex-1 max-w-md px-8 md:block">
         <Button
           variant="outline"
-          className="text-gray-500 w-full justify-start gap-2 border-gray-200 hover:border-green-300 hover:bg-green-50"
+          className="text-gray-400 w-full justify-start gap-2 border-gray-200 bg-white hover:border-green-300 hover:bg-green-50 font-normal"
           onClick={openSearch}
         >
-          <Search className="size-4" />
-          <span className="flex-1 text-left">Buscar cartera, pagos, oportunidades…</span>
-          <span className="hidden text-xs tracking-widest lg:inline">
-            <kbd className="bg-muted rounded px-1.5 py-0.5">⌘</kbd>
-            <kbd className="bg-muted ml-1 rounded px-1.5 py-0.5">K</kbd>
+          <Search className="size-4 shrink-0" />
+          <span className="flex-1 text-left text-sm">Search portfolio, payments, opportunities…</span>
+          <span className="hidden lg:inline-flex items-center gap-0.5 text-xs shrink-0">
+            <kbd className="bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 font-sans">⌘</kbd>
+            <kbd className="bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 font-sans">K</kbd>
           </span>
         </Button>
       </div>

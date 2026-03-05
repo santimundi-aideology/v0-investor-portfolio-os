@@ -315,27 +315,23 @@ export async function POST(req: Request) {
       }
     }
 
-    // Build memo context for memo_assistant agent
+    // Build memo context when a memoId is provided (any agent on the memo page)
     let memoContextText = ""
-    if (agentId === "memo_assistant") {
-      if (body.memoContext) {
-        // Use provided memo context from frontend
-        memoContextText = buildMemoContextText(body.memoContext)
-      } else if (body.memoId) {
-        // Server-side memo fetch when memoId is provided
-        try {
-          const memo = await getMemoById(body.memoId)
-          if (memo) {
-            const memoContextResult = await buildMemoContext({
-              memo,
-              investorId,
-              tenantId,
-            })
-            memoContextText = memoContextResult.contextText
-          }
-        } catch (err) {
-          console.warn("[chat] Failed to fetch memo context:", err)
+    if (body.memoContext) {
+      memoContextText = buildMemoContextText(body.memoContext)
+    } else if (body.memoId) {
+      try {
+        const memo = await getMemoById(body.memoId)
+        if (memo) {
+          const memoContextResult = await buildMemoContext({
+            memo,
+            investorId,
+            tenantId,
+          })
+          memoContextText = memoContextResult.contextText
         }
+      } catch (err) {
+        console.warn("[chat] Failed to fetch memo context:", err)
       }
     }
 
@@ -513,7 +509,8 @@ Keep responses concise and actionable.`
 PAGE CONTEXT:
 ${pageContext}
 
-${agentId === "memo_assistant" && memoContextText ? memoContextText : aiContext.contextText}
+${aiContext.contextText}
+${memoContextText ? `\nPROPERTY / IC MEMO CONTEXT:\n${memoContextText}` : ""}
 
 ${marketContextText ? `MARKET SIGNALS DATA:\n${marketContextText}\n` : ""}
 ${modeInstruction ? `MODE INSTRUCTION:\n${modeInstruction}\n` : ""}`.trim()

@@ -1,22 +1,26 @@
 "use client"
 
-/**
- * AI Banker chat dialog shown in realtor flows.
- * The file had multiple duplicate copies; reduced to a single export.
- */
-
 import * as React from "react"
-import { Building2, TrendingUp, FileText, Radar, Search, Calculator, Users, Shield, ClipboardCheck, BarChart3, Home, LineChart } from "lucide-react"
+import {
+  Building2, TrendingUp, FileText, Radar, Search, Calculator,
+  Users, Shield, ClipboardCheck, BarChart3, Home, LineChart,
+  SendHorizonal, Sparkles,
+} from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 import type { AIAgentId } from "@/lib/ai/agents"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import type { ChatActionBlock } from "@/components/ai/chat-action-types"
 import { ChatActionRenderer } from "@/components/ai/chat-action-renderer"
 import type { MemoContextPayload } from "@/components/ai/ask-ai-banker-widget"
@@ -43,7 +47,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(16, 185, 129, 0.15)",
     badgeBg: "rgba(16, 185, 129, 0.1)",
     badgeText: "#10b981",
-    placeholder: "Ask about properties, market trends, ROI...",
+    placeholder: "Ask about properties, market trends, ROI…",
     pulseColor: "#10b981",
     iconGradient: "from-emerald-500 to-teal-600",
   },
@@ -55,7 +59,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(202, 138, 4, 0.12)",
     badgeBg: "rgba(202, 138, 4, 0.15)",
     badgeText: "#ca8a04",
-    placeholder: "Ask about portfolio performance, yields, diversification...",
+    placeholder: "Ask about portfolio performance, yields, diversification…",
     pulseColor: "#16a34a",
     iconGradient: "from-green-600 to-amber-500",
   },
@@ -67,7 +71,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(139, 92, 246, 0.15)",
     badgeBg: "rgba(139, 92, 246, 0.1)",
     badgeText: "#8b5cf6",
-    placeholder: "Ask about market signals, trends, area analysis...",
+    placeholder: "Ask about market signals, trends, area analysis…",
     pulseColor: "#8b5cf6",
     iconGradient: "from-violet-500 to-purple-600",
   },
@@ -79,7 +83,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(14, 165, 233, 0.15)",
     badgeBg: "rgba(14, 165, 233, 0.1)",
     badgeText: "#0ea5e9",
-    placeholder: "Ask about assumptions, scenarios, risks...",
+    placeholder: "Ask about assumptions, scenarios, risks…",
     pulseColor: "#0ea5e9",
     iconGradient: "from-sky-500 to-blue-600",
   },
@@ -91,11 +95,10 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(245, 158, 11, 0.12)",
     badgeBg: "rgba(245, 158, 11, 0.15)",
     badgeText: "#f59e0b",
-    placeholder: "Find properties, compare opportunities, get market insights...",
+    placeholder: "Find properties, compare opportunities, get market insights…",
     pulseColor: "#16a34a",
     iconGradient: "from-green-600 to-amber-500",
   },
-  // New agents
   valuation_sense_check: {
     icon: Calculator,
     accent: "#ea580c",
@@ -104,7 +107,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(234, 88, 12, 0.15)",
     badgeBg: "rgba(234, 88, 12, 0.1)",
     badgeText: "#ea580c",
-    placeholder: "Check valuations, pricing, offers...",
+    placeholder: "Check valuations, pricing, offers…",
     pulseColor: "#ea580c",
     iconGradient: "from-orange-500 to-orange-600",
   },
@@ -116,7 +119,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(79, 70, 229, 0.15)",
     badgeBg: "rgba(79, 70, 229, 0.1)",
     badgeText: "#4f46e5",
-    placeholder: "Match properties to investors, route deals...",
+    placeholder: "Match properties to investors, route deals…",
     pulseColor: "#4f46e5",
     iconGradient: "from-indigo-500 to-indigo-600",
   },
@@ -128,7 +131,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(220, 38, 38, 0.15)",
     badgeBg: "rgba(220, 38, 38, 0.1)",
     badgeText: "#dc2626",
-    placeholder: "Assess risks, stress test deals, check concentration...",
+    placeholder: "Assess risks, stress test deals, check concentration…",
     pulseColor: "#dc2626",
     iconGradient: "from-red-500 to-red-600",
   },
@@ -140,7 +143,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(217, 119, 6, 0.15)",
     badgeBg: "rgba(217, 119, 6, 0.1)",
     badgeText: "#d97706",
-    placeholder: "Generate DD checklists, verify data, track progress...",
+    placeholder: "Generate DD checklists, verify data, track progress…",
     pulseColor: "#d97706",
     iconGradient: "from-amber-500 to-amber-600",
   },
@@ -152,7 +155,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(8, 145, 178, 0.15)",
     badgeBg: "rgba(8, 145, 178, 0.1)",
     badgeText: "#0891b2",
-    placeholder: "Generate CMAs, find comps, calculate valuations...",
+    placeholder: "Generate CMAs, find comps, calculate valuations…",
     pulseColor: "#0891b2",
     iconGradient: "from-cyan-500 to-cyan-600",
   },
@@ -164,7 +167,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(22, 163, 74, 0.15)",
     badgeBg: "rgba(22, 163, 74, 0.1)",
     badgeText: "#16a34a",
-    placeholder: "Optimize rents, reduce vacancy, analyze furnishing ROI...",
+    placeholder: "Optimize rents, reduce vacancy, analyze furnishing ROI…",
     pulseColor: "#16a34a",
     iconGradient: "from-green-500 to-green-600",
   },
@@ -176,7 +179,7 @@ export const agentThemes: Record<AIAgentId, Theme> = {
     gradientTo: "rgba(147, 51, 234, 0.15)",
     badgeBg: "rgba(147, 51, 234, 0.1)",
     badgeText: "#9333ea",
-    placeholder: "Forecast prices, find hotspots, analyze scenarios...",
+    placeholder: "Forecast prices, find hotspots, analyze scenarios…",
     pulseColor: "#9333ea",
     iconGradient: "from-purple-500 to-purple-600",
   },
@@ -208,6 +211,7 @@ export function AIBankerChatInterface({
   pagePath,
   scopedInvestorId,
   propertyId,
+  memoId,
   memoContext,
 }: {
   open: boolean
@@ -219,24 +223,32 @@ export function AIBankerChatInterface({
   pagePath?: string
   scopedInvestorId?: string
   propertyId?: string
+  memoId?: string
   memoContext?: MemoContextPayload
 }) {
   const theme = agentThemes[agentId]
   const Icon = theme.icon
   const [input, setInput] = React.useState("")
-  const [messages, setMessages] = React.useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "Ask me about portfolio performance, rental yield, appreciation, or what to do next.",
-    },
-  ])
+  const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [loading, setLoading] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Auto-scroll to bottom when messages change
+  const hasMessages = messages.length > 0
+
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
+
+  // Reset conversation when sheet closes
+  React.useEffect(() => {
+    if (!open) {
+      setMessages([])
+      setInput("")
+    } else {
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }, [open])
 
   const send = React.useCallback(
     async (text: string) => {
@@ -253,9 +265,9 @@ export function AIBankerChatInterface({
             pagePath,
             scopedInvestorId,
             propertyId,
+            memoId,
             messages: [{ role: "user", content: trimmed }],
-            // Include memo context for memo_assistant agent
-            ...(agentId === "memo_assistant" && memoContext ? { memoContext } : {}),
+            ...(memoContext ? { memoContext } : {}),
           }),
         })
         const json = await res.json().catch(() => null)
@@ -264,136 +276,186 @@ export function AIBankerChatInterface({
           setMessages((prev) => [...prev, { role: "assistant", content: String(err) }])
           return
         }
-
-        const reply = json?.message?.content ?? "I couldn’t generate a response."
+        const reply = json?.message?.content ?? "I couldn't generate a response."
         setMessages((prev) => [...prev, { role: "assistant", content: String(reply) }])
       } finally {
         setLoading(false)
       }
     },
-    [agentId, pagePath, propertyId, scopedInvestorId, memoContext],
+    [agentId, pagePath, propertyId, scopedInvestorId, memoId, memoContext],
   )
 
+  const handleSend = () => {
+    const text = input
+    setInput("")
+    void send(text)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="p-0 !w-[92vw] !max-w-[92vw] sm:!max-w-[92vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col"
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]"
       >
-        <DialogHeader
-          className="border-b px-5 py-4"
+        {/* ── Header ── */}
+        <SheetHeader
+          className="shrink-0 border-b px-5 pb-4 pt-5"
           style={{
-            background: `linear-gradient(180deg, ${theme.gradientFrom}, ${theme.gradientTo})`,
+            background: `linear-gradient(160deg, ${theme.gradientFrom}, ${theme.gradientTo})`,
           }}
         >
-          <DialogTitle className="flex items-center gap-2">
-            <span className={cn("inline-flex size-8 items-center justify-center rounded-md bg-gradient-to-br text-white", theme.iconGradient)}>
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow-sm",
+                theme.iconGradient,
+              )}
+            >
               <Icon className="size-4" />
             </span>
-            <span>{title}</span>
-            <Badge style={{ backgroundColor: theme.badgeBg, color: theme.badgeText }} className="ml-2">
-              Advisor
-            </Badge>
-          </DialogTitle>
-          <DialogDescription className="text-gray-500">
-            {description ?? "Insights and recommendations tailored to your real estate portfolio."}
-          </DialogDescription>
-        </DialogHeader>
+            <div className="min-w-0">
+              <SheetTitle className="text-base font-semibold leading-tight">{title}</SheetTitle>
+              <SheetDescription className="text-xs leading-snug">
+                {description ?? "Insights and recommendations tailored to your portfolio."}
+              </SheetDescription>
+            </div>
+            <span
+              className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              style={{ backgroundColor: theme.badgeBg, color: theme.badgeText }}
+            >
+              AI
+            </span>
+          </div>
+        </SheetHeader>
 
-        <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_340px] flex-1 min-h-0 overflow-hidden">
-          <div className="border-b sm:border-b-0 sm:border-r flex flex-col min-h-0">
-            <ScrollArea className="flex-1 min-h-0">
-              <ScrollAreaViewport className="p-4">
-                <div className="space-y-3">
-                  {messages.map((m, idx) => (
+        {/* ── Messages ── */}
+        <ScrollArea className="min-h-0 flex-1">
+          <ScrollAreaViewport className="h-full px-4 py-4">
+            {!hasMessages ? (
+              /* Empty state — greeting + suggestions */
+              <div className="flex h-full flex-col items-center justify-center gap-5 py-8 text-center">
+                <div
+                  className={cn(
+                    "inline-flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md",
+                    theme.iconGradient,
+                  )}
+                >
+                  <Icon className="size-7" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">How can I help?</p>
+                  <p className="mt-1 text-xs text-gray-400">Pick a suggestion or type your question below.</p>
+                </div>
+                <div className="flex w-full flex-col gap-2">
+                  {suggestedQuestions.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => void send(q)}
+                      disabled={loading}
+                      className="w-full rounded-xl border border-gray-100 bg-white px-4 py-2.5 text-left text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Conversation */
+              <div className="space-y-3">
+                {messages.map((m, idx) => {
+                  const { text, block } = extractActionBlock(m.content)
+                  return (
                     <div
                       key={idx}
                       className={cn(
-                        "max-w-[92%] rounded-lg border p-3 text-xs leading-relaxed",
-                        m.role === "user" ? "ml-auto bg-gray-100" : "mr-auto bg-white",
+                        "max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                        m.role === "user"
+                          ? "ml-auto rounded-br-sm bg-gray-900 text-white"
+                          : "mr-auto rounded-bl-sm border border-gray-100 bg-white text-gray-800 shadow-sm",
                       )}
                     >
-                      {(() => {
-                        const { text, block } = extractActionBlock(m.content)
-  return (
-                          <div
-                      className={cn(
-                              "prose max-w-none dark:prose-invert",
-                              // Keep markdown compact (avoid huge H1/H2 when model uses headings)
-                              "prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0",
-                              "prose-headings:my-2 prose-h1:text-base prose-h2:text-sm prose-h3:text-xs",
-                              "prose-table:text-xs prose-th:py-1 prose-td:py-1",
-                              "prose-strong:font-semibold",
-                            )}
-                          >
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-                            {block ? <ChatActionRenderer block={block} /> : null}
-                          </div>
-                        )
-                      })()}
+                      <div
+                        className={cn(
+                          "prose max-w-none",
+                          m.role === "user" && "prose-invert",
+                          "prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0",
+                          "prose-headings:my-2 prose-h1:text-base prose-h2:text-sm prose-h3:text-xs",
+                          "prose-table:text-xs prose-th:py-1 prose-td:py-1",
+                          "prose-strong:font-semibold",
+                        )}
+                      >
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                        {block ? <ChatActionRenderer block={block} /> : null}
+                      </div>
                     </div>
-                  ))}
-                  {loading ? (
-                    <div className="mr-auto max-w-[90%] rounded-lg border border-gray-100 p-3 text-sm text-gray-500">
-                      Thinking…
-                    </div>
-                  ) : null}
-                  {/* Invisible element at the end for scrolling */}
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollAreaViewport>
-              <ScrollBar />
-            </ScrollArea>
+                  )
+                })}
+                {loading && (
+                  <div className="mr-auto flex max-w-[88%] items-center gap-2 rounded-2xl rounded-bl-sm border border-gray-100 bg-white px-4 py-3 text-sm text-gray-400 shadow-sm">
+                    <span className="inline-flex gap-1">
+                      <span className="animate-bounce" style={{ animationDelay: "0ms" }}>·</span>
+                      <span className="animate-bounce" style={{ animationDelay: "150ms" }}>·</span>
+                      <span className="animate-bounce" style={{ animationDelay: "300ms" }}>·</span>
+                    </span>
+                    Thinking…
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </ScrollAreaViewport>
+          <ScrollBar />
+        </ScrollArea>
 
-            <div className="flex gap-2 border-t p-4">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={theme.placeholder}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    const text = input
-                    setInput("")
-                    void send(text)
-                  }
-                }}
-              />
-              <Button
-                onClick={() => {
-                  const text = input
-                  setInput("")
-                  void send(text)
-                }}
-                disabled={loading}
-                style={{ backgroundColor: theme.accent }}
-              >
-                Ask
-              </Button>
-            </div>
-          </div>
-
-          <div className="p-4 overflow-auto">
-            <div className="text-sm font-medium">Suggested questions</div>
-            <div className="mt-3 space-y-2">
+        {/* ── Suggested chips (after conversation starts) ── */}
+        {hasMessages && suggestedQuestions.length > 0 && (
+          <div className="shrink-0 border-t border-gray-100 bg-gray-50/60 px-4 py-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {suggestedQuestions.map((q) => (
-                <Button
+                <button
                   key={q}
-                  variant="outline"
-                  className="w-full justify-start text-left whitespace-normal h-auto"
                   onClick={() => void send(q)}
                   disabled={loading}
+                  className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50"
                 >
+                  <Sparkles className="mr-1 inline-block h-3 w-3 text-gray-400" />
                   {q}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
+        )}
+
+        {/* ── Input ── */}
+        <div className="shrink-0 border-t bg-white px-4 pb-5 pt-3">
+          <div className="flex items-center gap-2">
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={theme.placeholder}
+              className="flex-1 rounded-xl border-gray-200 bg-gray-50 text-sm focus:bg-white"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+            />
+            <Button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              size="icon"
+              className="shrink-0 rounded-xl"
+              style={{ backgroundColor: theme.accent }}
+            >
+              <SendHorizonal className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 
 export default AIBankerChatInterface
-
-

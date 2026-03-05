@@ -127,7 +127,7 @@ export default function ChatRealtorPage() {
   if (opportunities.length === 0) {
     return (
       <div className="min-h-screen bg-emerald-50/50">
-        <div className="mx-auto w-full max-w-7xl px-4 py-8">
+        <div className="w-full py-8">
           <Button variant="ghost" size="icon" asChild className="text-gray-700 hover:bg-emerald-100">
             <Link href="/investor/opportunities">
               <ArrowLeft className="size-5" />

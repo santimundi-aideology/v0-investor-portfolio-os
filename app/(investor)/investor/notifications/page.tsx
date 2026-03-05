@@ -131,7 +131,7 @@ export default function InvestorNotificationsPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="w-full py-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/dashboard">
@@ -158,7 +158,7 @@ export default function InvestorNotificationsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full py-6">
         {notificationsLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">

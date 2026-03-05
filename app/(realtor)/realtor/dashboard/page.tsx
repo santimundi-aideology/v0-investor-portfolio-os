@@ -5,9 +5,7 @@ import Link from "next/link"
 import { differenceInCalendarDays, formatDistanceToNowStrict, parseISO } from "date-fns"
 import {
   ActivitySquare,
-  ArrowUpRight,
   CheckSquare,
-  ClipboardCheck,
   FolderKanban,
   MapPinned,
   Phone,
@@ -16,7 +14,6 @@ import {
 } from "lucide-react"
 
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
-import { PageHeader } from "@/components/layout/page-header"
 import { useApp } from "@/components/providers/app-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -56,15 +53,15 @@ const stageMeta: Record<
   closing: {
     label: "Closing",
     hint: "MOU to transfer",
-    accent: "border-green-200 bg-green-50",
-    badgeClass: "bg-green-100 text-green-700",
+    accent: "border-teal-200 bg-teal-50",
+    badgeClass: "bg-teal-100 text-teal-700",
     emptyTitle: "Nothing nearing closing",
   },
 }
 
 const priorityOrder: Record<Task["priority"], number> = { high: 0, medium: 1, low: 2 }
 
-export default function RealtorOpsPage() {
+export default function RealtorDashboardPage() {
   const { user } = useApp()
   const today = React.useMemo(() => new Date(), [])
   const [loading, setLoading] = React.useState(true)
@@ -84,42 +81,30 @@ export default function RealtorOpsPage() {
   React.useEffect(() => {
     async function loadRealtorData() {
       try {
-        const [statsRes, pipelineRes, tasksRes, investorsRes, propertiesRes, activitiesRes] = await Promise.all([
-          fetch("/api/dashboard/stats"),
-          fetch("/api/dashboard/pipeline"),
-          fetch("/api/dashboard/tasks"),
-          fetch("/api/dashboard/investors"),
-          fetch("/api/dashboard/properties"),
-          fetch("/api/dashboard/activities"),
-        ])
+        // Single request — auth checked once, all DB queries run in parallel server-side
+        const res = await fetch("/api/dashboard/overview")
+        if (!res.ok) throw new Error(`Dashboard fetch failed: ${res.status}`)
+        const data = await res.json()
 
-        const [statsData, pipelineData, tasksData, investorsData, propertiesData, activitiesData] = await Promise.all([
-          statsRes.json(),
-          pipelineRes.json(),
-          tasksRes.json(),
-          investorsRes.json(),
-          propertiesRes.json(),
-          activitiesRes.json(),
-        ])
+        const { stats, pipeline, tasks: rawTasks, investors: rawInvestors, properties, activities: rawActivities } = data
 
-        // Set stat cards
-        const diligenceDeals = pipelineData.stages?.["due-diligence"]?.count || 0
+        const diligenceDeals = pipeline.stages?.["due-diligence"]?.count || 0
         setStatCards([
           {
             label: "Active investors",
-            value: `${statsData.activeInvestors || 0}`,
+            value: `${stats.activeInvestors || 0}`,
             meta: "Relationships that need weekly touch",
             icon: Users,
           },
           {
             label: "Pipeline (AED)",
-            value: formatAED(statsData.pipelineValue || 0),
+            value: formatAED(stats.pipelineValue || 0),
             meta: "Ticket size across live deals",
             icon: FolderKanban,
           },
           {
             label: "Tasks due soon",
-            value: `${statsData.tasksDueSoon || 0}`,
+            value: `${stats.tasksDueSoon || 0}`,
             meta: "Next 72h reminders",
             icon: CheckSquare,
           },
@@ -131,8 +116,7 @@ export default function RealtorOpsPage() {
           },
         ])
 
-        // Set tasks
-        const tasks = (tasksData.tasks || []).map((t: { id?: string; title?: string; status?: string; due_date: string; investor_name?: string; property_title?: string; priority: string }) => ({
+        const tasks = (rawTasks || []).map((t: { id?: string; title?: string; status?: string; due_date: string; investor_name?: string; property_title?: string; priority: string }) => ({
           id: t.id || "",
           title: t.title || "",
           status: (t.status || "open") as Task["status"],
@@ -144,15 +128,14 @@ export default function RealtorOpsPage() {
         }))
         setPrioritizedTasks(tasks)
 
-        // Set pipeline stages
         const pipelines: Record<DealStageKey, DealRoom[]> = {
           preparation: [],
           "due-diligence": [],
           negotiation: [],
           closing: [],
         }
-        Object.entries(pipelineData.stages || {}).forEach(([stage, data]: [string, unknown]) => {
-          const deals = ((data as { deals: unknown[] })?.deals || []) as Record<string, unknown>[]
+        Object.entries(pipeline.stages || {}).forEach(([stage, stageData]: [string, unknown]) => {
+          const deals = ((stageData as { deals: unknown[] })?.deals || []) as Record<string, unknown>[]
           if (stage in pipelines) {
             pipelines[stage as DealStageKey] = deals.map((d) => ({
               id: d.id as string,
@@ -165,15 +148,10 @@ export default function RealtorOpsPage() {
         })
         setStagePipelines(pipelines)
 
-        // Set investors
-        setInvestorsNeedingTouch(investorsData.investors || [])
-
-        // Set properties
-        setReadinessBuckets(propertiesData.readinessBuckets || {})
-        setVerificationQueue(propertiesData.verificationQueue || [])
-
-        // Set activities
-        setActivityFeed(activitiesData.activities || [])
+        setInvestorsNeedingTouch(rawInvestors || [])
+        setReadinessBuckets(properties.readinessBuckets || {})
+        setVerificationQueue(properties.verificationQueue || [])
+        setActivityFeed(rawActivities || [])
       } catch (err) {
         console.error("Failed to load realtor data:", err)
       } finally {
@@ -207,52 +185,132 @@ export default function RealtorOpsPage() {
     "What should be my top 3 actions right now?",
   ]
 
+  const totalPipelineValue = Object.values(stagePipelines).flat().reduce((sum, d) => sum + (d.ticketSizeAed ?? 0), 0)
+  const totalDeals = Object.values(stagePipelines).flat().length
+  const closingDeals = stagePipelines.closing?.length ?? 0
+
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="relative">
-          <PageHeader
-            title={
-              <span className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                  <ClipboardCheck className="size-5" />
-                </span>
-                <span className="text-gray-900">Real estate cockpit, {user.name}</span>
-              </span>
-            }
-            subtitle="Match investor mandates, move deals, and keep inventory audit-ready."
-            primaryAction={
+      {/* Hero: branded overview mirroring investor dashboard */}
+      <div
+        className="relative -mx-4 -mt-4 min-h-[320px] overflow-hidden sm:-mx-6 lg:-mx-8 lg:-mt-6"
+        style={{
+          backgroundImage: "linear-gradient(180deg, rgba(15,35,41,0.92) 0%, rgba(15,35,41,0.88) 50%, rgba(15,35,41,0.95) 100%), url('https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80')",
+          backgroundSize: "115%",
+          backgroundPosition: "center 40%",
+          backgroundColor: "#0f2329",
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(20,184,166,0.10),transparent)]" />
+        <div className="relative px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-5">
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest mb-1">Total Pipeline Value</p>
+                <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                  {formatAED(totalPipelineValue)}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="rounded-md border border-white/20 bg-teal-900/60 backdrop-blur-sm px-3 py-2 min-w-[120px]">
+                  <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Active Investors</p>
+                  <p className="text-sm sm:text-base font-bold text-teal-200 mt-0.5">
+                    {statCards.find((c) => c.label === "Active investors")?.value ?? "0"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-white/20 bg-teal-900/60 backdrop-blur-sm px-3 py-2 min-w-[120px]">
+                  <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Live Deals</p>
+                  <p className="text-sm sm:text-base font-bold text-teal-200 mt-0.5">
+                    {totalDeals}
+                  </p>
+                </div>
+                <div className="rounded-md border border-white/20 bg-teal-900/60 backdrop-blur-sm px-3 py-2 min-w-[120px]">
+                  <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Tasks Due Soon</p>
+                  <p className="text-sm sm:text-base font-bold text-teal-200 mt-0.5">
+                    {statCards.find((c) => c.label === "Tasks due soon")?.value ?? "0"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-white/20 bg-teal-900/60 backdrop-blur-sm px-3 py-2 min-w-[120px]">
+                  <p className="text-[9px] sm:text-[10px] font-medium text-white/60 uppercase tracking-wider">Nearing Closing</p>
+                  <p className="text-sm sm:text-base font-bold text-teal-200 mt-0.5">
+                    {closingDeals}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
               <AskAIBankerWidget
                 agentId="real_estate_advisor"
                 title="AI Deal Copilot"
                 description="Ask for investor updates, deal blockers, or draft notes."
                 suggestedQuestions={aiQuestions}
-                pagePath="/realtor"
+                pagePath="/realtor/dashboard"
               />
-            }
-            secondaryActions={
-              <>
-                <Button variant="outline" asChild>
-                  <Link href="/tasks">
-                    Tasks <ArrowUpRight className="ml-2 size-4" />
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/realtor/opportunities">Opportunities</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/deal-room">Deal rooms</Link>
-                </Button>
-              </>
-            }
-          />
-        </div>
-      </div>
+              <Button asChild className="bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold px-4 sm:px-5 uppercase tracking-wide shadow-lg h-9">
+                <Link href="/realtor/property-intake">New Intake</Link>
+              </Button>
+            </div>
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card) => (
-          <KpiCard key={card.label} {...card} />
-        ))}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-white/15 bg-white/10 backdrop-blur-md p-4 sm:p-5">
+              <h3 className="text-sm font-semibold text-white mb-3">Pipeline by stage</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/20 hover:bg-transparent">
+                    <TableHead className="text-[10px] sm:text-xs text-teal-200/80 font-medium py-2">Stage</TableHead>
+                    <TableHead className="text-right text-[10px] sm:text-xs text-teal-200/80 font-medium py-2">Deals</TableHead>
+                    <TableHead className="text-right text-[10px] sm:text-xs text-teal-200/80 font-medium py-2">Value (AED)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs sm:text-sm">
+                  {(Object.keys(stageMeta) as DealStageKey[]).map((stage) => {
+                    const deals = stagePipelines[stage] ?? []
+                    const stageValue = deals.reduce((sum, d) => sum + (d.ticketSizeAed ?? 0), 0)
+                    return (
+                      <TableRow key={stage} className="border-white/20 hover:bg-transparent">
+                        <TableCell className="font-medium text-white/90 py-1.5 capitalize">{stageMeta[stage].label}</TableCell>
+                        <TableCell className="text-right text-white/90 py-1.5">{deals.length}</TableCell>
+                        <TableCell className="text-right text-white/90 py-1.5">{formatAED(stageValue)}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="font-semibold border-white/20">
+                    <TableCell className="text-white py-1.5">Total</TableCell>
+                    <TableCell className="text-right text-white py-1.5">{totalDeals}</TableCell>
+                    <TableCell className="text-right text-white py-1.5">{formatAED(totalPipelineValue)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <div className="rounded-lg border border-white/15 bg-white/10 backdrop-blur-md p-4 sm:p-5">
+              <h3 className="text-sm font-semibold text-white mb-3">Inventory readiness</h3>
+              <div className="space-y-3">
+                {["READY_FOR_MEMO", "NEEDS_VERIFICATION", "DRAFT"].map((status) => {
+                  const count = readinessBuckets[status] ?? 0
+                  const total = Object.values(readinessBuckets).reduce((a, b) => a + b, 0) || 1
+                  const pct = Math.min(100, (count / total) * 100)
+                  const label = status.replaceAll("_", " ").toLowerCase()
+                  return (
+                    <div key={status}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-medium text-white/80 capitalize">{label}</span>
+                        <span className="text-teal-200 font-semibold">{count}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-2 rounded-full bg-teal-400 transition-all" style={{ width: `${pct.toFixed(0)}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-4 rounded-md border border-teal-400/20 bg-teal-900/50 backdrop-blur-sm p-3">
+                <p className="text-xs font-semibold text-teal-100">Daily focus</p>
+                <p className="text-[11px] text-teal-200/90 mt-0.5">Match investor mandates, move deals forward, and keep inventory audit-ready.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -260,7 +318,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <CheckSquare className="size-4 text-green-600" />
+                <CheckSquare className="size-4 text-teal-600" />
                 Key priorities
               </CardTitle>
             </CardHeader>
@@ -272,7 +330,7 @@ export default function RealtorOpsPage() {
               )}
               <Separator />
               <Button variant="outline" asChild className="w-full">
-                <Link href="/tasks">Open task board</Link>
+                <Link href="/realtor/tasks">Open task board</Link>
               </Button>
             </CardContent>
           </Card>
@@ -280,7 +338,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <FolderKanban className="size-4 text-green-600" />
+                <FolderKanban className="size-4 text-teal-600" />
                 Pipeline board
               </CardTitle>
               <p className="text-xs text-gray-500">
@@ -301,7 +359,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <Phone className="size-4 text-green-600" />
+                <Phone className="size-4 text-teal-600" />
                 Investor follow-ups
               </CardTitle>
             </CardHeader>
@@ -328,7 +386,7 @@ export default function RealtorOpsPage() {
                           <div className="text-gray-500">Yield {inv.mandate?.yieldTarget ?? "—"}</div>
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">
-                          {formatDistanceToNowStrict(parseISO(inv.lastContact))} ago
+                          {inv.lastContact ? `${formatDistanceToNowStrict(parseISO(inv.lastContact))} ago` : "—"}
                         </TableCell>
                         <TableCell className="text-right text-sm font-semibold">
                           {tasksByInvestor.get(inv.id) ?? 0}
@@ -339,7 +397,7 @@ export default function RealtorOpsPage() {
                 </Table>
               </div>
               <Button variant="outline" asChild className="w-full">
-                <Link href="/investors">View all investors</Link>
+                <Link href="/realtor/investors">View all investors</Link>
               </Button>
             </CardContent>
           </Card>
@@ -347,7 +405,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <MapPinned className="size-4 text-green-600" />
+                <MapPinned className="size-4 text-teal-600" />
                 Inventory readiness
               </CardTitle>
             </CardHeader>
@@ -361,7 +419,7 @@ export default function RealtorOpsPage() {
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
                       <div
-                        className="h-2 rounded-full bg-green-500 transition-all"
+                        className="h-2 rounded-full bg-teal-500 transition-all"
                         style={{
                           width: `${Math.min(
                             100,
@@ -384,12 +442,12 @@ export default function RealtorOpsPage() {
                         <div className="text-gray-500">{property.area}</div>
                       </div>
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/properties/${property.id}`}>Open</Link>
+                        <Link href={`/realtor/properties/${property.id}`}>Open</Link>
                       </Button>
                     </div>
                   ))
                 ) : (
-                  <div className="text-gray-500">All properties verified. 🎉</div>
+                  <div className="text-gray-500">All properties verified.</div>
                 )}
               </div>
             </CardContent>
@@ -398,7 +456,7 @@ export default function RealtorOpsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
-                <ActivitySquare className="size-4 text-green-600" />
+                <ActivitySquare className="size-4 text-teal-600" />
                 Latest activity
               </CardTitle>
             </CardHeader>
@@ -423,36 +481,9 @@ export default function RealtorOpsPage() {
         agentId="real_estate_advisor"
         title="AI Deal Copilot"
         suggestedQuestions={aiQuestions}
-        pagePath="/realtor"
+        pagePath="/realtor/dashboard"
       />
     </div>
-  )
-}
-
-function KpiCard({
-  label,
-  value,
-  meta,
-  icon: Icon,
-}: {
-  label: string
-  value: string
-  meta: string
-  icon: React.ComponentType<{ className?: string }>
-}) {
-  return (
-    <Card className="border-gray-100 bg-white shadow-sm">
-      <CardContent className="flex items-center justify-between p-5">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-widest text-gray-500">{label}</div>
-          <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
-          <div className="mt-1 text-xs text-gray-500">{meta}</div>
-        </div>
-        <div className="rounded-full bg-green-50 p-3 text-green-600">
-          <Icon className="size-5" />
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -511,11 +542,11 @@ function StageColumn({ stage, deals }: { stage: DealStageKey; deals: DealRoom[] 
             <div key={deal.id} className="rounded-lg border border-gray-100 bg-white p-3 text-xs">
               <div className="font-semibold">{deal.propertyTitle}</div>
               <div className="text-gray-500">{deal.investorName}</div>
-              {deal.nextStep ? <div className="mt-1 text-[11px] text-green-600">Next: {deal.nextStep}</div> : null}
+              {deal.nextStep ? <div className="mt-1 text-[11px] text-teal-600">Next: {deal.nextStep}</div> : null}
               <div className="mt-2 flex items-center justify-between">
                 <span>Prob {deal.probability ?? 0}%</span>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/deal-room/${deal.id}`}>Open</Link>
+                  <Link href={`/realtor/deal-room/${deal.id}`}>Open</Link>
                 </Button>
               </div>
             </div>
@@ -527,4 +558,3 @@ function StageColumn({ stage, deals }: { stage: DealStageKey; deals: DealRoom[] 
     </div>
   )
 }
-

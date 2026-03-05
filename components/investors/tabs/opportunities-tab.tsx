@@ -1,13 +1,19 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { formatDistanceToNowStrict } from "date-fns"
 import {
   ArrowRight,
+  Bed,
+  Building2,
   FileText,
   Heart,
+  MapPin,
   MessageSquare,
+  Maximize2,
   Sparkles,
   Star,
   ThumbsDown,
@@ -15,7 +21,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { EmptyState } from "@/components/layout/empty-state"
 import { useAPI } from "@/lib/hooks/use-api"
 
@@ -65,11 +71,11 @@ type OpportunitiesResponse = {
   }
 }
 
-const decisionConfig: Record<string, { label: string; variant: "outline" | "default" | "secondary" | "destructive"; icon: React.ComponentType<{ className?: string }> }> = {
-  pending: { label: "Pending", variant: "outline", icon: Sparkles },
-  interested: { label: "Interested", variant: "secondary", icon: Heart },
-  very_interested: { label: "Very Interested", variant: "default", icon: Star },
-  not_interested: { label: "Not Interested", variant: "destructive", icon: ThumbsDown },
+const decisionConfig: Record<string, { label: string; dot: string; bg: string; text: string; icon: React.ComponentType<{ className?: string }> }> = {
+  pending:          { label: "Pending",          dot: "bg-gray-400",    bg: "bg-gray-50",    text: "text-gray-600",    icon: Sparkles },
+  interested:       { label: "Interested",       dot: "bg-emerald-400", bg: "bg-emerald-50", text: "text-emerald-700", icon: Heart },
+  very_interested:  { label: "Very Interested",  dot: "bg-green-500",   bg: "bg-green-50",   text: "text-green-700",   icon: Star },
+  not_interested:   { label: "Not Interested",   dot: "bg-red-400",     bg: "bg-red-50",     text: "text-red-600",     icon: ThumbsDown },
 }
 
 function formatAED(value: number) {
@@ -86,10 +92,12 @@ function RelativeTime({ at }: { at?: string | null }) {
     if (Number.isNaN(ms)) return
     setLabel(formatDistanceToNowStrict(ms, { addSuffix: true }))
   }, [at])
-  return <span className="text-xs text-muted-foreground">{label || "\u2014"}</span>
+  return <span>{label || "\u2014"}</span>
 }
 
 export function OpportunitiesTab({ investorId }: { investorId: string }) {
+  const pathname = usePathname()
+  const basePath = pathname?.startsWith("/realtor") ? "/realtor" : ""
   const { data, isLoading, error } = useAPI<OpportunitiesResponse>(
     investorId ? `/api/investors/${investorId}/opportunities` : null
   )
@@ -98,9 +106,9 @@ export function OpportunitiesTab({ investorId }: { investorId: string }) {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="border-gray-100">
         <CardContent className="flex h-40 items-center justify-center">
-          <span className="text-sm text-muted-foreground">Loading opportunities...</span>
+          <span className="text-sm text-gray-400">Loading opportunities...</span>
         </CardContent>
       </Card>
     )
@@ -108,9 +116,9 @@ export function OpportunitiesTab({ investorId }: { investorId: string }) {
 
   if (error) {
     return (
-      <Card>
+      <Card className="border-gray-100">
         <CardContent className="flex h-40 items-center justify-center">
-          <span className="text-sm text-destructive">Failed to load opportunities</span>
+          <span className="text-sm text-red-500">Failed to load opportunities</span>
         </CardContent>
       </Card>
     )
@@ -120,13 +128,12 @@ export function OpportunitiesTab({ investorId }: { investorId: string }) {
     return (
       <EmptyState
         title="No opportunities shared yet"
-        description="Share properties with this investor to create opportunities. Use the 'Share' dialog from properties or the recommended properties section below."
+        description="Share properties with this investor to create opportunities. Use the Share dialog from properties or the recommended properties section below."
         icon={<Sparkles className="size-5" />}
       />
     )
   }
 
-  // Group by decision
   const grouped = {
     actionNeeded: opportunities.filter((o) => o.decision === "interested" || o.decision === "very_interested"),
     pending: opportunities.filter((o) => o.decision === "pending"),
@@ -136,178 +143,225 @@ export function OpportunitiesTab({ investorId }: { investorId: string }) {
   return (
     <div className="space-y-6">
       {/* Summary strip */}
-      <div className="grid gap-3 sm:grid-cols-4">
-        <SummaryCard label="Total" value={opportunities.length} />
-        <SummaryCard
-          label="Interested"
-          value={grouped.actionNeeded.length}
-          className="border-emerald-200 bg-emerald-50/30"
-        />
-        <SummaryCard label="Pending" value={grouped.pending.length} />
-        <SummaryCard
-          label="Rejected"
-          value={grouped.rejected.length}
-          className="border-gray-200 bg-gray-50/30"
-        />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryChip label="Total" value={opportunities.length} />
+        <SummaryChip label="Interested" value={grouped.actionNeeded.length} color="emerald" />
+        <SummaryChip label="Pending" value={grouped.pending.length} color="amber" />
+        <SummaryChip label="Rejected" value={grouped.rejected.length} color="gray" />
       </div>
 
-      {/* Action needed - investor responded positively */}
       {grouped.actionNeeded.length > 0 && (
-        <section>
-          <h3 className="mb-3 text-sm font-semibold text-emerald-700">
-            Investor interested ({grouped.actionNeeded.length})
-          </h3>
-          <div className="space-y-3">
+        <Section label="Investor interested" count={grouped.actionNeeded.length} color="text-emerald-700">
+          <div className="grid gap-3 sm:grid-cols-2">
             {grouped.actionNeeded.map((opp) => (
-              <OpportunityCard key={opp.id} opportunity={opp} investorId={investorId} />
+              <OpportunityCard key={opp.id} opportunity={opp} basePath={basePath} />
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      {/* Pending decisions */}
       {grouped.pending.length > 0 && (
-        <section>
-          <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
-            Awaiting decision ({grouped.pending.length})
-          </h3>
-          <div className="space-y-3">
+        <Section label="Awaiting decision" count={grouped.pending.length} color="text-gray-500">
+          <div className="grid gap-3 sm:grid-cols-2">
             {grouped.pending.map((opp) => (
-              <OpportunityCard key={opp.id} opportunity={opp} investorId={investorId} />
+              <OpportunityCard key={opp.id} opportunity={opp} basePath={basePath} />
             ))}
           </div>
-        </section>
+        </Section>
       )}
 
-      {/* Rejected */}
       {grouped.rejected.length > 0 && (
-        <section>
-          <h3 className="mb-3 text-sm font-semibold text-gray-400">
-            Not interested ({grouped.rejected.length})
-          </h3>
-          <div className="space-y-3">
+        <Section label="Not interested" count={grouped.rejected.length} color="text-gray-400">
+          <div className="grid gap-3 sm:grid-cols-2">
             {grouped.rejected.map((opp) => (
-              <OpportunityCard key={opp.id} opportunity={opp} investorId={investorId} />
+              <OpportunityCard key={opp.id} opportunity={opp} basePath={basePath} />
             ))}
           </div>
-        </section>
+        </Section>
       )}
     </div>
   )
 }
 
-function SummaryCard({
-  label,
-  value,
-  className,
-}: {
-  label: string
-  value: number
-  className?: string
-}) {
+function Section({ label, count, color, children }: { label: string; count: number; color: string; children: React.ReactNode }) {
   return (
-    <Card className={className}>
-      <CardContent className="p-4">
-        <div className="text-2xl font-bold">{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </CardContent>
-    </Card>
+    <section>
+      <h3 className={`mb-3 text-sm font-semibold ${color}`}>
+        {label} ({count})
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+function SummaryChip({ label, value, color }: { label: string; value: number; color?: string }) {
+  const bgMap: Record<string, string> = {
+    emerald: "border-emerald-200 bg-emerald-50/40",
+    amber:   "border-amber-200 bg-amber-50/40",
+    gray:    "border-gray-200 bg-gray-50/40",
+  }
+  const textMap: Record<string, string> = {
+    emerald: "text-emerald-700",
+    amber:   "text-amber-700",
+    gray:    "text-gray-500",
+  }
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${color ? bgMap[color] ?? "" : "border-gray-100"}`}>
+      <div className={`text-2xl font-bold ${color ? textMap[color] ?? "text-gray-900" : "text-gray-900"}`}>{value}</div>
+      <div className="text-xs text-gray-400">{label}</div>
+    </div>
   )
 }
 
 function OpportunityCard({
   opportunity,
-  investorId,
+  basePath,
 }: {
   opportunity: Opportunity
-  investorId: string
+  basePath: string
 }) {
+  const router = useRouter()
   const p = opportunity.property
   const config = decisionConfig[opportunity.decision] ?? decisionConfig.pending
   const DecisionIcon = config.icon
+  const hasImage = !!p?.imageUrl
+  const yieldPct = p?.expectedRent && p?.price && p.price > 0
+    ? ((p.expectedRent * 12) / p.price * 100).toFixed(1)
+    : null
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={config.variant} className="gap-1">
-                <DecisionIcon className="size-3" />
-                {config.label}
-              </Badge>
-              {opportunity.status !== "recommended" && (
-                <Badge variant="outline" className="capitalize">
-                  {opportunity.status.replace(/_/g, " ")}
-                </Badge>
-              )}
-              {opportunity.messageCount > 0 && (
-                <Badge variant="outline" className="gap-1 text-[10px]">
-                  <MessageSquare className="size-3" />
-                  {opportunity.messageCount}
-                </Badge>
-              )}
-            </div>
+    <div
+      className="group overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:border-gray-200 hover:shadow-md cursor-pointer"
+      onClick={() => router.push(`${basePath}/properties/${opportunity.listingId}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter") router.push(`${basePath}/properties/${opportunity.listingId}`) }}
+    >
 
-            <div className="font-semibold truncate">
+        {/* Image */}
+        <div className="relative h-36 w-full bg-gray-100 overflow-hidden">
+          {hasImage ? (
+            <Image
+              src={p!.imageUrl!}
+              alt={p?.title ?? "Property"}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 640px) 100vw, 50vw"
+              unoptimized
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <Building2 className="h-10 w-10 text-gray-300" />
+            </div>
+          )}
+
+          {/* Overlays on image */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+          {/* Decision badge top-left */}
+          <div className="absolute top-2.5 left-2.5">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm ${config.bg} ${config.text} border-white/30`}>
+              <DecisionIcon className="h-3 w-3" />
+              {config.label}
+            </span>
+          </div>
+
+          {/* Match score top-right */}
+          {opportunity.matchScore != null && opportunity.matchScore > 0 && (
+            <div className="absolute top-2.5 right-2.5">
+              <span className="inline-flex items-center rounded-full bg-white/90 backdrop-blur-sm px-2 py-0.5 text-[11px] font-semibold text-gray-800">
+                {opportunity.matchScore}% match
+              </span>
+            </div>
+          )}
+
+          {/* Price bottom-left */}
+          {p?.price && (
+            <div className="absolute bottom-2.5 left-2.5">
+              <span className="text-sm font-bold text-white drop-shadow-md">{formatAED(p.price)}</span>
+            </div>
+          )}
+
+          {/* Messages bottom-right */}
+          {opportunity.messageCount > 0 && (
+            <div className="absolute bottom-2.5 right-2.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
+                <MessageSquare className="h-2.5 w-2.5" />
+                {opportunity.messageCount}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="p-3.5 space-y-2">
+          {/* Title */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-green-700 transition-colors">
               {p?.title ?? "Unknown property"}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {[p?.area, p?.type, p?.price ? formatAED(p.price) : null]
-                .filter(Boolean)
-                .join(" \u00b7 ")}
-            </div>
-
-            {opportunity.decisionNote && (
-              <div className="mt-2 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
-                <span className="font-medium">Investor note:</span> {opportunity.decisionNote}
-              </div>
-            )}
-
-            {opportunity.decisionAt && opportunity.decision !== "pending" && (
-              <div className="text-xs text-muted-foreground">
-                Decided <RelativeTime at={opportunity.decisionAt} />
-              </div>
-            )}
-
-            {opportunity.sharedMessage && (
-              <div className="text-xs text-muted-foreground italic">
-                &quot;{opportunity.sharedMessage}&quot;
-              </div>
+            </h4>
+            {p?.area && (
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400 truncate">
+                <MapPin className="h-3 w-3 shrink-0" />
+                {p.area}
+                {p.developer && <span className="truncate"> &middot; {p.developer}</span>}
+              </p>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
-            {opportunity.matchScore != null && opportunity.matchScore > 0 && (
-              <Badge variant="secondary" className="text-[10px]">
-                Match: {opportunity.matchScore}%
-              </Badge>
+          {/* Property details chips */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+            {p?.type && (
+              <span className="flex items-center gap-1 capitalize">
+                <Building2 className="h-3 w-3 text-gray-400" />
+                {p.type}
+              </span>
             )}
+            {p?.bedrooms != null && (
+              <span className="flex items-center gap-1">
+                <Bed className="h-3 w-3 text-gray-400" />
+                {p.bedrooms} BR
+              </span>
+            )}
+            {p?.size != null && (
+              <span className="flex items-center gap-1">
+                <Maximize2 className="h-3 w-3 text-gray-400" />
+                {p.size.toLocaleString()} sqft
+              </span>
+            )}
+            {yieldPct && (
+              <span className="font-medium text-green-600">{yieldPct}% yield</span>
+            )}
+          </div>
 
-            <div className="flex gap-2">
-              {opportunity.memoId && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/memos/${opportunity.memoId}`}>
-                    <FileText className="mr-1.5 size-3.5" />
-                    Memo
-                  </Link>
-                </Button>
-              )}
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/properties/${opportunity.listingId}`}>
-                  <ArrowRight className="mr-1.5 size-3.5" />
-                  Property
-                </Link>
-              </Button>
+          {/* Investor note */}
+          {opportunity.decisionNote && (
+            <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs text-gray-600">
+              <span className="font-medium text-gray-500">Note: </span>
+              {opportunity.decisionNote}
             </div>
+          )}
 
-            <div className="text-[10px] text-muted-foreground">
+          {/* Footer row */}
+          <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+            <span className="text-[10px] text-gray-400">
               Shared <RelativeTime at={opportunity.sharedAt} />
               {opportunity.sharedByName && ` by ${opportunity.sharedByName}`}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {opportunity.memoId && (
+                <Link
+                  href={`${basePath}/memos/${opportunity.memoId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                </Link>
+              )}
+              <ArrowRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-green-500 transition-colors" />
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   )
 }

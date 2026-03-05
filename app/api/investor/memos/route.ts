@@ -47,7 +47,7 @@ export async function GET(req: Request) {
         updated_at
       `)
       .eq("investor_id", ctx.investorId)
-      .in("state", ["draft", "pending_review", "ready", "sent", "opened", "decided"])
+      .in("state", ["sent", "opened", "decided"])
       .order("updated_at", { ascending: false })
 
     if (memosError) {
@@ -55,93 +55,93 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Failed to fetch memos" }, { status: 500 })
     }
 
+    const memoList = memos ?? []
+
+    // Batch-fetch all related data in 3 parallel queries instead of N×3 queries
+    const listingIds = memoList.map((m) => m.listing_id).filter(Boolean) as string[]
+    const memoIds = memoList.map((m) => m.id)
+
+    const [listingsResult, versionsResult, decisionsResult] = await Promise.all([
+      listingIds.length
+        ? supabase.from("listings").select("id, title, area, price").in("id", listingIds)
+        : Promise.resolve({ data: [] as { id: string; title: string; area: string; price: string | number | null }[], error: null }),
+      supabase
+        .from("memo_versions")
+        .select("memo_id, version, content")
+        .in("memo_id", memoIds)
+        .order("version", { ascending: false }),
+      supabase
+        .from("decisions")
+        .select("memo_id, decision_type, created_at")
+        .in("memo_id", memoIds)
+        .eq("investor_id", ctx.investorId!)
+        .order("created_at", { ascending: false }),
+    ])
+
+    // Build lookup maps
+    const listingMap = new Map((listingsResult.data ?? []).map((l) => [l.id, l]))
+
+    // Keep only the latest version per memo (results are ordered desc)
+    const versionMap = new Map<string, { content: Record<string, unknown> }>()
+    for (const v of versionsResult.data ?? []) {
+      if (!versionMap.has(v.memo_id)) {
+        versionMap.set(v.memo_id, { content: v.content as Record<string, unknown> })
+      }
+    }
+
+    // Keep only the latest decision per memo
+    const decisionMap = new Map<string, { type: string; createdAt: string }>()
+    for (const d of decisionsResult.data ?? []) {
+      if (!decisionMap.has(d.memo_id)) {
+        decisionMap.set(d.memo_id, { type: d.decision_type, createdAt: d.created_at })
+      }
+    }
+
     // Enrich memos with listing details and latest version content
-    const enrichedMemos = await Promise.all(
-      (memos ?? []).map(async (memo) => {
-        // Get listing details if available
-        let propertyTitle: string | null = null
-        let propertyArea: string | null = null
-        let propertyPrice: number | null = null
+    const enrichedMemos = memoList.map((memo) => {
+      const listing = memo.listing_id ? listingMap.get(memo.listing_id) : null
+      const propertyTitle = listing?.title ?? null
+      const propertyArea = listing?.area ?? null
+      const propertyPrice = listing?.price != null ? Number(listing.price) : null
 
-        if (memo.listing_id) {
-          const { data: listing } = await supabase
-            .from("listings")
-            .select("title, area, price")
-            .eq("id", memo.listing_id)
-            .maybeSingle()
+      let title = propertyTitle ? `IC Memo: ${propertyTitle}` : "Investment Committee Memo"
+      let summary: string | null = null
 
-          if (listing) {
-            propertyTitle = listing.title
-            propertyArea = listing.area
-            propertyPrice = listing.price ? Number(listing.price) : null
-          }
-        }
+      const version = versionMap.get(memo.id)
+      if (version?.content) {
+        const content = version.content
+        if (content.title) title = content.title as string
+        if (content.summary) summary = content.summary as string
+      }
 
-        // Get latest memo version for title/summary
-        let title = propertyTitle ? `IC Memo: ${propertyTitle}` : "Investment Committee Memo"
-        let summary: string | null = null
+      const decision = decisionMap.get(memo.id) ?? null
 
-        if (memo.current_version) {
-          const { data: version } = await supabase
-            .from("memo_versions")
-            .select("content")
-            .eq("memo_id", memo.id)
-            .eq("version", memo.current_version)
-            .maybeSingle()
+      const statusMap: Record<string, string> = {
+        draft: "draft",
+        pending_review: "review",
+        ready: "ready",
+        sent: "pending",
+        opened: "pending",
+        decided: decision?.type ?? "decided",
+      }
 
-          if (version?.content) {
-            const content = version.content as Record<string, unknown>
-            if (content.title) title = content.title as string
-            if (content.summary) summary = content.summary as string
-          }
-        }
-
-        // Get decision if any
-        let decision: { type: string; createdAt: string } | null = null
-        const { data: decisionData } = await supabase
-          .from("decisions")
-          .select("decision_type, created_at")
-          .eq("memo_id", memo.id)
-          .eq("investor_id", ctx.investorId!)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (decisionData) {
-          decision = {
-            type: decisionData.decision_type,
-            createdAt: decisionData.created_at,
-          }
-        }
-
-        // Map state to a status the UI expects
-        const statusMap: Record<string, string> = {
-          draft: "draft",
-          pending_review: "review",
-          ready: "ready",
-          sent: "pending",
-          opened: "pending",
-          decided: decision?.type ?? "decided",
-        }
-
-        return {
-          id: memo.id,
-          title,
-          summary,
-          status: statusMap[memo.state] ?? memo.state,
-          state: memo.state,
-          investorId: memo.investor_id,
-          listingId: memo.listing_id,
-          propertyTitle,
-          propertyArea,
-          propertyPrice,
-          currentVersion: memo.current_version,
-          decision,
-          createdAt: memo.created_at,
-          updatedAt: memo.updated_at,
-        }
-      })
-    )
+      return {
+        id: memo.id,
+        title,
+        summary,
+        status: statusMap[memo.state] ?? memo.state,
+        state: memo.state,
+        investorId: memo.investor_id,
+        listingId: memo.listing_id,
+        propertyTitle,
+        propertyArea,
+        propertyPrice,
+        currentVersion: memo.current_version,
+        decision,
+        createdAt: memo.created_at,
+        updatedAt: memo.updated_at,
+      }
+    })
 
     return NextResponse.json(enrichedMemos)
   } catch (err) {

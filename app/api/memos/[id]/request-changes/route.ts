@@ -6,6 +6,7 @@ import { getInvestorById } from "@/lib/db/investors"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
+import { batchInsertNotifications } from "@/lib/db/notifications"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -33,6 +34,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         comment: body?.comment,
       }),
     )
+
+    if (memo.createdBy) {
+      await batchInsertNotifications([
+        {
+          org_id: memo.tenantId,
+          recipient_user_id: memo.createdBy,
+          entity_type: "memo",
+          entity_id: memo.id,
+          title: "Changes requested on memo",
+          body: body?.comment
+            ? `A manager has requested changes: "${body.comment}"`
+            : "A manager has requested changes on your IC Memo.",
+          notification_key: `memo_changes_${memo.id}_${Date.now()}`,
+        },
+      ])
+    }
 
     return NextResponse.json(next)
   } catch (err) {

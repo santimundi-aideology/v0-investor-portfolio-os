@@ -2,8 +2,18 @@ import { NextResponse } from "next/server"
 
 import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { getDealRoomById, updateDealRoom, deleteDealRoom } from "@/lib/db/deal-rooms"
+import { createHolding } from "@/lib/db/holdings"
+import { getInvestorById } from "@/lib/db/investors"
+import { getOpportunitiesByInvestor, updateOpportunityStatus } from "@/lib/db/opportunities"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertTenantScope } from "@/lib/security/rbac"
+import { getSupabaseAdminClient } from "@/lib/db/client"
+import { batchInsertNotifications } from "@/lib/db/notifications"
+import {
+  createPaymentMilestones,
+  generateOffPlanMilestones,
+  generateReadyMilestones,
+} from "@/lib/db/payment-milestones"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -99,6 +109,106 @@ export async function PUT(req: Request, { params }: RouteContext) {
           toStage: body.status,
         }),
       )
+
+      // Notify investor + assigned agent about stage changes
+      // Look up investor's linked user account via owner_user_id
+      if (existing.investorId || existing.assignedAgentId) {
+        const recipients: string[] = []
+
+        if (existing.investorId) {
+          const investorRecord = await getInvestorById(existing.investorId).catch(() => null)
+          if (investorRecord?.ownerUserId) recipients.push(investorRecord.ownerUserId)
+        }
+        if (existing.assignedAgentId && existing.assignedAgentId !== ctx.userId) {
+          recipients.push(existing.assignedAgentId)
+        }
+
+        if (recipients.length > 0) {
+          const stageLabel = (body.status as string).replace(/-/g, " ").replace(/_/g, " ")
+          await batchInsertNotifications(
+            recipients.map((uid) => ({
+              org_id: existing.tenantId,
+              recipient_user_id: uid,
+              entity_type: "deal_room",
+              entity_id: id,
+              title: `Deal room stage: ${stageLabel}`,
+              body: `"${existing.title}" moved to ${stageLabel}.`,
+              notification_key: `deal_room_stage_${id}_${body.status}_${uid}`,
+            })),
+          )
+        }
+      }
+
+      // Auto-create holding when deal room reaches "completed"
+      if (body.status === "completed" && existing.investorId && existing.propertyId) {
+        try {
+          const purchasePrice = existing.offerPriceAed ?? existing.ticketSizeAed ?? 0
+          const holding = await createHolding({
+            tenantId: existing.tenantId,
+            investorId: existing.investorId,
+            listingId: existing.propertyId,
+            purchasePrice,
+            purchaseDate: new Date().toISOString().slice(0, 10),
+            currentValue: purchasePrice,
+            monthlyRent: 0,
+            occupancyRate: 1,
+            annualExpenses: 0,
+          })
+
+          if (holding) {
+            // Find the opportunity and update its status to "acquired"
+            // Also retrieve memoId for payment plan detection
+            const opps = await getOpportunitiesByInvestor(existing.investorId, { includeAcquired: true })
+            const opp = opps.find((o) => o.listingId === existing.propertyId)
+            if (opp) {
+              await updateOpportunityStatus(opp.id, "acquired", { holdingId: holding.id })
+            }
+
+            // Auto-generate payment milestones
+            try {
+              let milestones
+              if (opp?.memoId) {
+                const supabase = getSupabaseAdminClient()
+                const { data: versions } = await supabase
+                  .from("memo_versions")
+                  .select("content")
+                  .eq("memo_id", opp.memoId)
+                  .order("version", { ascending: false })
+                  .limit(1)
+                const content = versions?.[0]?.content as Record<string, unknown> | undefined
+                const paymentPlan = content?.paymentPlan as Record<string, unknown> | undefined
+                if (paymentPlan && content?.type === "offplan") {
+                  milestones = generateOffPlanMilestones(holding.id, purchasePrice, paymentPlan)
+                }
+              }
+              if (!milestones) {
+                milestones = generateReadyMilestones(holding.id, purchasePrice)
+              }
+              await createPaymentMilestones(milestones)
+            } catch (msErr) {
+              console.error("[deal-rooms/:id] Error generating milestones:", msErr)
+            }
+
+            // Notify investor about acquisition via owner_user_id
+            const investorRecord = await getInvestorById(existing.investorId).catch(() => null)
+            if (investorRecord?.ownerUserId) {
+              await batchInsertNotifications([
+                {
+                  org_id: existing.tenantId,
+                  recipient_user_id: investorRecord.ownerUserId,
+                  entity_type: "holding",
+                  entity_id: holding.id,
+                  title: "Property acquired!",
+                  body: `Congratulations! "${existing.propertyTitle || "Your property"}" has been added to your portfolio.`,
+                  notification_key: `holding_created_${holding.id}`,
+                },
+              ])
+            }
+          }
+        } catch (holdingErr) {
+          console.error("[deal-rooms/:id] Error auto-creating holding:", holdingErr)
+        }
+      }
     } else {
       await write(
         AuditEvents.dealRoomUpdated({

@@ -8,12 +8,9 @@ import {
   AlertCircle,
   ArrowRight,
   Building2,
-  Calendar,
   CheckCircle2,
-  Clock,
   ExternalLink,
   FileText,
-  HardHat,
   Loader2,
   MapPin,
   Sparkles,
@@ -29,49 +26,33 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatAED } from "@/lib/real-estate"
 import { PropertyAIChat } from "@/components/ai/property-ai-chat"
 import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
-import { PriceComparisonChart } from "@/components/charts/price-comparison-chart"
 import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
 import type { Investor, OffPlanProject, OffPlanUnit, OffPlanPaymentPlan, OffPlanEvaluationResult } from "@/lib/types"
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
+import { MemoChapterTabs } from "@/components/memos/memo-chapter-tabs"
+import { buildStaticMapUrl } from "@/lib/utils/build-static-map-url"
 import { useAPI } from "@/lib/hooks/use-api"
 import type { IntakeReportPayload } from "@/lib/pdf/intake-report"
+import type { MemoAnalysis } from "@/lib/types"
 
-// CMA and Off-Plan components
 import { CMAPanel } from "@/components/property-intake/cma-panel"
-import { PdfUploadZone } from "@/components/property-intake/pdf-upload-zone"
-import { OffPlanProjectOverview } from "@/components/property-intake/offplan-project-overview"
-import { UnitSelectionTable } from "@/components/property-intake/unit-selection-table"
-import { OffPlanUnitComparison } from "@/components/property-intake/offplan-unit-comparison"
-import { OffPlanMemoDisplay } from "@/components/property-intake/offplan-memo-display"
 import { AIScoreReveal } from "@/components/property-intake/ai-score-reveal"
 
 // Persistent store — state survives navigation
 import {
   useIntakeStore,
-  setActiveTab,
   setUrl,
   setNotes,
   setScoreRevealComplete,
-  setSelectedOffplanUnits,
   setPortalError,
-  setOffplanError,
-  setOffplanUrl,
-  dismissOffplanDetected,
-  switchToOffplanWithUrl,
   extractProperty,
   parseBuiltPdf,
   evaluateProperty,
   saveMemo,
   resetPortal,
-  extractPropertyForOffplan,
-  handlePdfExtracted,
-  evaluateOffplan,
-  saveOffplanMemo,
-  resetOffplan,
 } from "@/lib/property-intake-store"
 import type { ExtractedProperty, EvaluationResult, EnhancedPdfData } from "@/lib/property-intake-store"
 
@@ -99,48 +80,6 @@ function formatPerSqft(value?: number) {
 function formatPercent(value?: number) {
   if (typeof value !== "number") return "—"
   return percentFormatter.format(value)
-}
-
-function buildStaticMapUrl(
-  coords?: { lat: number; lng: number } | null,
-  locationLabel?: string,
-) {
-  const lat = coords?.lat
-  const lng = coords?.lng
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
-  const label = (locationLabel || "Property location").slice(0, 80)
-  const coordText = hasCoords
-    ? `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`
-    : "Coordinates unavailable"
-
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="420" viewBox="0 0 800 420">
-  <rect width="800" height="420" fill="#f8fafc"/>
-  <g stroke="#e2e8f0" stroke-width="1">
-    <line x1="0" y1="70" x2="800" y2="70"/>
-    <line x1="0" y1="140" x2="800" y2="140"/>
-    <line x1="0" y1="210" x2="800" y2="210"/>
-    <line x1="0" y1="280" x2="800" y2="280"/>
-    <line x1="0" y1="350" x2="800" y2="350"/>
-    <line x1="130" y1="0" x2="130" y2="420"/>
-    <line x1="260" y1="0" x2="260" y2="420"/>
-    <line x1="390" y1="0" x2="390" y2="420"/>
-    <line x1="520" y1="0" x2="520" y2="420"/>
-    <line x1="650" y1="0" x2="650" y2="420"/>
-  </g>
-  <path d="M40 300 C170 240, 260 250, 390 200 S620 170, 760 130" stroke="#cbd5e1" stroke-width="8" fill="none" stroke-linecap="round"/>
-  <path d="M80 110 C180 130, 270 120, 360 150 S560 230, 720 260" stroke="#dbeafe" stroke-width="10" fill="none" stroke-linecap="round"/>
-  <g transform="translate(400,210)">
-    <path d="M0 -26 C10 -26 18 -18 18 -8 C18 5 8 17 0 30 C-8 17 -18 5 -18 -8 C-18 -18 -10 -26 0 -26 Z" fill="#ef4444"/>
-    <circle cx="0" cy="-8" r="6" fill="#ffffff"/>
-  </g>
-  <rect x="24" y="24" width="430" height="42" rx="8" fill="#ffffff" opacity="0.96"/>
-  <text x="42" y="50" font-size="22" font-family="Helvetica" fill="#0f172a">${label}</text>
-  <rect x="24" y="360" width="280" height="34" rx="7" fill="#ffffff" opacity="0.96"/>
-  <text x="42" y="383" font-size="16" font-family="Helvetica" fill="#334155">${coordText}</text>
-</svg>`
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 /**
@@ -235,7 +174,6 @@ function PropertyIntakeContent() {
 
   // All state comes from the persistent store
   const {
-    activeTab,
     step,
     url,
     error,
@@ -246,18 +184,6 @@ function PropertyIntakeContent() {
     notes,
     savedMemoId,
     scoreRevealComplete,
-    offplanDetected,
-    offplanStep,
-    offplanUrl,
-    offplanError,
-    offplanProject,
-    offplanUnits,
-    offplanPaymentPlan,
-    offplanStats,
-    selectedOffplanUnits,
-    offplanEvaluation,
-    offplanSavedMemoId,
-    offplanBrochureImages,
   } = useIntakeStore()
 
   // Handle paste event for extracting page content
@@ -290,28 +216,7 @@ function PropertyIntakeContent() {
     () => (property && evaluation ? buildPortalIntakeReportPayload(property, evaluation, enhancedPdfData) : undefined),
     [property, evaluation, enhancedPdfData],
   )
-  // Resolve images: prefer portal-extracted images, fall back to rendered brochure pages
-  const resolvedOffplanImages = React.useMemo(
-    () => (property?.images && property.images.length > 0 ? property.images : offplanBrochureImages),
-    [property?.images, offplanBrochureImages],
-  )
-  const offplanReportPayload = React.useMemo(
-    () =>
-      offplanProject && selectedOffplanUnits[0] && offplanPaymentPlan && offplanEvaluation
-        ? buildOffplanIntakeReportPayload(
-            offplanProject,
-            selectedOffplanUnits[0],
-            offplanPaymentPlan,
-            offplanEvaluation,
-            property ?? undefined,
-            resolvedOffplanImages,
-          )
-        : undefined,
-    [offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits, property, resolvedOffplanImages],
-  )
-  // Determine if we should show reset button
   const showPortalReset = step !== "input" && step !== "saved"
-  const showOffplanReset = offplanStep !== "input" && offplanStep !== "upload" && offplanStep !== "saved"
 
   const handleShareMemoToInvestors = React.useCallback(
     async (investorIds: string[]) => {
@@ -528,7 +433,7 @@ function PropertyIntakeContent() {
   if (!mounted) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Property Intake" subtitle="Evaluate built or off-plan properties from URLs or developer brochures" />
+        <PageHeader title="Property Intake" subtitle="Evaluate properties from URLs or PDF brochures" />
         <div className="flex min-h-[300px] items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -540,9 +445,9 @@ function PropertyIntakeContent() {
     <div className="space-y-6">
       <PageHeader
         title="Property Intake"
-        subtitle="Evaluate built or off-plan properties from URLs or developer brochures"
+        subtitle="Evaluate properties from URLs or PDF brochures"
         primaryAction={
-          (activeTab === "portal" && showPortalReset) ? (
+          showPortalReset ? (
             <div className="flex items-center gap-2">
               {(step === "evaluated" || step === "saving") && property && (
                 <MemoPdfExport
@@ -553,36 +458,11 @@ function PropertyIntakeContent() {
               )}
               <Button variant="outline" onClick={resetPortal}>Start Over</Button>
             </div>
-          ) : (activeTab === "offplan" && showOffplanReset) ? (
-            <div className="flex items-center gap-2">
-              {(offplanStep === "evaluated" || offplanStep === "saving") && offplanProject && selectedOffplanUnits[0] && (
-                <MemoPdfExport
-                  title={`${offplanProject.projectName} - ${selectedOffplanUnits[0].unitNumber}`}
-                  memoId={offplanSavedMemoId || undefined}
-                  intakeReportPayload={offplanReportPayload}
-                />
-              )}
-              <Button variant="outline" onClick={resetOffplan}>Start Over</Button>
-            </div>
           ) : undefined
         }
       />
 
-      {/* Main Tabs */}
-      <Tabs id="property-intake-tabs" value={activeTab} onValueChange={(v) => setActiveTab(v as "portal" | "offplan")} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="portal" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Built Properties
-          </TabsTrigger>
-          <TabsTrigger value="offplan" className="flex items-center gap-2">
-            <HardHat className="h-4 w-4" />
-            Off-Plan
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Built Properties Tab */}
-        <TabsContent value="portal" className="space-y-6">
+      <div className="space-y-6">
           {/* Step indicator */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className={step === "input" || step === "extracting" ? "font-semibold text-green-600" : ""}>1. Enter Property</span>
@@ -696,31 +576,6 @@ function PropertyIntakeContent() {
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {/* Off-plan detection banner */}
-      {offplanDetected && step === "extracted" && property && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="flex items-center justify-between gap-4 py-4">
-            <div className="flex items-center gap-3">
-              <HardHat className="h-5 w-5 text-amber-600 shrink-0" />
-              <div>
-                <p className="font-medium text-amber-800">Off-plan property detected</p>
-                <p className="text-sm text-amber-700">
-                  This property appears to be off-plan / under construction. For a more accurate analysis with payment plan projections and handover timeline, use the Off-Plan tab.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={dismissOffplanDetected} className="border-amber-300 text-amber-700 hover:bg-amber-100">
-                Continue here
-              </Button>
-              <Button size="sm" onClick={switchToOffplanWithUrl} className="bg-amber-600 hover:bg-amber-700 text-white">
-                Switch to Off-Plan
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* Step 2: Extracted Property Review */}
@@ -908,312 +763,28 @@ function PropertyIntakeContent() {
 
           <div className="grid gap-6 lg:grid-cols-4">
             <div className="lg:col-span-3 space-y-6">
-              {/* Property Photos */}
-              {property.images.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Property Photos</CardTitle>
-                    <CardDescription>Extracted from listing</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {property.images.slice(0, 6).map((img, idx) => (
-                        <div key={idx} className="relative h-40 overflow-hidden rounded-lg border bg-gray-50">
-                          <Image
-                            src={img}
-                            alt={`${property.title} photo ${idx + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            unoptimized
-                            onError={(e) => { e.currentTarget.style.display = "none" }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Executive Summary */}
-              <AnalysisSection title="Executive Summary" description="How this property meets investment criteria">
-                <p className="text-gray-600">{analysis.summary}</p>
-                {analysis.keyPoints?.length > 0 && (
-                  <ul className="space-y-2 text-sm leading-6 text-gray-900">
-                    {analysis.keyPoints.map((point, idx) => (
-                      <li key={idx} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" />
-                        <span>{point}</span>
-                      </li>
-                    ))}
-                  </ul>
+              <MemoChapterTabs
+                analysis={evaluation.analysis as MemoAnalysis}
+                contentEvaluation={{
+                  score: evaluation.overallScore,
+                  factors: evaluation.factors,
+                  headline: evaluation.headline,
+                  reasoning: evaluation.reasoning,
+                  keyStrengths: evaluation.keyStrengths,
+                  considerations: evaluation.considerations,
+                  recommendation: evaluation.recommendation,
+                }}
+                structuredContent={null}
+                propertyImages={property.images.map((url) => ({ url }))}
+                mapImageUrl={buildStaticMapUrl(
+                  property.coordinates,
+                  `${property.area}${property.subArea ? `, ${property.subArea}` : ""}`,
                 )}
-              </AnalysisSection>
-
-              {/* Neighborhood Analysis */}
-              <AnalysisSection title="Neighborhood Analysis" description={analysis.neighborhood.name}>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="uppercase">Grade {analysis.neighborhood.grade}</Badge>
-                </div>
-                <p className="text-gray-600">{analysis.neighborhood.profile}</p>
-                {analysis.neighborhood.metrics?.length > 0 && (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {analysis.neighborhood.metrics.map((metric, idx) => (
-                      <StatTile key={idx} label={metric.label} value={metric.value} hint={metric.trend} />
-                    ))}
-                  </div>
-                )}
-                {analysis.neighborhood.highlights?.length > 0 && (
-                  <ul className="space-y-2 text-sm text-gray-900">
-                    {analysis.neighborhood.highlights.map((h, idx) => (
-                      <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" /><span>{h}</span></li>
-                    ))}
-                  </ul>
-                )}
-              </AnalysisSection>
-
-              {/* Property Description */}
-              <AnalysisSection title="Property Description" description={analysis.property.condition}>
-                <p className="text-gray-600">{analysis.property.description}</p>
-                {analysis.property.specs?.length > 0 && (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {analysis.property.specs.map((spec, idx) => (
-                      <div key={idx} className="rounded-lg border bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-500">{spec.label}</p>
-                        <p className="text-base font-semibold">{spec.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {analysis.property.highlights?.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Highlights</p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      {analysis.property.highlights.map((h, idx) => (
-                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{h}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </AnalysisSection>
-
-              {/* Market Analysis */}
-              <AnalysisSection title="Market Analysis" description="Demand & supply signals">
-                <p className="text-gray-600">{analysis.market.overview}</p>
-                {analysis.market.drivers?.length > 0 && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Key drivers</p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      {analysis.market.drivers.map((d, idx) => (
-                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" /><span>{d}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="grid gap-3 md:grid-cols-3">
-                  <StatTile label="Supply" value={analysis.market.supply} hint="Pipeline view" />
-                  <StatTile label="Demand" value={analysis.market.demand} hint="Tenant profile" />
-                  <StatTile label="Absorption" value={analysis.market.absorption} hint="Last 12 months" />
-                </div>
-              </AnalysisSection>
-
-              {/* Future Value Outlook */}
-              <AnalysisSection title="Future Value Outlook" description="Neighborhood-led value growth scenarios">
-                <p className="text-gray-600">
-                  {growth?.narrative ||
-                    "Future value outlook is anchored on neighborhood trend, liquidity and demand resilience. Final projections are refined as additional comp and transaction data is ingested."}
-                </p>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <StatTile
-                    label="Projected 1Y Value"
-                    value={formatCurrency(growth?.projectedValue1Y ?? Math.round(analysis.pricing.stabilizedValue * 1.04))}
-                  />
-                  <StatTile
-                    label="Projected 3Y Value"
-                    value={formatCurrency(growth?.projectedValue3Y ?? Math.round(analysis.pricing.stabilizedValue * 1.13))}
-                  />
-                  <StatTile
-                    label="Projected 5Y Value"
-                    value={formatCurrency(growth?.projectedValue5Y ?? Math.round(analysis.pricing.stabilizedValue * 1.22))}
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <StatTile
-                    label="Base Growth"
-                    value={`${(growth?.annualGrowthBase ?? 4.0).toFixed(1)}% / year`}
-                    hint="Underwriting base case"
-                  />
-                  <StatTile
-                    label="Conservative"
-                    value={`${(growth?.annualGrowthConservative ?? 2.0).toFixed(1)}% / year`}
-                    hint="Downside case"
-                  />
-                  <StatTile
-                    label="Upside"
-                    value={`${(growth?.annualGrowthUpside ?? 6.0).toFixed(1)}% / year`}
-                    hint="Upside case"
-                  />
-                </div>
-                {growth?.drivers?.length ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Growth drivers</p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      {growth.drivers.map((driver, idx) => (
-                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{driver}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {growth?.sensitivities?.length ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Key sensitivities</p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      {growth.sensitivities.map((risk, idx) => (
-                        <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" /><span>{risk}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </AnalysisSection>
-
-              {/* Pricing & Upside */}
-              <AnalysisSection title="Pricing & Upside" description="Actual vs potential value">
-                {/* Price Comparison Chart */}
-                <div className="rounded-lg border bg-gray-50 p-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Price Comparison</h4>
-                  <PriceComparisonChart
-                    askingPrice={analysis.pricing.askingPrice}
-                    recommendedOffer={analysis.pricing.recommendedOffer}
-                    stabilizedValue={analysis.pricing.stabilizedValue}
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <StatTile label="Asking Price" value={formatCurrency(analysis.pricing.askingPrice)} />
-                  <StatTile label="Recommended Offer" value={formatCurrency(analysis.pricing.recommendedOffer)} />
-                  <StatTile label="Stabilized Value" value={formatCurrency(analysis.pricing.stabilizedValue)} />
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <StatTile label="Price / sq ft" value={formatPerSqft(analysis.pricing.pricePerSqft ?? undefined)} hint="Subject" />
-                  <StatTile label="Value-add budget" value={formatCurrency(analysis.pricing.valueAddBudget)} />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">In-place rent</p>
-                    <p className="text-xl font-semibold">{formatCurrency(analysis.pricing.rentCurrent)}</p>
-                    <p className="text-sm text-gray-500">Stabilized: {formatCurrency(analysis.pricing.rentPotential)}</p>
-                  </div>
-                  <div className="rounded-lg border bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Projected returns</p>
-                    <p className="text-xl font-semibold">{formatPercent(analysis.pricing.irr)}</p>
-                    <p className="text-sm text-gray-500">Equity multiple: {analysis.pricing.equityMultiple?.toFixed(2) ?? "—"}x</p>
-                  </div>
-                </div>
-              </AnalysisSection>
-
-              {/* Comparable Sales */}
-              {analysis.comparables?.length > 0 && (
-                <AnalysisSection title="Comparable Sales" description="Recent reference trades">
-                  <div className="space-y-3">
-                    {analysis.comparables.map((comp, idx) => (
-                      <div key={idx} className="rounded-lg border bg-white p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
-                          <span>{comp.name}</span>
-                          <span className="text-gray-500">{comp.distance}</span>
-                        </div>
-                        <p className="text-xs uppercase text-gray-500">{comp.closingDate}</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                          <div><p className="text-xs uppercase text-gray-500">Price</p><p className="text-base font-semibold">{formatCurrency(comp.price)}</p></div>
-                          <div><p className="text-xs uppercase text-gray-500">Size</p><p className="text-base font-semibold">{comp.size}</p></div>
-                          <div><p className="text-xs uppercase text-gray-500">Price / sq ft</p><p className="text-base font-semibold">{formatPerSqft(comp.pricePerSqft)}</p></div>
-                        </div>
-                        {comp.note && <p className="mt-2 text-sm text-gray-500">{comp.note}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </AnalysisSection>
-              )}
-
-              {/* Strategy & Execution */}
-              <AnalysisSection title="Strategy & Execution" description={`${analysis.strategy.holdPeriod} • ${analysis.strategy.exit}`}>
-                <p className="text-gray-600">{analysis.strategy.plan}</p>
-                <ul className="mt-3 space-y-2 text-sm">
-                  {analysis.strategy.focusPoints.map((point, idx) => (
-                    <li key={idx} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 rounded-full bg-green-500" /><span>{point}</span></li>
-                  ))}
-                </ul>
-              </AnalysisSection>
-
-              {/* Investment Thesis & Financial Analysis */}
-              <div className="grid gap-6 md:grid-cols-2">
-                <AnalysisSection title="Investment Thesis">
-                  <p className="text-gray-600">{analysis.investmentThesis}</p>
-                </AnalysisSection>
-                <AnalysisSection title="Financial Analysis">
-                  <div className="space-y-3">
-                    <div className="flex justify-between"><span className="text-gray-500">Current NOI:</span><span className="font-semibold">{formatCurrency(analysis.financialAnalysis.noi)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Cap Rate:</span><span className="font-semibold">{analysis.financialAnalysis.capRate}%</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Target IRR:</span><span className="font-semibold">{analysis.financialAnalysis.targetIrr}%</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Hold Period:</span><span className="font-semibold">{analysis.financialAnalysis.holdPeriod}</span></div>
-                  </div>
-                </AnalysisSection>
-              </div>
-
-              {/* ROI on Equity Bridge */}
-              <AnalysisSection title="ROI on Equity Bridge" description="Levered return stack (same assumptions used in PDF)">
-                {analysis.financialAnalysis.returnBridge ? (
-                  <div className="space-y-2">
-                    {[
-                      { label: "Purchase price", value: formatCurrency(analysis.financialAnalysis.returnBridge.purchasePrice) },
-                      { label: "DLD fee", value: formatCurrency(analysis.financialAnalysis.returnBridge.dldFee) },
-                      { label: "DLD fee rate", value: `${analysis.financialAnalysis.returnBridge.dldRatePct.toFixed(1)}%` },
-                      { label: "Broker fee", value: formatCurrency(analysis.financialAnalysis.returnBridge.brokerFee) },
-                      { label: "Broker fee rate", value: `${analysis.financialAnalysis.returnBridge.brokerFeePct.toFixed(1)}%` },
-                      { label: "Renovation", value: formatCurrency(analysis.financialAnalysis.returnBridge.renovation) },
-                      { label: "Total project cost", value: formatCurrency(analysis.financialAnalysis.returnBridge.totalProjectCost) },
-                      { label: "Mortgage amount", value: formatCurrency(analysis.financialAnalysis.returnBridge.mortgageAmount) },
-                      { label: "Mortgage LTV", value: `${analysis.financialAnalysis.returnBridge.mortgageLtvPct.toFixed(1)}%` },
-                      { label: "Equity invested", value: formatCurrency(analysis.financialAnalysis.returnBridge.equityInvested) },
-                      { label: "Annual interest", value: formatCurrency(analysis.financialAnalysis.returnBridge.annualInterest) },
-                      { label: "Interest rate", value: `${analysis.financialAnalysis.returnBridge.annualInterestRatePct.toFixed(1)}%` },
-                      { label: "Resale price", value: formatCurrency(analysis.financialAnalysis.returnBridge.resalePrice) },
-                      { label: "Net sale proceeds after mortgage repayment", value: formatCurrency(analysis.financialAnalysis.returnBridge.netSaleProceedsAfterMortgage) },
-                      { label: "Net profit (after interest)", value: formatCurrency(analysis.financialAnalysis.returnBridge.netProfitAfterInterest) },
-                      { label: "ROI on equity", value: `${analysis.financialAnalysis.returnBridge.roiOnEquityPct.toFixed(1)}%` },
-                    ].map((row) => (
-                      <div key={row.label} className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-md border bg-gray-50 px-3 py-2">
-                        <p className="text-sm text-gray-600">{row.label}</p>
-                        <p className="text-sm font-semibold text-gray-900">{row.value}</p>
-                      </div>
-                    ))}
-                    <p className="text-xs text-gray-500">{analysis.financialAnalysis.returnBridge.assumptions}</p>
-                  </div>
-                ) : (
-                  <p className="text-gray-600">Return bridge will be available once financing assumptions are confirmed.</p>
-                )}
-              </AnalysisSection>
-
-              {/* Risks & Mitigations */}
-              <AnalysisSection title="Risks & Mitigations">
-                <div className="space-y-3">
-                  {analysis.risks.map((r, idx) => (
-                    <div key={idx} className="flex gap-2 text-sm">
-                      <span className="font-semibold text-gray-900">{idx + 1}.</span>
-                      <span><span className="text-gray-700">{r.risk}</span> - <span className="text-gray-500">{r.mitigation}</span></span>
-                    </div>
-                  ))}
-                </div>
-              </AnalysisSection>
-
-              {/* Recommendation */}
-              <Card className={analysis.finalRecommendation.decision === "PROCEED" ? "border-green-200 bg-green-50" : analysis.finalRecommendation.decision === "CONDITIONAL" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}>
-                <CardHeader>
-                  <CardTitle className="text-lg">Recommendation</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-lg font-bold">{analysis.finalRecommendation.decision}</p>
-                  <p className="text-gray-600">{analysis.finalRecommendation.condition}</p>
-                </CardContent>
-              </Card>
+                mapCoords={property.coordinates ?? null}
+                floorPlanImageUrls={property.floorPlanImages?.length ? property.floorPlanImages : undefined}
+                isOffplan={false}
+                fallbackContent=""
+              />
             </div>
 
             {/* Sidebar */}
@@ -1354,391 +925,13 @@ function PropertyIntakeContent() {
           </div>
         </div>
       )}
-        </TabsContent>
+      </div>
 
-        {/* Off-Plan Tab */}
-        <TabsContent value="offplan" className="space-y-6">
-          {/* Off-Plan Step indicator */}
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className={offplanStep === "upload" || offplanStep === "input" ? "font-semibold text-green-600" : ""}>1. Enter Property</span>
-            <ArrowRight className="h-4 w-4" />
-            <span className={offplanStep === "extracted" || offplanStep === "selecting" ? "font-semibold text-green-600" : ""}>2. Review Property</span>
-            <ArrowRight className="h-4 w-4" />
-            <span className={offplanStep === "evaluating" || offplanStep === "evaluated" || offplanStep === "saving" ? "font-semibold text-green-600" : ""}>3. AI Evaluation</span>
-            <ArrowRight className="h-4 w-4" />
-            <span className={offplanStep === "saved" ? "font-semibold text-green-600" : ""}>4. Save Memo</span>
-          </div>
-
-          {/* Off-Plan Error */}
-          {offplanError && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="flex items-center gap-3 py-4">
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                <span className="text-red-700">{offplanError}</span>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Off-Plan Step 1: URL or PDF Upload */}
-          {(offplanStep === "input" || offplanStep === "upload") && (
-            <div className="space-y-4">
-              {/* URL Input */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ExternalLink className="h-5 w-5 text-green-600" />
-                    Enter Off-Plan Property URL
-                  </CardTitle>
-                  <CardDescription>
-                    Paste a link from Bayut, PropertyFinder, or Dubizzle for an off-plan / under-construction property
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="offplan-url">Property URL</Label>
-                    <Input
-                      id="offplan-url"
-                      type="url"
-                      placeholder="https://www.bayut.com/property/details-123456.html"
-                      value={offplanUrl}
-                      onChange={(e) => setOffplanUrl(e.target.value)}
-                      disabled={offplanStep === "upload"}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => extractPropertyForOffplan(offplanUrl)}
-                      disabled={offplanStep === "upload" || !offplanUrl.trim()}
-                      className="flex-1"
-                    >
-                      {offplanStep === "upload" ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Extracting with AI...</>
-                      ) : (
-                        <><HardHat className="mr-2 h-4 w-4" />Extract Off-Plan Property</>
-                      )}
-                    </Button>
-                    {offplanStep === "upload" && (
-                      <Button variant="outline" onClick={resetOffplan}>
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Divider */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or upload a PDF</span>
-                </div>
-              </div>
-
-              {/* PDF Upload */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Upload className="h-5 w-5 text-green-600" />
-                    Upload Developer Brochure
-                  </CardTitle>
-                  <CardDescription>
-                    Upload PDF brochures from developers including availability sheets and sales offers.
-                    Claude Opus 4.5 will analyze them directly.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PdfUploadZone
-                    onFilesExtracted={handlePdfExtracted}
-                    onError={setOffplanError}
-                    maxSizeMB={20}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Off-Plan Step 2: Project Overview & Unit Selection */}
-          {(offplanStep === "extracted" || offplanStep === "selecting" || offplanStep === "evaluating") && offplanProject && offplanPaymentPlan && (
-            <div className="space-y-6">
-
-              {/* ── Single-unit layout (URL extraction) ── */}
-              {offplanUnits.length <= 1 && selectedOffplanUnits.length === 1 ? (
-                <div className="space-y-6">
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {/* Left: Property Card */}
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <CardTitle>{offplanProject.projectName}</CardTitle>
-                            <CardDescription className="flex items-center gap-1 mt-1">
-                              <Building2 className="h-4 w-4" />
-                              by {offplanProject.developer}
-                            </CardDescription>
-                          </div>
-                          <Badge variant="outline" className="capitalize">{offplanProject.propertyType}</Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Property image (from original extracted property) */}
-                        {property && property.images.length > 0 ? (
-                          <div className="relative h-48 overflow-hidden rounded-lg bg-muted">
-                            <Image
-                              src={property.images[0]}
-                              alt={offplanProject.projectName}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 100vw, 600px"
-                              unoptimized
-                              onError={(e) => {
-                                const parent = e.currentTarget.parentElement
-                                if (parent) {
-                                  e.currentTarget.style.display = "none"
-                                  parent.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'
-                                }
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="relative h-48 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                          </div>
-                        )}
-
-                        {/* Key details grid */}
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div><span className="text-gray-500">Price</span><div className="font-semibold">AED {selectedOffplanUnits[0].totalPrice.toLocaleString()}</div></div>
-                          <div><span className="text-gray-500">Price/sqft</span><div className="font-semibold">AED {selectedOffplanUnits[0].pricePerSqft.toLocaleString()}</div></div>
-                          <div><span className="text-gray-500">Size</span><div className="font-semibold">{selectedOffplanUnits[0].sizeSqft.toLocaleString()} sqft</div></div>
-                          <div><span className="text-gray-500">Type</span><div className="font-semibold">{selectedOffplanUnits[0].type}</div></div>
-                          <div>
-                            <span className="text-gray-500">Location</span>
-                            <div className="font-semibold">
-                              {offplanProject.location.area}
-                              {offplanProject.location.subArea && `, ${offplanProject.location.subArea}`}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Completion</span>
-                            <div className="font-semibold flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                              {offplanProject.completionDate || "TBC"}
-                            </div>
-                          </div>
-                          {offplanProject.developer && (
-                            <div><span className="text-gray-500">Developer</span><div className="font-semibold">{offplanProject.developer}</div></div>
-                          )}
-                          {offplanProject.totalLevels > 0 && (
-                            <div><span className="text-gray-500">Building Floors</span><div className="font-semibold">{offplanProject.totalLevels}</div></div>
-                          )}
-                          {selectedOffplanUnits[0].parking != null && selectedOffplanUnits[0].parking > 0 && (
-                            <div><span className="text-gray-500">Parking</span><div className="font-semibold">{selectedOffplanUnits[0].parking} {selectedOffplanUnits[0].parking === 1 ? "space" : "spaces"}</div></div>
-                          )}
-                          {selectedOffplanUnits[0].views && (
-                            <div><span className="text-gray-500">Views</span><div className="font-semibold">{selectedOffplanUnits[0].views}</div></div>
-                          )}
-                        </div>
-
-                        {/* Amenities */}
-                        {offplanProject.amenities.length > 0 && (
-                          <div className="text-sm">
-                            <span className="text-gray-500">Amenities</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {offplanProject.amenities.slice(0, 12).map((a, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs">{a}</Badge>
-                              ))}
-                              {offplanProject.amenities.length > 12 && (
-                                <Badge variant="secondary" className="text-xs">+{offplanProject.amenities.length - 12} more</Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Payment Plan summary */}
-                        <div className="text-sm">
-                          <span className="text-gray-500 flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" /> Payment Plan
-                          </span>
-                          <div className="mt-2 space-y-1.5">
-                            {offplanPaymentPlan.milestones.map((m, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-xs">
-                                <span className="text-gray-600">{m.description}</span>
-                                <Badge variant="secondary" className="text-xs">{m.percentage}%</Badge>
-                              </div>
-                            ))}
-                            {offplanPaymentPlan.dldFeePercent > 0 && (
-                              <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t">
-                                <span>DLD Registration Fee</span>
-                                <span>{offplanPaymentPlan.dldFeePercent}% (on SPA signing)</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Original listing link */}
-                        {property?.listingUrl && (
-                          <a href={property.listingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
-                            View original listing<ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    {/* Right: AI evaluation panel */}
-                    <div className="space-y-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-green-600" />
-                            AI Evaluation
-                          </CardTitle>
-                          <CardDescription>Off-plan investment analysis powered by AI</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="rounded-lg border bg-gray-50 p-4">
-                            <h4 className="font-semibold">What will be generated:</h4>
-                            <ul className="mt-2 space-y-2 text-sm text-gray-600">
-                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Executive Summary & Investment Thesis</span></li>
-                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Cash Flow Projection & Payment Schedule</span></li>
-                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Future Value Outlook & Risk Assessment</span></li>
-                              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-600" /><span>Strategy & Recommendation</span></li>
-                            </ul>
-                          </div>
-                          {offplanStep === "evaluating" ? (
-                            <div className="w-full space-y-3">
-                              <Button disabled className="w-full" size="lg">
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...
-                              </Button>
-                              <EvaluationTimer estimatedSeconds={35} area={offplanProject?.location.area} isOffplan />
-                            </div>
-                          ) : (
-                            <Button onClick={evaluateOffplan} className="w-full" size="lg">
-                              <Sparkles className="mr-2 h-4 w-4" />Generate Off-Plan IC Memo
-                            </Button>
-                          )}
-                          <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"} className="w-full">
-                            Start Over
-                          </Button>
-                        </CardContent>
-                      </Card>
-
-                      {/* CMA Panel - DLD comparable data */}
-                      {property && (
-                        <CMAPanel
-                          area={property.area}
-                          propertyType={property.propertyType}
-                          bedrooms={property.bedrooms}
-                          sizeSqft={property.size}
-                          askingPrice={property.price}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* ── Multi-unit layout (PDF brochure) ── */
-                <>
-                  {/* Brochure page images rendered from uploaded PDFs */}
-                  {offplanBrochureImages.length > 0 && (
-                    <div className="grid gap-2" style={{ gridTemplateColumns: offplanBrochureImages.length === 1 ? "1fr" : offplanBrochureImages.length === 2 ? "1fr 1fr" : "2fr 1fr 1fr" }}>
-                      {offplanBrochureImages.slice(0, 5).map((img, idx) => (
-                        <div key={idx} className={`relative overflow-hidden rounded-lg bg-muted ${idx === 0 && offplanBrochureImages.length >= 3 ? "row-span-2" : ""}`} style={{ height: idx === 0 ? (offplanBrochureImages.length >= 3 ? "320px" : "200px") : "156px" }}>
-                          <Image
-                            src={img}
-                            alt={`${offplanProject.projectName} brochure - page ${idx + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, 600px"
-                            unoptimized
-                            onError={(e) => {
-                              const parent = e.currentTarget.parentElement
-                              if (parent) {
-                                e.currentTarget.style.display = "none"
-                                parent.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>'
-                              }
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <OffPlanProjectOverview
-                    project={offplanProject}
-                    paymentPlan={offplanPaymentPlan}
-                    stats={offplanStats || undefined}
-                  />
-
-                  <UnitSelectionTable
-                    units={offplanUnits}
-                    selectedUnits={selectedOffplanUnits}
-                    onSelectionChange={setSelectedOffplanUnits}
-                    maxSelection={5}
-                  />
-
-                  {/* Multi-Unit Comparison */}
-                  {selectedOffplanUnits.length >= 2 && offplanProject && offplanPaymentPlan && (
-                    <OffPlanUnitComparison
-                      project={offplanProject}
-                      units={selectedOffplanUnits}
-                      paymentPlan={offplanPaymentPlan}
-                      onSelectBest={(unit) => setSelectedOffplanUnits([unit])}
-                    />
-                  )}
-
-                  {/* Evaluate Button */}
-                  <div className="space-y-3">
-                    <div className="flex justify-end gap-4">
-                      <Button variant="outline" onClick={resetOffplan} disabled={offplanStep === "evaluating"}>
-                        Start Over
-                      </Button>
-                      <Button
-                        onClick={evaluateOffplan}
-                        disabled={selectedOffplanUnits.length === 0 || offplanStep === "evaluating"}
-                        size="lg"
-                      >
-                        {offplanStep === "evaluating" ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating IC Memo...</>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            {selectedOffplanUnits.length > 1
-                              ? `Compare & Evaluate ${selectedOffplanUnits.length} Units`
-                              : "Generate Off-Plan IC Memo"}
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    {offplanStep === "evaluating" && <EvaluationTimer estimatedSeconds={35} area={offplanProject?.location.area} isOffplan />}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Off-Plan Step 3: Evaluation Display */}
-          {(offplanStep === "evaluated" || offplanStep === "saving" || offplanStep === "saved") && 
-            offplanProject && offplanPaymentPlan && offplanEvaluation && selectedOffplanUnits[0] && (
-            <OffPlanMemoDisplay
-              project={offplanProject}
-              selectedUnit={selectedOffplanUnits[0]}
-              paymentPlan={offplanPaymentPlan}
-              evaluation={offplanEvaluation}
-              onSave={saveOffplanMemo}
-              onReset={resetOffplan}
-              isSaving={offplanStep === "saving"}
-              savedMemoId={offplanSavedMemoId}
-              propertyImages={resolvedOffplanImages}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
     </div>
   )
 }
 
+/* ─── Helper functions ─── */
 /** Simple single-file PDF upload for built-property brochures */
 function BuiltPropertyPdfUpload({ onFileSelected, isProcessing }: { onFileSelected: (file: File) => void; isProcessing: boolean }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -1839,6 +1032,18 @@ function buildPortalIntakeReportPayload(property: ExtractedProperty, evaluation:
     operatingExpenses: enhanced?.operatingExpenses,
     scenarios: enhanced?.scenarios,
     comparables: enhanced?.comparables,
+
+    /* ---- New narrative-rich fields ---- */
+    locationNarrative: analysis.locationNarrative as any,
+    developerProfileEnhanced: analysis.enhancedDeveloperProfile as any,
+    riskMatrix: analysis.riskMatrix as any,
+    stressTests: analysis.stressTests as any,
+    neighborhoodBenchmarks: analysis.neighborhoodBenchmarks as any,
+    dataGaps: analysis.dataGaps as any,
+    scoringMethodology: analysis.scoringMethodology as any,
+    executionSteps: analysis.executionSteps,
+    plainEnglishThesis: analysis.plainEnglishThesis,
+
     sections: [
       {
         title: "Property Snapshot",
@@ -2245,6 +1450,7 @@ function buildOffplanIntakeReportPayload(
   })
 
   // Build the payload with enhanced cash flow and comparable data
+  const evalAnalysis = (evaluation as any).analysis
   const payload: IntakeReportPayload = {
     title: `Off-Plan IC Opportunity Report - ${project.projectName}`,
     subtitle: `${selectedUnit.unitNumber} | ${project.location.area}`,
@@ -2256,6 +1462,17 @@ function buildOffplanIntakeReportPayload(
     galleryImageUrls: (extractedProperty?.images && extractedProperty.images.length > 0) ? extractedProperty.images : (brochureImages ?? []),
     mapImageUrl: undefined,
     sections,
+
+    /* ---- New narrative-rich fields ---- */
+    locationNarrative: evalAnalysis?.locationNarrative,
+    developerProfileEnhanced: evalAnalysis?.enhancedDeveloperProfile,
+    riskMatrix: evalAnalysis?.riskMatrix,
+    stressTests: evalAnalysis?.stressTests,
+    neighborhoodBenchmarks: evalAnalysis?.neighborhoodBenchmarks,
+    dataGaps: evalAnalysis?.dataGaps,
+    scoringMethodology: evalAnalysis?.scoringMethodology,
+    executionSteps: evalAnalysis?.executionSteps,
+    plainEnglishThesis: evalAnalysis?.plainEnglishThesis,
   }
 
   // Attach enhanced PDF data for PDF rendering

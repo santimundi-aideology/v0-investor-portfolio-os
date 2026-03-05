@@ -11,6 +11,7 @@ import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { memoShareSchema } from "@/lib/validation/schemas"
 import { validateRequest } from "@/lib/validation/helpers"
+import { sendMemoEmail } from "@/lib/email/send-memo-email"
 
 export async function POST(
   req: Request,
@@ -80,6 +81,8 @@ export async function POST(
 
     // Generate WhatsApp/Email share links
     let shareLink: string | null = null
+    let emailSent = false
+    let emailError: string | undefined
     const shareText = message || `Check out this investment opportunity: ${shareUrl}`
 
     if (method === "whatsapp") {
@@ -91,9 +94,45 @@ export async function POST(
     } else if (method === "email") {
       const email = recipientContact || investor.email
       if (email) {
-        const subject = encodeURIComponent("Investment Opportunity")
-        const body = encodeURIComponent(shareText)
-        shareLink = `mailto:${email}?subject=${subject}&body=${body}`
+        // Extract property title and key metrics from memo content for the email
+        const latestVersion = memo.versions?.[memo.versions.length - 1]
+        const memoContent = (latestVersion?.content ?? {}) as Record<string, unknown>
+        const contentProp = memoContent.property as Record<string, unknown> | undefined
+        const contentNumbers = memoContent.numbers as Record<string, unknown> | undefined
+        const propertyTitle = String(
+          contentProp?.title ?? memo.title ?? "Investment Opportunity"
+        )
+
+        const result = await sendMemoEmail({
+          to: email,
+          investorName: investor.name ?? investor.email ?? "Investor",
+          memoId: memo.id,
+          propertyTitle,
+          shareUrl,
+          message: message ?? undefined,
+          keyMetrics: contentNumbers
+            ? {
+                price: contentNumbers.askingPrice
+                  ? `AED ${Number(contentNumbers.askingPrice).toLocaleString()}`
+                  : undefined,
+                area: contentProp?.size ? String(contentProp.size) : undefined,
+                yield: contentNumbers.rentalYield
+                  ? `${Number(contentNumbers.rentalYield).toFixed(1)}%`
+                  : undefined,
+                bedrooms: contentProp?.beds ? Number(contentProp.beds) : undefined,
+              }
+            : undefined,
+        })
+
+        emailSent = result.success
+        emailError = result.error
+
+        // Fall back to mailto: link if server-side email failed
+        if (!emailSent) {
+          const subject = encodeURIComponent("Investment Opportunity")
+          const body = encodeURIComponent(shareText)
+          shareLink = `mailto:${email}?subject=${subject}&body=${body}`
+        }
       }
     }
 
@@ -116,7 +155,9 @@ export async function POST(
         token: shareToken.token,
         method: shareToken.share_method,
         shareUrl,
-        shareLink, // WhatsApp/Email link if applicable
+        shareLink,
+        emailSent,
+        emailError,
         expiresAt: shareToken.expires_at,
       },
     })

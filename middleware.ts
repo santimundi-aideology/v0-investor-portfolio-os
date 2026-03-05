@@ -1,6 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
+// In-memory cache for user DB lookups — avoids a Supabase round-trip on every
+// request. Keyed by Supabase auth user ID; entries expire after 60 seconds.
+interface CachedUser {
+  userId: string
+  tenantId: string
+  userRole: string
+  isActive: boolean
+  expiresAt: number
+}
+const _userCache = new Map<string, CachedUser>()
+const USER_CACHE_TTL_MS = 60_000
+
 // Routes that don't require authentication
 const publicRoutes = [
   "/login",
@@ -44,7 +56,7 @@ const featureRouteMap: Record<string, string> = {
   "/executive-summary": "NEXT_PUBLIC_FF_EXECUTIVE_SUMMARY",
   "/market-report": "NEXT_PUBLIC_FF_MARKET_REPORT",
   "/roi-calculator": "NEXT_PUBLIC_FF_ROI_CALCULATOR",
-  "/deal-room": "NEXT_PUBLIC_FF_DEAL_ROOM",
+  "/realtor/deal-room": "NEXT_PUBLIC_FF_DEAL_ROOM",
   "/market-signals": "NEXT_PUBLIC_FF_MARKET_SIGNALS",
   "/market-map": "NEXT_PUBLIC_FF_MARKET_MAP",
   "/market-compare": "NEXT_PUBLIC_FF_MARKET_COMPARE",
@@ -152,23 +164,34 @@ export async function middleware(request: NextRequest) {
     const investorId = session.user.user_metadata?.investor_id
     let isActive = true
 
-    // Try to fetch user from database for authoritative data
-    try {
-      const { data: userData, error } = await supabase
-        .from("users")
-        .select("id, tenant_id, role, is_active")
-        .eq("auth_user_id", session.user.id)
-        .single()
+    // Check the in-memory cache before hitting the DB
+    const authId = session.user.id
+    const cached = _userCache.get(authId)
+    if (cached && Date.now() < cached.expiresAt) {
+      userId = cached.userId
+      tenantId = cached.tenantId
+      userRole = cached.userRole
+      isActive = cached.isActive
+    } else {
+      // Cache miss — fetch from DB and populate the cache
+      try {
+        const { data: userData, error } = await supabase
+          .from("users")
+          .select("id, tenant_id, role, is_active")
+          .eq("auth_user_id", authId)
+          .single()
 
-      if (!error && userData) {
-        userId = userData.id
-        tenantId = userData.tenant_id
-        userRole = userData.role
-        isActive = userData.is_active
+        if (!error && userData) {
+          userId = userData.id
+          tenantId = userData.tenant_id
+          userRole = userData.role
+          isActive = userData.is_active
+          _userCache.set(authId, { userId, tenantId, userRole, isActive, expiresAt: Date.now() + USER_CACHE_TTL_MS })
+        }
+      } catch (e) {
+        // Fallback to metadata if database fetch fails
+        console.warn("Failed to fetch user from database:", e)
       }
-    } catch (e) {
-      // Fallback to metadata if database fetch fails
-      console.warn("Failed to fetch user from database:", e)
     }
 
     // Block inactive users

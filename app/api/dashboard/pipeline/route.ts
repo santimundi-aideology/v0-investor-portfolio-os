@@ -21,6 +21,7 @@ export async function GET(req: Request) {
       .select("id, status, ticket_size_aed, property_title, investor_name, next_step, probability")
       .eq("tenant_id", ctx.tenantId)
       .neq("status", "completed")
+      .limit(200)
 
     const stages: Record<string, { count: number; value: number; deals: unknown[] }> = {
       preparation: { count: 0, value: 0, deals: [] },
@@ -45,7 +46,9 @@ export async function GET(req: Request) {
       }
     })
 
-    return NextResponse.json({ stages })
+    const response = NextResponse.json({ stages })
+    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60")
+    return response
   } catch (err) {
     if (err instanceof AccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

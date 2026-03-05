@@ -325,12 +325,7 @@ export default function InvestorPaymentsPage() {
 
   if (!scopedInvestorId) {
     return (
-      <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
-        <div className="flex gap-1 border-b border-gray-200">
-          <Link href="/investor/portfolio" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Holdings</Link>
-          <Link href="/investor/analytics" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Analytics</Link>
-          <Link href="/investor/payments" className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary">Payments</Link>
-        </div>
+      <div className="w-full space-y-6 py-4 sm:py-6">
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
             <Loader2 className="mx-auto size-8 animate-spin text-primary" />
@@ -355,7 +350,7 @@ export default function InvestorPaymentsPage() {
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.15),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="relative px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0 flex-1 max-w-4xl">
               <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -392,14 +387,7 @@ export default function InvestorPaymentsPage() {
       </div>
 
       {/* Main content layer */}
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Sub-nav (unchanged) */}
-        <div className="mb-6 flex gap-1 border-b border-gray-200 dark:border-border">
-          <Link href="/investor/portfolio" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Holdings</Link>
-          <Link href="/investor/analytics" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Analytics</Link>
-          <Link href="/investor/payments" className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary">Payments</Link>
-        </div>
-
+      <div className="relative z-10 w-full py-6">
         {isLoading ? (
           <Card className="rounded-2xl border border-gray-200/80 shadow-sm dark:border-border">
             <CardContent className="flex items-center justify-center py-16">

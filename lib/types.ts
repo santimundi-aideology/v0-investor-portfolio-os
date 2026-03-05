@@ -328,6 +328,7 @@ export interface MemoAnalysisComparable {
   price: number
   pricePerSqft: number
   note?: string
+  provenanceLabel?: string
 }
 
 export interface MemoAnalysis {
@@ -353,6 +354,18 @@ export interface MemoAnalysis {
     demand?: string
     absorption?: string
   }
+  growth?: {
+    narrative?: string
+    neighborhoodTrend?: string
+    annualGrowthBase?: number
+    annualGrowthConservative?: number
+    annualGrowthUpside?: number
+    projectedValue1Y?: number
+    projectedValue3Y?: number
+    projectedValue5Y?: number
+    drivers?: string[]
+    sensitivities?: string[]
+  }
   pricing?: {
     askingPrice: number
     pricePerSqft: number
@@ -371,6 +384,99 @@ export interface MemoAnalysis {
     holdPeriod: string
     exit: string
     focusPoints: string[]
+  }
+  investmentThesis?: string
+  financialAnalysis?: {
+    noi?: number
+    capRate?: number
+    targetIrr?: number
+    holdPeriod?: string
+    returnBridge?: {
+      purchasePrice: number
+      dldRatePct: number
+      dldFee: number
+      brokerFeePct: number
+      brokerFee: number
+      renovation: number
+      totalProjectCost: number
+      mortgageLtvPct: number
+      mortgageAmount: number
+      equityInvested: number
+      annualInterestRatePct: number
+      annualInterest: number
+      resalePrice: number
+      netSaleProceedsAfterMortgage: number
+      netProfitAfterInterest: number
+      roiOnEquityPct: number
+      assumptions?: string
+    }
+  }
+  risks?: { risk: string; mitigation: string }[]
+  finalRecommendation?: {
+    decision: "PROCEED" | "CONDITIONAL" | "PASS"
+    condition?: string
+  }
+
+  locationNarrative?: {
+    areaOverview: string
+    growthCatalyst: string
+    amenities: { category: string; items: { name: string; status: string }[] }[]
+    missingAmenities: string[]
+    connectivity: { destination: string; distance: string; driveTime: string }[]
+  }
+  enhancedDeveloperProfile?: {
+    name: string
+    legalName: string
+    tier: "tier_1" | "tier_2" | "tier_3" | "unverified"
+    tierLabel: string
+    founded?: string
+    listingStatus: "public" | "private" | "unknown"
+    exchange?: string
+    marketCap?: string
+    unitsDelivered?: string
+    notableProjects: string[]
+    deliveryTrackRecord: "on_time" | "mixed" | "delayed" | "unknown"
+    buildQuality: "premium" | "good" | "average" | "poor" | "unknown"
+    overview: string
+    riskAssessment: string
+    concerns: string[]
+    escrowStatus: string
+  }
+  riskMatrix?: {
+    name: string
+    category: string
+    likelihood: number
+    impact: number
+    score: number
+    scoreBand: string
+    mitigation: string
+  }[]
+  stressTests?: {
+    label: string
+    description: string
+    impact: string
+    quantifiedEffect: string
+  }[]
+  neighborhoodBenchmarks?: {
+    community: string
+    priceRange: string
+    maturity: string
+    hasMetro: boolean
+    character: string
+    isSubject?: boolean
+  }[]
+  dataGaps?: {
+    field: string
+    status: string
+    detail?: string
+  }[]
+  plainEnglishThesis?: string
+  executionSteps?: string[]
+  scoringMethodology?: {
+    dimensions: { name: string; weight: string; description: string }[]
+    bands: { range: string; label: string; action: string }[]
+    keyFactorsUp: string[]
+    keyFactorsDown: string[]
   }
 }
 

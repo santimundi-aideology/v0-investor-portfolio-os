@@ -595,7 +595,7 @@ export default function ContextActivityPage() {
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.12),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <div className="relative px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -646,7 +646,7 @@ export default function ContextActivityPage() {
         allNeighborhoods={DUBAI_NEIGHBORHOODS}
       />
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full py-6">
         <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
           <div className="space-y-8">
             {/* 1) Market signals: compactos, tipo notificaciones destacadas, solo iconos (demo) */}

@@ -6,6 +6,8 @@ import { getInvestorById } from "@/lib/db/investors"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertMemoAccess } from "@/lib/security/rbac"
+import { batchInsertNotifications } from "@/lib/db/notifications"
+import { getSupabaseAdminClient } from "@/lib/db/client"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,6 +31,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         memoId: memo.id,
       }),
     )
+
+    const supabase = getSupabaseAdminClient()
+    const { data: managers } = await supabase
+      .from("users")
+      .select("id")
+      .eq("tenant_id", memo.tenantId)
+      .in("role", ["manager", "super_admin"])
+    if (managers && managers.length > 0) {
+      await batchInsertNotifications(
+        managers.map((m) => ({
+          org_id: memo.tenantId,
+          recipient_user_id: m.id,
+          entity_type: "memo",
+          entity_id: memo.id,
+          title: "Memo submitted for review",
+          body: `An IC Memo has been submitted for your review.`,
+          notification_key: `memo_review_${memo.id}_${m.id}`,
+        })),
+      )
+    }
 
     return NextResponse.json(next)
   } catch (err) {

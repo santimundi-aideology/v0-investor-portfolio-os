@@ -18,7 +18,7 @@ export default function ResearchBrowsePage() {
   return (
     <div className="min-h-screen bg-gray-100/30">
       <header className="border-b border-gray-100 bg-white">
-        <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="w-full py-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/opportunities">
@@ -34,7 +34,7 @@ export default function ResearchBrowsePage() {
           </div>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="w-full py-8">
         <ul className="space-y-4">
           {RESEARCH_LINKS.map((link) => (
             <li key={link.url}>

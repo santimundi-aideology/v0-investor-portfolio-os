@@ -146,7 +146,7 @@ export default function InvestorInvestmentsPage() {
     const holdings = portfolioData?.holdings ?? []
 
     // Calculate total invested capital
-    const totalInvested = summary.totalValue
+    const totalInvested = summary.totalCost
 
     // Calculate capital committed (approved memos)
     const approvedMemos = memos.filter((m) => m.state === "approved")
@@ -331,7 +331,7 @@ export default function InvestorInvestmentsPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="py-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/dashboard">
@@ -365,7 +365,7 @@ export default function InvestorInvestmentsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="py-6">
         {/* Summary Header */}
         <div className="mb-6">
           <InvestmentsSummaryHeader
@@ -418,7 +418,7 @@ export default function InvestorInvestmentsPage() {
                 {recommendationsData.map((recommendation) => (
                   <Link
                     key={recommendation.id}
-                    href={`/properties/${recommendation.listingId}`}
+                    href={`/investor/opportunities/${recommendation.id}`}
                     className="block"
                   >
                     <Card className="h-full transition-all hover:border-primary/50 hover:shadow-md">

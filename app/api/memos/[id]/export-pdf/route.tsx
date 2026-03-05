@@ -214,6 +214,12 @@ function buildIntakePayloadFromMemo(
   holdings: PropertyHolding[],
 ): IntakeReportPayload | null {
   const content = getCurrentContent(memo)
+
+  // Delegate to off-plan builder when memo type is offplan
+  if (content?.type === "offplan") {
+    return buildOffplanIntakePayload(content, memo, investor, holdings)
+  }
+
   const analysis = content?.analysis
   if (!analysis || typeof analysis !== "object") return null
 
@@ -251,30 +257,38 @@ function buildIntakePayloadFromMemo(
       return `${holdingLabel} • Cost ${formatCurrency(holding.purchasePrice)} • Value ${formatCurrency(holding.currentValue)}`
     })
 
+  const cp = content?.property as Record<string, any> | undefined
+  const cs = content?.source as Record<string, any> | undefined
+
   const sections: IntakeReportPayload["sections"] = [
     {
       title: "Property Snapshot",
       keyValues: [
-        { label: "Property", value: listing?.title || memo?.title || "N/A" },
-        { label: "Location", value: listing?.area || "N/A" },
-        ...(content?.source?.agentName ? [{ label: "Realtor", value: content.source.agentName }] : []),
-        ...(content?.source?.agencyName ? [{ label: "Agency", value: content.source.agencyName }] : []),
-        ...(content?.source?.buildingName ? [{ label: "Building", value: content.source.buildingName }] : []),
-        { label: "Type", value: listing?.type || "N/A" },
+        { label: "Property", value: listing?.title || cp?.title || memo?.title || "N/A" },
+        { label: "Location", value: listing?.area || cp?.area || "N/A" },
+        ...(cs?.agentName ? [{ label: "Realtor", value: cs.agentName }] : []),
+        ...(cs?.agencyName ? [{ label: "Agency", value: cs.agencyName }] : []),
+        ...(cs?.buildingName ? [{ label: "Building", value: cs.buildingName }] : []),
+        { label: "Type", value: listing?.type || cp?.type || "N/A" },
         { label: "Asking Price", value: formatCurrency(analysis?.pricing?.askingPrice ?? listing?.price) },
         {
           label: "Size",
           value:
-            typeof listing?.size === "number" ? `${listing.size.toLocaleString()} sq ft` : "N/A",
+            typeof listing?.size === "number"
+              ? `${listing.size.toLocaleString()} sq ft`
+              : typeof cp?.size === "number"
+                ? `${Number(cp.size).toLocaleString()} sq ft`
+                : "N/A",
         },
-        { label: "Bedrooms / Bathrooms", value: `${listing?.bedrooms ?? "N/A"} / ${listing?.bathrooms ?? "N/A"}` },
-        ...(content?.source?.furnished ? [{ label: "Furnished", value: "Yes" }] : []),
-        ...(content?.source?.developer ? [{ label: "Developer", value: content.source.developer }] : []),
-        ...(content?.source?.completionStatus && content.source.completionStatus !== "unknown"
-          ? [{ label: "Status", value: String(content.source.completionStatus).replace(/_/g, " ") }]
+        { label: "Bedrooms / Bathrooms", value: `${listing?.bedrooms ?? cp?.bedrooms ?? "N/A"} / ${listing?.bathrooms ?? cp?.bathrooms ?? "N/A"}` },
+        ...(cs?.furnished ? [{ label: "Furnished", value: "Yes" }] : []),
+        ...(cs?.developer ? [{ label: "Developer", value: cs.developer }] : []),
+        ...(cs?.completionStatus && cs.completionStatus !== "unknown"
+          ? [{ label: "Status", value: String(cs.completionStatus).replace(/_/g, " ") }]
           : []),
-        ...(content?.source?.handoverDate ? [{ label: "Handover", value: content.source.handoverDate }] : []),
-        ...(content?.source?.parking ? [{ label: "Parking", value: `${content.source.totalParkingSpaces ?? content.source.parking} space(s)` }] : []),
+        ...(cs?.handoverDate ? [{ label: "Handover", value: cs.handoverDate }] : []),
+        ...(cs?.parking ? [{ label: "Parking", value: `${cs.totalParkingSpaces ?? cs.parking} space(s)` }] : []),
+        ...(cs?.serviceCharge ? [{ label: "Service Charge", value: `AED ${cs.serviceCharge}/sq ft` }] : []),
         { label: "Investor", value: investor?.name || "N/A" },
       ],
     },
@@ -319,6 +333,15 @@ function buildIntakePayloadFromMemo(
       ],
       bullets: topHoldings,
     },
+    ...(analysis?.neighborhood ? [{
+      title: "Neighborhood Analysis",
+      body: typeof analysis.neighborhood.profile === "string" ? analysis.neighborhood.profile : undefined,
+      keyValues: [
+        { label: "Area", value: analysis.neighborhood.name || "N/A" },
+        { label: "Grade", value: analysis.neighborhood.grade || "N/A" },
+      ],
+      bullets: Array.isArray(analysis.neighborhood.highlights) ? analysis.neighborhood.highlights : undefined,
+    }] : []),
     {
       title: "Market Analysis",
       body: typeof analysis?.market?.overview === "string" ? analysis.market.overview : undefined,
@@ -403,6 +426,18 @@ function buildIntakePayloadFromMemo(
       ],
       bullets: Array.isArray(analysis?.strategy?.focusPoints) ? analysis.strategy.focusPoints : undefined,
     },
+    ...(Array.isArray(analysis?.comparables) && analysis.comparables.length > 0
+      ? [{
+          title: "Comparable Transactions",
+          bullets: analysis.comparables.map(
+            (comp: any) =>
+              `${comp.name} (${comp.distance}) - ${formatCurrency(comp.price)} | ${comp.pricePerSqft ? `AED ${comp.pricePerSqft}/sqft` : "N/A"} | ${comp.closingDate || "Recent"}${comp.note ? ` - ${comp.note}` : ""}`,
+          ),
+        }]
+      : []),
+    ...(typeof analysis?.investmentThesis === "string"
+      ? [{ title: "Investment Thesis", body: analysis.investmentThesis }]
+      : []),
     {
       title: "Risk Assessment",
       bullets: Array.isArray(analysis?.risks)
@@ -444,10 +479,16 @@ function buildIntakePayloadFromMemo(
       mapCoords,
       [listing?.area, listing?.address].filter(Boolean).join(", ") || listing?.title || "Property location",
     ),
-    coverImageUrl: listing?.images?.[0]?.url || undefined,
-    galleryImageUrls: Array.isArray(listing?.images)
-      ? listing.images.slice(1, 5).map((img: any) => img?.url).filter(Boolean)
-      : [],
+    coverImageUrl:
+      listing?.images?.[0]?.url ||
+      (Array.isArray(content?.property?.images) ? content.property.images[0] : undefined) ||
+      undefined,
+    galleryImageUrls:
+      (Array.isArray(listing?.images) && listing.images.length > 1
+        ? listing.images.slice(1, 5).map((img: any) => img?.url).filter(Boolean)
+        : Array.isArray(content?.property?.images) && content.property.images.length > 1
+          ? content.property.images.slice(1, 5)
+          : []),
     floorPlanImageUrls: Array.isArray(content?.source?.floorPlanImages)
       ? content.source.floorPlanImages.filter(Boolean)
       : undefined,
@@ -461,6 +502,260 @@ function buildIntakePayloadFromMemo(
     operatingExpenses: enhanced.operatingExpenses,
     scenarios: enhanced.scenarios,
     comparables: enhanced.comparables,
+
+    /* ---- Narrative-rich fields from the AI analysis ---- */
+    locationNarrative: analysis.locationNarrative ?? undefined,
+    developerProfileEnhanced: analysis.enhancedDeveloperProfile ?? undefined,
+    riskMatrix: analysis.riskMatrix ?? undefined,
+    stressTests: analysis.stressTests ?? undefined,
+    neighborhoodBenchmarks: analysis.neighborhoodBenchmarks ?? undefined,
+    dataGaps: analysis.dataGaps ?? undefined,
+    scoringMethodology: analysis.scoringMethodology ?? undefined,
+    executionSteps: Array.isArray(analysis.executionSteps) ? analysis.executionSteps : undefined,
+    plainEnglishThesis: typeof analysis.plainEnglishThesis === "string" ? analysis.plainEnglishThesis : undefined,
+
+    sections,
+  }
+}
+
+/**
+ * Build an IntakeReportPayload from an off-plan memo's content.
+ * Maps off-plan fields (project, unit, paymentPlan, analysis, enhancedPdfData)
+ * into the same structure used for built properties.
+ */
+function buildOffplanIntakePayload(
+  content: any,
+  memo: any,
+  investor: any,
+  holdings: PropertyHolding[],
+): IntakeReportPayload | null {
+  const oa = content?.analysis // OffPlanMemoContent
+  if (!oa || typeof oa !== "object") return null
+
+  const project = content?.project as Record<string, any> | undefined
+  const unit = content?.unit as Record<string, any> | undefined
+  const pp = content?.paymentPlan as Record<string, any> | undefined
+  const enhanced = content?.enhancedPdfData as Record<string, any> | undefined
+  const ev = content?.evaluation as Record<string, any> | undefined
+
+  const score = typeof ev?.overallScore === "number" ? `${ev.overallScore}/100` : undefined
+  const rec = oa?.recommendation as Record<string, any> | undefined
+  const recommendation = rec?.decision ?? ev?.recommendation ?? undefined
+
+  const dev = oa?.developerAssessment as Record<string, any> | undefined
+  const loc = oa?.locationAnalysis as Record<string, any> | undefined
+  const fp = oa?.financialProjections as Record<string, any> | undefined
+  const risks = oa?.riskAssessment as Record<string, any>[] | undefined
+
+  const rbSrc = enhanced?.returnBridge as Record<string, any> | undefined
+  const growthSrc = enhanced?.growth as Record<string, any> | undefined
+  const strategySrc = enhanced?.strategy as Record<string, any> | undefined
+
+  const purchasePrice = Number(unit?.totalPrice ?? fp?.purchasePrice ?? 0)
+  const areaName = project?.location?.area ?? content?.property?.area ?? ""
+  const projectName = project?.name ?? ""
+  const developer = project?.developer ?? ""
+  const title = `Off-Plan IC Opportunity Report - ${projectName || "Property"}`
+
+  const portfolioCount = holdings.length
+  const totalPurchaseCost = holdings.reduce((sum, h) => sum + h.purchasePrice, 0)
+  const totalCurrentValue = holdings.reduce((sum, h) => sum + h.currentValue, 0)
+
+  const sections: IntakeReportPayload["sections"] = [
+    {
+      title: "Property Snapshot",
+      keyValues: [
+        { label: "Property", value: `${unit?.type ?? ""} - ${projectName} (Unit ${unit?.unitNumber ?? ""})` },
+        { label: "Developer", value: developer },
+        { label: "Location", value: areaName },
+        { label: "Type", value: String(project?.propertyType ?? unit?.type ?? "Off-plan") },
+        { label: "Asking Price", value: formatCurrency(purchasePrice) },
+        { label: "Size", value: unit?.sizeSqft ? `${Number(unit.sizeSqft).toLocaleString()} sq ft` : "N/A" },
+        { label: "Price / sq ft", value: unit?.pricePerSqft ? `AED ${Number(unit.pricePerSqft).toLocaleString()}` : "N/A" },
+        { label: "Level", value: String(unit?.level ?? "N/A") },
+        ...(unit?.views ? [{ label: "Views", value: String(unit.views) }] : []),
+        ...(unit?.parking ? [{ label: "Parking", value: String(unit.parking) }] : []),
+        { label: "Status", value: "Off-plan" },
+        ...(project?.completionDate ? [{ label: "Handover", value: String(project.completionDate) }] : []),
+        ...(pp ? [
+          { label: "During Construction", value: `${pp.constructionPercent ?? 0}%` },
+          { label: "Post-Handover", value: `${pp.postHandoverPercent ?? 0}%` },
+          { label: "DLD Fee", value: `${pp.dldFeePercent ?? 4}%` },
+        ] : []),
+        { label: "Investor", value: investor?.name || "N/A" },
+      ],
+    },
+    {
+      title: "Executive Summary",
+      body: oa?.projectSummary ? String(oa.projectSummary) : undefined,
+      bullets: [
+        ...(Array.isArray(oa?.projectHighlights) ? (oa.projectHighlights as string[]) : []),
+        ...(Array.isArray(oa?.keyStrengths) ? (oa.keyStrengths as string[]).map((s: string) => `Strength: ${s}`) : []),
+        ...(Array.isArray(oa?.keyConsiderations) ? (oa.keyConsiderations as string[]).map((s: string) => `Consideration: ${s}`) : []),
+      ],
+    },
+    {
+      title: "Portfolio Holdings Snapshot",
+      keyValues: [
+        { label: "Total Holdings", value: String(portfolioCount) },
+        { label: "Total Purchase Cost", value: formatCurrency(totalPurchaseCost) },
+        { label: "Current Portfolio Value", value: formatCurrency(totalCurrentValue) },
+      ],
+    },
+    {
+      title: "Pricing and Return Profile",
+      keyValues: [
+        { label: "Asking Price", value: formatCurrency(purchasePrice) },
+        { label: "Price / sq ft", value: unit?.pricePerSqft ? `AED ${Number(unit.pricePerSqft).toLocaleString()}` : "N/A" },
+        { label: "Completion Value", value: formatCurrency(fp?.estimatedCompletionValue) },
+        { label: "Expected Appreciation", value: `${Number(fp?.expectedAppreciation ?? 0).toFixed(1)}%` },
+        { label: "Estimated Annual Rent", value: formatCurrency(fp?.estimatedAnnualRent) },
+        { label: "Gross Yield", value: fp?.projectedRentalYieldGross ? `${fp.projectedRentalYieldGross}%` : "N/A" },
+        { label: "Net Yield", value: fp?.projectedRentalYieldNet ? `${fp.projectedRentalYieldNet}%` : "N/A" },
+      ],
+    },
+    ...(growthSrc ? [{
+      title: "Future Value Outlook",
+      body: typeof growthSrc.narrative === "string" ? growthSrc.narrative : undefined,
+      keyValues: [
+        { label: "1Y Projected Value", value: formatCurrency(growthSrc.projectedValue1Y) },
+        { label: "3Y Projected Value", value: formatCurrency(growthSrc.projectedValue3Y) },
+        { label: "5Y Projected Value", value: formatCurrency(growthSrc.projectedValue5Y) },
+        { label: "Base Growth", value: `${growthSrc.annualGrowthBase ?? 0}% / year` },
+        { label: "Conservative", value: `${growthSrc.annualGrowthConservative ?? 0}% / year` },
+        { label: "Upside", value: `${growthSrc.annualGrowthUpside ?? 0}% / year` },
+      ],
+      bullets: [
+        ...(Array.isArray(growthSrc.drivers) ? growthSrc.drivers : []),
+        ...(Array.isArray(growthSrc.sensitivities) ? growthSrc.sensitivities.map((s: string) => `Sensitivity: ${s}`) : []),
+      ],
+    }] : []),
+    ...(rbSrc ? [{
+      title: "ROI on Equity Bridge",
+      keyValues: [
+        { label: "Purchase price", value: formatCurrency(rbSrc.purchasePrice) },
+        { label: "DLD fee", value: `${formatCurrency(rbSrc.dldFee)} (${rbSrc.dldRatePct ?? 4}%)` },
+        { label: "Broker fee", value: `${formatCurrency(rbSrc.brokerFee)} (${rbSrc.brokerFeePct ?? 2}%)` },
+        { label: "Total project cost", value: formatCurrency(rbSrc.totalProjectCost) },
+        { label: "Mortgage amount", value: formatCurrency(rbSrc.mortgageAmount) },
+        { label: "Equity invested", value: formatCurrency(rbSrc.equityInvested) },
+        { label: "Resale price", value: formatCurrency(rbSrc.resalePrice) },
+        { label: "Net profit", value: formatCurrency(rbSrc.netProfitAfterInterest) },
+        { label: "ROI on equity", value: typeof rbSrc.roiOnEquityPct === "number" ? `${rbSrc.roiOnEquityPct.toFixed(1)}%` : "N/A" },
+      ],
+      bullets: rbSrc.assumptions ? [String(rbSrc.assumptions)] : [
+        `Off-plan: full equity investment (no mortgage during construction). 5-year post-completion hold.`,
+      ],
+    }] : []),
+    ...(strategySrc ? [{
+      title: "Strategy and Execution",
+      body: typeof strategySrc.plan === "string" ? strategySrc.plan : undefined,
+      keyValues: [
+        { label: "Hold Period", value: `${strategySrc.holdPeriod ?? 5} years` },
+        { label: "Exit Strategy", value: String(strategySrc.exit ?? "Resale at projected value") },
+      ],
+      bullets: Array.isArray(strategySrc.focusPoints) ? strategySrc.focusPoints : undefined,
+    }] : []),
+    ...(typeof oa?.investmentThesis === "string"
+      ? [{ title: "Investment Thesis", body: oa.investmentThesis }]
+      : []),
+    ...(rec ? [{
+      title: "Final Recommendation",
+      body: `${rec.decision ?? "CONDITIONAL"}: ${rec.reasoning ?? ""}`,
+      bullets: Array.isArray(rec.conditions) ? rec.conditions : undefined,
+    }] : []),
+  ]
+
+  // Map off-plan developer assessment → enhanced developer profile
+  const devProfile = dev ? {
+    name: developer,
+    legalName: developer,
+    tier: (Number(dev.score ?? 0) >= 80 ? "tier_1" : Number(dev.score ?? 0) >= 60 ? "tier_2" : Number(dev.score ?? 0) >= 40 ? "tier_3" : "unverified") as "tier_1" | "tier_2" | "tier_3" | "unverified",
+    tierLabel: String(dev.grade ?? "C"),
+    listingStatus: "unknown" as const,
+    notableProjects: project?.developerTrackRecord?.completedProjects?.map((p: any) => p.name) ?? [],
+    deliveryTrackRecord: "unknown" as const,
+    buildQuality: "unknown" as const,
+    overview: String(dev.trackRecordSummary ?? ""),
+    riskAssessment: `Developer score: ${dev.score}/100 (${dev.grade}). Financial stability: ${dev.financialStability ?? "unknown"}.`,
+    concerns: Array.isArray(dev.concerns) ? dev.concerns : [],
+    escrowStatus: "Not confirmed",
+  } : undefined
+
+  const locationNarrative = loc ? {
+    areaOverview: String(loc.areaProfile ?? ""),
+    growthCatalyst: Array.isArray(loc.highlights) ? loc.highlights.join(". ") : "",
+    amenities: project?.amenities?.length ? [{ category: "Project Amenities", items: project.amenities.map((a: string) => ({ name: a, status: "confirmed" })) }] : [],
+    missingAmenities: [] as string[],
+    connectivity: loc.proximity && typeof loc.proximity === "object"
+      ? Object.entries(loc.proximity as Record<string, string>).map(([destination, value]) => ({ destination, distance: String(value), driveTime: "" }))
+      : [],
+  } : undefined
+
+  const riskMatrix = risks?.map((r: any, i: number) => {
+    const level = String(r.level ?? "medium")
+    const likelihood = level === "high" ? 4 : level === "medium" ? 3 : 2
+    const impact = level === "high" ? 4 : level === "medium" ? 3 : 2
+    return {
+      name: String(r.category ?? `Risk ${i + 1}`),
+      category: String(r.category ?? "General"),
+      likelihood, impact,
+      score: likelihood * impact,
+      scoreBand: (likelihood * impact) >= 12 ? "High" : (likelihood * impact) >= 6 ? "Medium" : "Low",
+      mitigation: String(r.mitigation ?? ""),
+    }
+  })
+
+  const offplanFactors = ev?.factors as Record<string, number> | undefined
+  const factors = offplanFactors ? {
+    mandateFit: offplanFactors.developerCredibility ?? 0,
+    marketTiming: offplanFactors.locationPremium ?? 0,
+    portfolioFit: offplanFactors.paymentPlanAttractiveness ?? 0,
+    riskAlignment: offplanFactors.appreciationPotential ?? 0,
+  } : undefined
+
+  return {
+    title,
+    subtitle: areaName || "Dubai, UAE",
+    generatedAt: memo?.updatedAt || memo?.createdAt || new Date().toISOString(),
+    score,
+    recommendation,
+    summary: ev?.headline ?? oa?.projectSummary ?? undefined,
+    coverImageUrl: undefined,
+    galleryImageUrls: undefined,
+    floorPlanImageUrls: undefined,
+    factors,
+    cashFlowTable: enhanced?.cashFlowTable ?? undefined,
+    operatingExpenses: enhanced?.operatingExpenses ?? undefined,
+    scenarios: enhanced?.scenarios ?? undefined,
+    comparables: enhanced?.comparables ?? undefined,
+    locationNarrative,
+    developerProfileEnhanced: devProfile,
+    riskMatrix,
+    stressTests: enhanced?.scenarios?.map((s: any) => ({
+      label: String(s.label ?? ""),
+      description: `Annual rent: AED ${Number(s.annualRent ?? 0).toLocaleString()} · Occupancy: ${s.occupancy ?? 0}%`,
+      impact: Number(s.netProfit ?? 0) < 0 ? "Loss" : "Reduced return",
+      quantifiedEffect: `Exit AED ${Number(s.exitPrice ?? 0).toLocaleString()} · IRR ${s.fiveYearIrr ?? 0}% · Net profit AED ${Number(s.netProfit ?? 0).toLocaleString()}`,
+    })) ?? undefined,
+    dataGaps: [
+      { field: "Construction Progress", status: "missing" as const, detail: "No site visit or official progress report — verify via Oqood certificate" },
+      { field: "DLD Verified Comps", status: "unverified" as const, detail: "Comparables are AI-estimated; confirm with DLD transaction data" },
+      { field: "Service Charges", status: "assumed" as const, detail: "Estimated at AED 20/sqft for new developments" },
+      { field: "Rental Projections", status: "assumed" as const, detail: "Based on area yield averages; no signed lease evidence" },
+    ],
+    executionSteps: [
+      `Verify ${developer} developer credentials against RERA/DLD registry and confirm escrow status`,
+      "Engage independent legal counsel to review SPA before any payment",
+      `Request unit-specific floor plan for Unit ${unit?.unitNumber ?? ""}, Level ${unit?.level ?? ""}`,
+      "Conduct physical site visit to assess construction progress",
+      "Pull DLD-verified transactions for comparable units within 0.5km radius",
+      `Confirm payment schedule: ${pp?.constructionPercent ?? 0}% during construction, ${pp?.postHandoverPercent ?? 0}% post-handover`,
+      "Verify parking allocation in official building documentation",
+      "If financing post-handover: secure pre-approval from minimum two UAE banks",
+      "Establish property management contact for immediate rental marketing upon handover",
+    ],
+    plainEnglishThesis: typeof oa?.investmentThesis === "string" ? oa.investmentThesis : undefined,
     sections,
   }
 }
@@ -482,35 +777,30 @@ export async function GET(
       return NextResponse.json({ error: "Memo not found" }, { status: 404 })
     }
 
-    if (!memo.investorId) {
-      return NextResponse.json({ error: "Memo has no investor assigned" }, { status: 400 })
-    }
+    const memoInvestorId = memo.investorId || null
 
-    const memoInvestorId = memo.investorId
+    // Get investor (may be null for property-intake memos saved without investor)
+    const investor = memoInvestorId ? await getInvestorById(memoInvestorId) : null
 
-    // Get investor
-    const investor = await getInvestorById(memoInvestorId)
-    if (!investor) {
-      return NextResponse.json({ error: "Investor not found" }, { status: 404 })
-    }
-
-    // Check access
-    try {
-      assertMemoAccess(
-        { tenantId: memo.tenantId, investorId: memoInvestorId },
-        ctx,
-        investor
-      )
-    } catch (err) {
-      if (err instanceof AccessError) {
-        return NextResponse.json({ error: err.message }, { status: err.status })
+    // Check access only when investor context exists
+    if (investor && memoInvestorId) {
+      try {
+        assertMemoAccess(
+          { tenantId: memo.tenantId, investorId: memoInvestorId },
+          ctx,
+          investor
+        )
+      } catch (err) {
+        if (err instanceof AccessError) {
+          return NextResponse.json({ error: err.message }, { status: err.status })
+        }
+        throw err
       }
-      throw err
     }
 
     const [listing, holdings] = await Promise.all([
       memo.listingId ? getListingById(memo.listingId) : Promise.resolve(null),
-      getHoldingsByInvestor(memoInvestorId),
+      memoInvestorId ? getHoldingsByInvestor(memoInvestorId) : Promise.resolve([]),
     ])
 
     // Use the premium intake-style PDF whenever structured analysis exists.
@@ -525,7 +815,15 @@ export async function GET(
     const pdfBuffer = resolvedPayload
       ? await renderToBuffer(<IntakeReportPdfDocument payload={resolvedPayload} />)
       : await renderToBuffer(
-          <MemoPDFDocument memo={memo} investor={investor} listing={listing} />
+          <MemoPDFDocument
+            memo={memo}
+            investor={investor ?? {
+              id: "", tenantId: memo.tenantId || "", name: "Unassigned",
+              status: "active" as const, totalDeals: 0, assignedAgentId: "",
+              createdAt: new Date().toISOString(),
+            }}
+            listing={listing}
+          />
         )
 
     // Return PDF as download

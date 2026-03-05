@@ -41,7 +41,9 @@ export async function GET(req: Request) {
       property_title: task.listing?.title || null,
     }))
 
-    return NextResponse.json({ tasks: tasksWithNames || [] })
+    const response = NextResponse.json({ tasks: tasksWithNames || [] })
+    response.headers.set("Cache-Control", "private, max-age=20, stale-while-revalidate=40")
+    return response
   } catch (err) {
     if (err instanceof AccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

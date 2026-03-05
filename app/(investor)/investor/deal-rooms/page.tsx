@@ -72,7 +72,7 @@ export default function InvestorDealRoomsPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="py-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/dashboard">
@@ -103,7 +103,7 @@ export default function InvestorDealRoomsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="py-6">
         {isLoading && (
           <div className="flex items-center justify-center py-16 gap-3">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -225,8 +225,9 @@ export default function InvestorDealRoomsPage() {
 
 function DealRoomCard({ deal }: { deal: DealRoom }) {
   const status = statusConfig[deal.status]
-  const completedChecklist = deal.checklist.filter((c) => c.completed).length
-  const totalChecklist = deal.checklist.length
+  const checklist = deal.checklist ?? []
+  const completedChecklist = checklist.filter((c) => c.completed).length
+  const totalChecklist = checklist.length
 
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-md">

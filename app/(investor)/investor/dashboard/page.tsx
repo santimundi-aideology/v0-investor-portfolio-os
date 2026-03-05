@@ -442,7 +442,7 @@ export default function InvestorDashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-background" aria-busy="true" aria-label="Loading dashboard">
         <div className="relative -mx-4 -mt-4 h-[420px] overflow-hidden bg-muted/30 sm:-mx-6 lg:-mx-8 lg:-mt-6" />
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="py-6">
           <div className="h-10 w-48 rounded-md bg-muted/50 animate-pulse" />
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
@@ -471,7 +471,7 @@ export default function InvestorDashboardPage() {
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.12),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="relative px-4 py-6 sm:px-6 lg:px-8">
           {/* Account summary: total value + 4 metric boxes + actions */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-5">
             <div className="flex flex-col gap-4">
@@ -577,7 +577,7 @@ export default function InvestorDashboardPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full py-6">
         <div className="grid gap-6 lg:grid-cols-2 mb-6">
           <Card className="rounded-xl border border-gray-200 shadow-sm dark:border-border overflow-hidden">
             <CardHeader className="pb-2">

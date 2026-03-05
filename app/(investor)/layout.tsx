@@ -63,7 +63,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
       alertDelaySeconds={45}
     >
       <InsightProvider>
-        <div className="flex h-screen overflow-hidden bg-white">
+        <div className="flex h-dvh overflow-hidden bg-white">
           {/* Mobile Sidebar (hamburger menu) */}
           <InvestorMobileSidebar open={mobileMenuOpen} onClose={handleMobileMenuClose} />
 

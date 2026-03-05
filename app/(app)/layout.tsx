@@ -28,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <AppProvider>
       <AIWidgetProvider showFloatingHub={true} showLiveAlerts={false}>
         <InsightProvider>
-          <div className="flex h-screen overflow-hidden bg-white">
+          <div className="flex h-dvh overflow-hidden bg-white">
             {/* Desktop Sidebar */}
             <div className="hidden lg:flex">
               <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />

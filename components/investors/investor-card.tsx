@@ -11,6 +11,7 @@ import { EditableAvatar } from "@/components/ui/editable-avatar"
 
 interface InvestorCardProps {
   investor: Investor
+  basePath?: string
 }
 
 // Preferred properties would be fetched from API per investor; empty for now
@@ -18,7 +19,7 @@ function getInvestorPreferredProperties(_investor: Investor) {
   return [] as { id: string; imageUrl?: string; title: string }[]
 }
 
-export function InvestorCard({ investor }: InvestorCardProps) {
+export function InvestorCard({ investor, basePath = "" }: InvestorCardProps) {
   const statusColors = {
     active: "bg-green-50 text-green-600 border-green-200",
     pending: "bg-amber-50 text-amber-600 border-amber-200",
@@ -79,7 +80,7 @@ export function InvestorCard({ investor }: InvestorCardProps) {
             />
             <div className="min-w-0">
               <CardTitle className="text-base">
-                <Link href={`/investors/${investor.id}`} className="hover:text-green-600 transition-colors">
+                <Link href={`${basePath}/investors/${investor.id}`} className="hover:text-green-600 transition-colors">
                   {investor.name}
                 </Link>
               </CardTitle>
@@ -139,17 +140,17 @@ export function InvestorCard({ investor }: InvestorCardProps) {
 
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" asChild className="flex-1 sm:flex-none">
-              <Link href={`/investors/${investor.id}`}>Open</Link>
+              <Link href={`${basePath}/investors/${investor.id}`}>Open</Link>
             </Button>
             <Button size="sm" asChild className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white">
-              <Link href={`/recommendations/new?investorId=${investor.id}`}>
+              <Link href={`${basePath}/recommendations/new?investorId=${investor.id}`}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Recommend
               </Link>
             </Button>
             {ongoingDeals ? (
               <Button size="sm" variant="ghost" asChild className="flex-1 sm:flex-none">
-                <Link href={`/investors/${investor.id}#dealRooms`}>
+                <Link href={`${basePath}/investors/${investor.id}#dealRooms`}>
                   <FolderKanban className="mr-2 h-4 w-4" />
                   Deals
                 </Link>

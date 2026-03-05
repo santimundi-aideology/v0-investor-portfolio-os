@@ -10,6 +10,7 @@ BEGIN;
 -- =============================
 
 -- Clean up any existing demo data first
+DELETE FROM public.deal_rooms WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.market_signal_target WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.market_signal WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.decisions WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
@@ -704,6 +705,88 @@ SELECT
   END
 FROM public.market_signal s
 WHERE s.tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
+
+-- =============================
+-- DEAL ROOMS (Pipeline)
+-- =============================
+INSERT INTO public.deal_rooms
+  (id, tenant_id, title, property_id, investor_id,
+   investor_name, property_title,
+   status, ticket_size_aed, probability, priority,
+   next_step, summary, created_at, updated_at)
+VALUES
+  -- 1. Preparation: Palm Jumeirah villa mandate review
+  (
+    'demo-dr-0000-0000-000000000001',
+    'demo-0000-0000-0000-000000000001',
+    'Palm Jumeirah Signature Villa — Mandate Review',
+    'demo-lst-0000-0000-000000000004',
+    'demo-inv-0000-0000-000000000001',
+    'Mohammed Al-Rashid',
+    'Palm Jumeirah Signature Villa',
+    'preparation',
+    22000000,
+    30,
+    'high',
+    'Finalise underwriting deck and share with investor',
+    'Off-market waterfront villa matching investor''s Core Plus strategy. Awaiting full underwriting before LOI.',
+    now() - interval '10 days',
+    now() - interval '1 day'
+  ),
+  -- 2. Due-diligence: Downtown office title/NOC
+  (
+    'demo-dr-0000-0000-000000000002',
+    'demo-0000-0000-0000-000000000001',
+    'Downtown Boulevard Office Tower — Diligence',
+    'demo-lst-0000-0000-000000000002',
+    'demo-inv-0000-0000-000000000001',
+    'Mohammed Al-Rashid',
+    'Downtown Boulevard Office Tower',
+    'due-diligence',
+    18500000,
+    55,
+    'high',
+    'Obtain NOC from developer and sign inspection report',
+    'Grade-A commercial asset. Title deed, RERA registration, and NOC outstanding. Legal team engaged.',
+    now() - interval '30 days',
+    now() - interval '2 days'
+  ),
+  -- 3. Negotiation: JVC block LOI terms
+  (
+    'demo-dr-0000-0000-000000000003',
+    'demo-0000-0000-0000-000000000001',
+    'JVC Residential Block — LOI Terms',
+    'demo-lst-hot-000000000002',
+    'demo-inv-0000-0000-000000000002',
+    'Amira Al-Mansoori',
+    'JVC District 12 - 8-Unit Residential Block',
+    'negotiation',
+    8500000,
+    70,
+    'medium',
+    'Counter-sign LOI and agree payment plan structure',
+    'Value-add block with repositioning upside. Both parties aligned on price; negotiating milestone payments.',
+    now() - interval '45 days',
+    now() - interval '3 days'
+  ),
+  -- 4. Closing: Business Bay retail MOU
+  (
+    'demo-dr-0000-0000-000000000004',
+    'demo-0000-0000-0000-000000000001',
+    'Business Bay Retail Unit — MOU to Transfer',
+    'demo-lst-hot-000000000003',
+    'demo-inv-0000-0000-000000000002',
+    'Amira Al-Mansoori',
+    'Business Bay Retail + Mezzanine',
+    'closing',
+    3100000,
+    90,
+    'urgent',
+    'Register MOU with DLD and transfer balance payment',
+    'Retail unit with existing anchor tenant. MOU signed; awaiting final DLD registration.',
+    now() - interval '60 days',
+    now() - interval '6 hours'
+  );
 
 -- =============================
 -- AUDIT EVENTS (Sample activity)

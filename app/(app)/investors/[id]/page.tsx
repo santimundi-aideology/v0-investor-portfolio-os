@@ -2,18 +2,15 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { Loader2, Shield } from "lucide-react"
 
 import { useAPI } from "@/lib/hooks/use-api"
 import { InvestorDetail } from "@/components/investors/investor-detail"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Button } from "@/components/ui/button"
-import { Shield } from "lucide-react"
-import "@/lib/init-investor-store"
-import { useInvestor } from "@/lib/investor-store"
-import type { DealRoom, Memo, ShortlistItem, Task } from "@/lib/types"
+import type { DealRoom, Investor, Memo, ShortlistItem, Task } from "@/lib/types"
 
-// Raw DB memo shape from /api/memos
 type RawMemo = {
   id: string
   investor_id: string
@@ -22,9 +19,12 @@ type RawMemo = {
   current_version: number
   created_at: string
   updated_at: string
+  title?: string
+  propertyTitle?: string
+  score?: number | null
+  recommendation?: string | null
 }
 
-// Raw shortlist item from /api/investors/[id]/shortlist
 type RawShortlistItem = {
   id: string
   listingId: string
@@ -44,30 +44,77 @@ type RawShortlistItem = {
   } | null
 }
 
+type InvestorAPIResponse = {
+  id: string
+  name: string
+  company?: string
+  email?: string
+  phone?: string
+  avatar?: string
+  status: "active" | "pending" | "inactive"
+  mandate?: Investor["mandate"]
+  description?: string
+  createdAt: string
+  lastContact?: string
+  totalDeals: number
+  thesisReturnStyle?: Investor["thesisReturnStyle"]
+  thesisHoldPeriod?: string
+  thesisPreferredExits?: string[]
+  thesisNotes?: string
+}
+
+function mapToInvestor(raw: InvestorAPIResponse): Investor {
+  return {
+    id: raw.id,
+    name: raw.name,
+    company: raw.company ?? "",
+    email: raw.email ?? "",
+    phone: raw.phone ?? "",
+    avatar: raw.avatar ?? "/placeholder-user.jpg",
+    status: raw.status,
+    mandate: raw.mandate ?? undefined,
+    description: raw.description,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    lastContact: raw.lastContact ?? new Date().toISOString(),
+    totalDeals: raw.totalDeals ?? 0,
+    thesisReturnStyle: raw.thesisReturnStyle,
+    thesisHoldPeriod: raw.thesisHoldPeriod,
+    thesisPreferredExits: raw.thesisPreferredExits,
+    thesisNotes: raw.thesisNotes,
+  }
+}
+
 export default function InvestorDetailPage() {
   const params = useParams<{ id: string }>()
-  const id = params?.id
-  const canonicalId = React.useMemo(() => {
-    if (!id) return ""
-    return /^\d+$/.test(id) ? `inv-${id}` : id
-  }, [id])
+  const id = params?.id ?? ""
+  const router = useRouter()
 
-  const investor = useInvestor(canonicalId)
+  // This page exists at /investors/[id] — redirect realtor/manager users to
+  // the canonical /realtor/investors/[id] path which has the correct layout.
+  React.useEffect(() => {
+    router.replace(`/realtor/investors/${id}`)
+  }, [id, router])
 
-  // Fetch deal rooms from the CRM API
+  const { data: investorRaw, isLoading: investorLoading } =
+    useAPI<InvestorAPIResponse>(id ? `/api/investors/${id}` : null)
+
+  const investor: Investor | null = React.useMemo(
+    () => (investorRaw ? mapToInvestor(investorRaw) : null),
+    [investorRaw]
+  )
+
   const { data: dealRoomsData } = useAPI<DealRoom[]>(
-    canonicalId ? `/api/deal-rooms?investorId=${canonicalId}` : null
+    id ? `/api/deal-rooms?investorId=${id}` : null
   )
   const dealRooms = dealRoomsData ?? []
 
-  // Fetch shortlist items from API
   const { data: shortlistData } = useAPI<{ items: RawShortlistItem[] }>(
-    canonicalId ? `/api/investors/${canonicalId}/shortlist` : null
+    id ? `/api/investors/${id}/shortlist` : null
   )
   const shortlist: ShortlistItem[] = React.useMemo(() => {
     return (shortlistData?.items ?? []).map((item) => ({
       id: item.id,
-      investorId: canonicalId,
+      investorId: id,
       propertyId: item.listingId,
       property: {
         id: item.listingId,
@@ -88,31 +135,45 @@ export default function InvestorDetailPage() {
       notes: item.agentNotes ?? undefined,
       addedAt: item.addedAt,
     }))
-  }, [shortlistData, canonicalId])
+  }, [shortlistData, id])
 
-  // Fetch memos from CRM API (works for all internal roles)
-  const { data: rawMemos } = useAPI<RawMemo[]>(
-    canonicalId ? `/api/memos` : null
-  )
+  const { data: rawMemos } = useAPI<RawMemo[]>(id ? `/api/memos` : null)
   const memos: Memo[] = React.useMemo(() => {
-    // Filter to just this investor's memos and transform to Memo type
-    const investorMemos = (rawMemos ?? []).filter((m) => m.investor_id === canonicalId)
-    return investorMemos.map((m) => ({
-      id: m.id,
-      title: `IC Memo`,
-      investorId: m.investor_id,
-      investorName: investor?.name ?? "",
-      propertyId: m.listing_id ?? "",
-      propertyTitle: m.listing_id ? `Property ${m.listing_id.slice(0, 8)}` : "General",
-      status: (m.state === "sent" || m.state === "opened" ? "sent" : m.state) as Memo["status"],
-      content: "",
-      createdAt: m.created_at?.split("T")[0] ?? "",
-      updatedAt: m.updated_at?.split("T")[0] ?? "",
-    }))
-  }, [rawMemos, canonicalId, investor?.name])
+    const stateToStatus: Record<string, Memo["status"]> = {
+      draft: "draft",
+      pending_review: "review",
+      ready: "approved",
+      sent: "sent",
+      opened: "sent",
+      decided: "sent",
+    }
 
-  // Fetch tasks from API
-  const { data: tasks } = useAPI<Task[]>(canonicalId ? `/api/tasks?investorId=${canonicalId}` : null)
+    const investorMemos = (rawMemos ?? []).filter((m) => m.investor_id === id)
+    return investorMemos
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .map((m) => ({
+        id: m.id,
+        title: m.title || "IC Memo",
+        investorId: m.investor_id,
+        investorName: investor?.name ?? "",
+        propertyId: m.listing_id ?? "",
+        propertyTitle: m.propertyTitle || "Property",
+        status: stateToStatus[m.state] ?? "draft",
+        content: "",
+        createdAt: m.created_at?.split("T")[0] ?? "",
+        updatedAt: m.updated_at?.split("T")[0] ?? "",
+      }))
+  }, [rawMemos, id, investor?.name])
+
+  const { data: tasks } = useAPI<Task[]>(id ? `/api/tasks?investorId=${id}` : null)
+
+  if (investorLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
 
   if (!investor) {
     return (

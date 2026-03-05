@@ -15,48 +15,57 @@ export async function GET(req: Request) {
     }
 
     const supabase = getSupabaseAdminClient()
+    const now = new Date()
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
 
-    // Active investors count
-    const { count: activeInvestors } = await supabase
+    // Run all 4 queries in parallel
+    // Note: agents only see their own investors; managers/admins see full tenant scope
+    const investorQuery = supabase
       .from("investors")
-      .select("*", { count: "exact", head: true })
+      .select("id", { count: "exact", head: true })
       .eq("tenant_id", ctx.tenantId)
       .eq("status", "active")
+    if (ctx.role === "agent") {
+      investorQuery.eq("assigned_agent_id", ctx.userId)
+    }
 
-    // Pipeline value (from deal rooms)
-    const { data: liveDeals } = await supabase
-      .from("deal_rooms")
-      .select("ticket_size_aed")
-      .eq("tenant_id", ctx.tenantId)
-      .neq("status", "completed")
+    const [
+      { count: activeInvestors },
+      { data: liveDeals },
+      { count: tasksDueSoon },
+      { count: needsVerification },
+    ] = await Promise.all([
+      investorQuery,
+      supabase
+        .from("deal_rooms")
+        .select("ticket_size_aed")
+        .eq("tenant_id", ctx.tenantId)
+        .neq("status", "completed"),
+      supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", ctx.tenantId)
+        .neq("status", "done")
+        .lte("due_date", threeDaysFromNow.toISOString())
+        .gte("due_date", now.toISOString()),
+      supabase
+        .from("listings")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", ctx.tenantId)
+        .eq("readiness", "NEEDS_VERIFICATION"),
+    ])
 
-    const pipelineValue = liveDeals?.reduce((sum, d) => sum + (d.ticket_size_aed || 0), 0) || 0
+    const pipelineValue = liveDeals?.reduce((sum, d) => sum + (d.ticket_size_aed || 0), 0) ?? 0
 
-    // Tasks due soon (next 3 days)
-    const threeDaysFromNow = new Date()
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
-    const { count: tasksDueSoon } = await supabase
-      .from("tasks")
-      .select("*", { count: "exact", head: true })
-      .eq("tenant_id", ctx.tenantId)
-      .neq("status", "done")
-      .lte("due_date", threeDaysFromNow.toISOString())
-      .gte("due_date", new Date().toISOString())
-
-    // Properties needing verification
-    const { count: needsVerification } = await supabase
-      .from("listings")
-      .select("*", { count: "exact", head: true })
-      .eq("tenant_id", ctx.tenantId)
-      .eq("readiness", "NEEDS_VERIFICATION")
-
-    return NextResponse.json({
-      activeInvestors: activeInvestors || 0,
+    const response = NextResponse.json({
+      activeInvestors: activeInvestors ?? 0,
       pipelineValue,
-      liveDealsCount: liveDeals?.length || 0,
-      tasksDueSoon: tasksDueSoon || 0,
-      needsVerification: needsVerification || 0,
+      liveDealsCount: liveDeals?.length ?? 0,
+      tasksDueSoon: tasksDueSoon ?? 0,
+      needsVerification: needsVerification ?? 0,
     })
+    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60")
+    return response
   } catch (err) {
     if (err instanceof AccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

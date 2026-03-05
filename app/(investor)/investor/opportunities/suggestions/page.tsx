@@ -276,7 +276,7 @@ export default function RealtorSuggestionsPage() {
   return (
     <div className="min-h-screen bg-gray-100/30">
       <header className="border-b border-gray-100 bg-white">
-        <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="w-full py-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/opportunities">
@@ -292,7 +292,7 @@ export default function RealtorSuggestionsPage() {
           </div>
         </div>
       </header>
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full py-6">
         <Tabs defaultValue="new" className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="new">New ({newOpps.length})</TabsTrigger>

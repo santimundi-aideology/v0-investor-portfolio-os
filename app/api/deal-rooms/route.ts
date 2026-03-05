@@ -4,6 +4,8 @@ import { AuditEvents, createAuditEventWriter } from "@/lib/audit"
 import { listDealRooms, createDealRoom } from "@/lib/db/deal-rooms"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError, assertTenantScope } from "@/lib/security/rbac"
+import { batchInsertNotifications } from "@/lib/db/notifications"
+import { getInvestorById } from "@/lib/db/investors"
 
 /**
  * GET /api/deal-rooms
@@ -92,6 +94,24 @@ export async function POST(req: Request) {
         dealRoomId: record.id,
       }),
     )
+
+    // Notify investor if linked (via owner_user_id on the investor record)
+    if (body.investorId) {
+      const investorRecord = await getInvestorById(body.investorId).catch(() => null)
+      if (investorRecord?.ownerUserId) {
+        await batchInsertNotifications([
+          {
+            org_id: ctx.tenantId!,
+            recipient_user_id: investorRecord.ownerUserId,
+            entity_type: "deal_room",
+            entity_id: record.id,
+            title: "Deal room created",
+            body: `A deal room "${record.title}" has been created for you.`,
+            notification_key: `deal_room_created_${record.id}`,
+          },
+        ])
+      }
+    }
 
     return NextResponse.json(record, { status: 201 })
   } catch (err) {

@@ -59,55 +59,64 @@ export async function GET(req: Request) {
 
     const supabase = getSupabaseAdminClient()
 
-    // Get all properties for readiness buckets
-    const { data: allProperties } = await supabase
-      .from("listings")
-      .select("id, title, area, readiness, status, attachments")
-      .eq("tenant_id", ctx.tenantId)
-
-    // Always provide fallback images when no real media exists in the DB
-    const shouldUseFallbackImages = true
+    // Run 3 targeted queries in parallel instead of fetching all properties and filtering in JS
+    const [
+      { data: readinessRows },
+      { data: verificationRows },
+      { data: featuredRows },
+    ] = await Promise.all([
+      // Counts only: just id + readiness (minimal columns, no attachments)
+      supabase
+        .from("listings")
+        .select("id, readiness")
+        .eq("tenant_id", ctx.tenantId),
+      // Verification queue: only NEEDS_VERIFICATION, limited to 4
+      supabase
+        .from("listings")
+        .select("id, title, area, attachments")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("readiness", "NEEDS_VERIFICATION")
+        .limit(4),
+      // Featured: available + ready for memo, limited to 8
+      supabase
+        .from("listings")
+        .select("id, title, area, attachments")
+        .eq("tenant_id", ctx.tenantId)
+        .eq("status", "available")
+        .eq("readiness", "READY_FOR_MEMO")
+        .limit(8),
+    ])
 
     // Count by readiness status
     const readinessBuckets: Record<string, number> = {}
-    allProperties?.forEach((p) => {
+    readinessRows?.forEach((p) => {
       const status = p.readiness || "DRAFT"
       readinessBuckets[status] = (readinessBuckets[status] || 0) + 1
     })
 
-    // Properties needing verification
-    const verificationQueue = allProperties
-      ?.filter((p) => p.readiness === "NEEDS_VERIFICATION")
-      .slice(0, 4)
-      .map((p) => ({
-        id: p.id,
-        title: p.title || "Untitled Property",
-        area: p.area || "",
-        imageUrl:
-          extractImageUrl(p.attachments) ??
-          (shouldUseFallbackImages ? pickDemoImage(p.id) : null),
-      })) || []
+    const verificationQueue = verificationRows?.map((p) => ({
+      id: p.id,
+      title: p.title || "Untitled Property",
+      area: p.area || "",
+      imageUrl: extractImageUrl(p.attachments) ?? pickDemoImage(p.id),
+    })) ?? []
 
-    // Featured properties (available, ready for memo)
-    const featuredProperties = allProperties
-      ?.filter((p) => p.status === "available" && p.readiness === "READY_FOR_MEMO")
-      .slice(0, 8)
-      .map((p) => ({
-        id: p.id,
-        title: p.title || "Untitled Property",
-        area: p.area || "",
-        imageUrl:
-          extractImageUrl(p.attachments) ??
-          (shouldUseFallbackImages ? pickDemoImage(p.id) : null),
-        price: 0, // Would need to join with pricing data
-      })) || []
+    const featuredProperties = featuredRows?.map((p) => ({
+      id: p.id,
+      title: p.title || "Untitled Property",
+      area: p.area || "",
+      imageUrl: extractImageUrl(p.attachments) ?? pickDemoImage(p.id),
+      price: 0,
+    })) ?? []
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       readinessBuckets,
       verificationQueue,
       featuredProperties,
-      totalProperties: allProperties?.length || 0,
+      totalProperties: readinessRows?.length ?? 0,
     })
+    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60")
+    return response
   } catch (err) {
     if (err instanceof AccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

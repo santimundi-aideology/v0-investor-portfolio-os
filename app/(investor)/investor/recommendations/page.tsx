@@ -358,7 +358,7 @@ export default function InvestorRecommendationsPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="w-full py-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/investor/dashboard">
@@ -393,7 +393,7 @@ export default function InvestorRecommendationsPage() {
       </div>
 
       {/* Summary counters */}
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <div className="w-full py-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Card>
             <CardContent className="p-4 text-center">

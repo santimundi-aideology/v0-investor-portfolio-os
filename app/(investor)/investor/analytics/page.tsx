@@ -181,20 +181,26 @@ function generateRentalHistory(holdings: EnhancedHolding[], range: TimeRange) {
   const avgOccupancy = holdings.reduce((sum, h) => sum + h.occupancyRate, 0) / holdings.length
   const monthlyExpenses = holdings.reduce((sum, h) => sum + h.annualExpenses / 12, 0)
   
+  // Deterministic pseudo-random variance seeded by month index — prevents chart
+  // values from changing on every render while still looking realistic.
+  function seededVariance(seed: number, min: number, range: number) {
+    const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453
+    return min + (x - Math.floor(x)) * range
+  }
+
   const now = new Date()
   for (let i = months; i >= 0; i--) {
     const date = new Date(now)
     date.setMonth(date.getMonth() - i)
     const monthLabel = date.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-    
-    // Add some variance to make it realistic
-    const variance = 0.95 + Math.random() * 0.1
-    const occupancyVariance = Math.max(0.7, Math.min(1, avgOccupancy + (Math.random() - 0.5) * 0.15))
-    
+
+    const variance = seededVariance(i, 0.95, 0.1)
+    const occupancyVariance = Math.max(0.7, Math.min(1, avgOccupancy + seededVariance(i + 100, -0.075, 0.15)))
+
     const grossRent = Math.round(monthlyRent * variance)
-    const expenses = Math.round(monthlyExpenses * (0.9 + Math.random() * 0.2))
+    const expenses = Math.round(monthlyExpenses * seededVariance(i + 200, 0.9, 0.2))
     const netRent = Math.round((grossRent * occupancyVariance) - expenses)
-    
+
     data.push({
       month: monthLabel,
       grossRent,
@@ -453,12 +459,7 @@ export default function InvestorAnalyticsPage() {
   if (isLoading || !portfolioData) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-background">
-        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mb-6 flex gap-1 border-b border-gray-200 dark:border-border">
-            <Link href="/investor/portfolio" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Holdings</Link>
-            <Link href="/investor/analytics" className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary">Analytics</Link>
-            <Link href="/investor/payments" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Payments</Link>
-          </div>
+        <div className="relative py-6">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
               <Loader2 className="mx-auto size-8 animate-spin text-primary" />
@@ -484,7 +485,7 @@ export default function InvestorAnalyticsPage() {
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.12),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="relative px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-white sm:text-2xl">
@@ -604,12 +605,8 @@ export default function InvestorAnalyticsPage() {
       </div>
 
       {/* Main content */}
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Section Tabs */}
-        <div className="mb-6 flex gap-1 border-b border-gray-200 dark:border-border">
-          <Link href="/investor/portfolio" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Holdings</Link>
-          <Link href="/investor/analytics" className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary">Analytics</Link>
-          <Link href="/investor/payments" className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400">Payments</Link>
+      <div className="relative z-10 w-full py-6">
+        <div>
         </div>
 
         {/* Selected: X properties + Clear selection */}

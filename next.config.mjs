@@ -58,10 +58,12 @@ const nextConfig = {
   },
 }
 
-export default withSentryConfig(nextConfig, {
-  // Suppress source map upload logs in CI
-  silent: true,
-  // Upload source maps only when SENTRY_AUTH_TOKEN is set
-  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-})
+// Skip the Sentry webpack transform in dev — it forces webpack and slows
+// down Turbopack HMR. Sentry is instrumented at runtime via sentry.*.config.ts.
+export default process.env.NODE_ENV === "development"
+  ? nextConfig
+  : withSentryConfig(nextConfig, {
+      silent: true,
+      disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+      disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+    })

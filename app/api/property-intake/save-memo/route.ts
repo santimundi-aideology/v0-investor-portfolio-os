@@ -116,6 +116,7 @@ export async function POST(req: Request) {
         plotSize: (property as Record<string, unknown>).plotSize ?? null,
         paymentPlan: (property as Record<string, unknown>).paymentPlan ?? null,
         purpose: (property as Record<string, unknown>).purpose ?? null,
+        floorPlanImages: (property as Record<string, unknown>).floorPlanImages ?? [],
       },
 
       // Property details

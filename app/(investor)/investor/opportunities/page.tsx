@@ -274,7 +274,7 @@ export default function InvestorOpportunitiesPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          decision: decision === "pass" ? "not_interested" : decision,
+          decision: decision === "pass" ? "not_interested" : decision === "not_now" ? "pending" : decision,
           note,
         }),
       })

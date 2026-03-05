@@ -72,7 +72,17 @@ function formatDate(dateString: string) {
   })
 }
 
-export function MemosPageClient() {
+export function MemosPageClient({
+  embedded = false,
+  ctaLabel = "Generate memo",
+  ctaHref = "/memos/new",
+  memoLinkPrefix = "/memos",
+}: {
+  embedded?: boolean
+  ctaLabel?: string
+  ctaHref?: string
+  memoLinkPrefix?: string
+} = {}) {
   const { role, scopedInvestorId } = useApp()
   const { data: allMemos, isLoading: memosLoading, mutate } = useAPI<Memo[]>("/api/memos")
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null)
@@ -214,15 +224,17 @@ export function MemosPageClient() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="IC Memos"
-          subtitle="Loading memos..."
-          primaryAction={
-            <Button asChild>
-              <Link href="/memos/new">Generate memo</Link>
-            </Button>
-          }
-        />
+        {!embedded && (
+          <PageHeader
+            title="IC Memos"
+            subtitle="Loading memos..."
+            primaryAction={
+              <Button asChild>
+                <Link href={ctaHref}>{ctaLabel}</Link>
+              </Button>
+            }
+          />
+        )}
         <div className="flex min-h-[300px] items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -232,15 +244,17 @@ export function MemosPageClient() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="IC Memos"
-        subtitle={`${filtered.length} of ${visible.length} investment committee memos`}
-        primaryAction={
-          <Button asChild>
-            <Link href="/memos/new">Generate memo</Link>
-          </Button>
-        }
-      />
+      {!embedded && (
+        <PageHeader
+          title="IC Memos"
+          subtitle={`${filtered.length} of ${visible.length} investment committee memos`}
+          primaryAction={
+            <Button asChild>
+              <Link href={ctaHref}>{ctaLabel}</Link>
+            </Button>
+          }
+        />
+      )}
 
       {/* Filter bar */}
       {visible.length > 0 && (
@@ -338,7 +352,7 @@ export function MemosPageClient() {
           const coverImageUrl = property?.imageUrl || (memo as Memo & { _coverImage?: string })._coverImage
           return (
             <div key={memo.id} className="relative group">
-              <Link href={`/memos/${memo.id}`} className="block">
+              <Link href={`${memoLinkPrefix}/${memo.id}`} className="block">
                 <Card className="overflow-hidden border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5">
                 {/* Property Image Header */}
                 {coverImageUrl && (
@@ -456,7 +470,7 @@ export function MemosPageClient() {
           icon={<FileText className="size-5" />}
           action={
             <Button asChild>
-              <Link href="/memos/new">Generate memo</Link>
+              <Link href={ctaHref}>{ctaLabel}</Link>
             </Button>
           }
         />

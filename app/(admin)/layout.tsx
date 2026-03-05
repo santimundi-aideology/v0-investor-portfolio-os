@@ -17,7 +17,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-dvh overflow-hidden bg-white">
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex">
         <AdminSidebar

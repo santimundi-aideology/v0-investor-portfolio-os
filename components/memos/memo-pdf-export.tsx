@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Download, Loader2, Printer } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -90,17 +91,19 @@ export function MemoPdfExport({ memoId, title, intakeReportPayload, onExport }: 
     setIsExporting(true)
     
     try {
-      const response = memoId
-        ? await fetch(`/api/memos/${memoId}/export-pdf`)
-        : intakeReportPayload
-          ? await fetch("/api/property-intake/export-pdf", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                payload: intakeReportPayload,
-                fileName: `${title}_IC_Memo`,
-              }),
-            })
+      // Prefer the pre-built intake payload when available — it's complete
+      // and doesn't require an investor to be assigned to the memo.
+      const response = intakeReportPayload
+        ? await fetch("/api/property-intake/export-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              payload: intakeReportPayload,
+              fileName: `${title}_IC_Memo`,
+            }),
+          })
+        : memoId
+          ? await fetch(`/api/memos/${memoId}/export-pdf`)
           : null
       
       if (!response || !response.ok) {
@@ -119,8 +122,12 @@ export function MemoPdfExport({ memoId, title, intakeReportPayload, onExport }: 
       document.body.removeChild(a)
       
       onExport?.()
+      toast.success("PDF downloaded")
     } catch (error) {
       console.error("PDF export error:", error)
+      toast.error("Could not download PDF", {
+        description: (error as Error)?.message ?? "Please try again.",
+      })
     } finally {
       setIsExporting(false)
     }

@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build memo content with full off-plan analysis
+    const evalAny = evaluation as Record<string, unknown>
     const memoContent = {
       type: "offplan" as const,
       
@@ -60,9 +61,22 @@ export async function POST(req: NextRequest) {
         type: "offplan-brochure",
         project: project.projectName,
         developer: project.developer,
+        completionStatus: "off_plan",
         extractedAt: new Date().toISOString(),
       },
       
+      // Property-like fields for the shared detail view & PDF
+      property: {
+        title: `${selectedUnit.type} - ${project.projectName} (Unit ${selectedUnit.unitNumber})`,
+        type: project.propertyType,
+        area: project.location.area,
+        subArea: project.location.subArea || null,
+        size: selectedUnit.sizeSqft,
+        bedrooms: selectedUnit.type?.match(/(\d)\s*BR/i)?.[1] ? Number(selectedUnit.type.match(/(\d)\s*BR/i)![1]) : 0,
+        bathrooms: 0,
+        images: (project as Record<string, unknown>).images ?? [],
+      },
+
       // Project overview
       project: {
         name: project.projectName,
@@ -98,16 +112,25 @@ export async function POST(req: NextRequest) {
         constructionPercent: paymentPlan.constructionPercent,
       },
       
-      // Evaluation results
+      // Evaluation results (use `score` to match built property format)
       evaluation: {
+        score: evaluation.overallScore,
         overallScore: evaluation.overallScore,
         factors: evaluation.factors,
         headline: evaluation.headline,
         recommendation: evaluation.recommendation,
+        keyStrengths: evaluation.memoContent?.keyStrengths ?? [],
+        considerations: evaluation.memoContent?.keyConsiderations ?? [],
       },
       
       // Full memo content from AI
       analysis: evaluation.memoContent,
+
+      // Enhanced PDF data (cash flow, scenarios, comparables, return bridge, etc.)
+      enhancedPdfData: evalAny.enhancedPdfData ?? null,
+
+      // Underwriting guards
+      underwriting: evalAny.underwriting ?? null,
       
       // Additional notes
       realtorNotes: notes || null,

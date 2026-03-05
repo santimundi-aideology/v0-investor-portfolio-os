@@ -130,6 +130,7 @@ export interface EvaluationAnalysis {
     closingDate: string
     price: number
     pricePerSqft: number
+    provenanceLabel?: string
     note?: string
   }[]
   strategy: {
@@ -168,6 +169,69 @@ export interface EvaluationAnalysis {
   finalRecommendation: {
     decision: "PROCEED" | "CONDITIONAL" | "PASS"
     condition?: string
+  }
+
+  /* ---- New narrative-rich fields ---- */
+  locationNarrative?: {
+    areaOverview: string
+    growthCatalyst: string
+    amenities: { category: string; items: { name: string; status: string }[] }[]
+    missingAmenities: string[]
+    connectivity: { destination: string; distance: string; driveTime: string }[]
+  }
+  enhancedDeveloperProfile?: {
+    name: string
+    legalName: string
+    tier: "tier_1" | "tier_2" | "tier_3" | "unverified"
+    tierLabel: string
+    founded?: string
+    listingStatus: "public" | "private" | "unknown"
+    exchange?: string
+    marketCap?: string
+    unitsDelivered?: string
+    notableProjects: string[]
+    deliveryTrackRecord: "on_time" | "mixed" | "delayed" | "unknown"
+    buildQuality: "premium" | "good" | "average" | "poor" | "unknown"
+    overview: string
+    riskAssessment: string
+    concerns: string[]
+    escrowStatus: string
+  }
+  riskMatrix?: {
+    name: string
+    category: string
+    likelihood: number
+    impact: number
+    score: number
+    scoreBand: string
+    mitigation: string
+  }[]
+  stressTests?: {
+    label: string
+    description: string
+    impact: string
+    quantifiedEffect: string
+  }[]
+  neighborhoodBenchmarks?: {
+    community: string
+    priceRange: string
+    maturity: string
+    hasMetro: boolean
+    character: string
+    isSubject?: boolean
+  }[]
+  dataGaps?: {
+    field: string
+    status: string
+    detail?: string
+  }[]
+  plainEnglishThesis?: string
+  executionSteps?: string[]
+  scoringMethodology?: {
+    dimensions: { name: string; weight: string; description: string }[]
+    bands: { range: string; label: string; action: string }[]
+    keyFactorsUp: string[]
+    keyFactorsDown: string[]
   }
 }
 
@@ -650,7 +714,43 @@ export function handlePdfExtracted(result: {
 }
 
 export async function evaluateOffplan() {
-  const { offplanProject, offplanPaymentPlan, selectedOffplanUnits, offplanUnits } = state
+  const { property, offplanProject, offplanPaymentPlan, selectedOffplanUnits, offplanUnits } = state
+
+  // URL-extracted off-plan: route through the built property evaluation pipeline
+  // which produces the same rich MemoAnalysis format as built properties.
+  if (property) {
+    if (!offplanProject) {
+      update({ offplanError: "No property data available" })
+      return
+    }
+    update({ offplanError: null, offplanStep: "evaluating", step: "evaluating", scoreRevealComplete: false })
+
+    try {
+      const res = await fetch("/api/property-intake/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to evaluate property")
+      update({
+        evaluation: data.evaluation,
+        marketContext: data.marketContext,
+        enhancedPdfData: data.enhancedPdfData ?? null,
+        step: "evaluated",
+        offplanStep: "evaluated",
+      })
+    } catch (err) {
+      update({
+        offplanError: err instanceof Error ? err.message : "Failed to evaluate property",
+        offplanStep: "extracted",
+        step: "extracted",
+      })
+    }
+    return
+  }
+
+  // PDF brochure flow: use the off-plan-specific evaluation API
   if (!offplanProject || !offplanPaymentPlan || selectedOffplanUnits.length === 0) {
     update({ offplanError: "Please select a unit to evaluate" })
     return
@@ -681,7 +781,32 @@ export async function evaluateOffplan() {
 }
 
 export async function saveOffplanMemo(notes: string) {
-  const { offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits } = state
+  const { property, evaluation, offplanProject, offplanPaymentPlan, offplanEvaluation, selectedOffplanUnits } = state
+
+  // URL-extracted off-plan: save via the portal endpoint (same format as built properties)
+  if (property && evaluation) {
+    update({ offplanStep: "saving", step: "saving", offplanError: null })
+
+    try {
+      const res = await fetch("/api/property-intake/save-memo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property, evaluation, notes }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save memo")
+      update({ savedMemoId: data.memo.id, offplanSavedMemoId: data.memo.id, step: "saved", offplanStep: "saved" })
+    } catch (err) {
+      update({
+        offplanError: err instanceof Error ? err.message : "Failed to save memo",
+        offplanStep: "evaluated",
+        step: "evaluated",
+      })
+    }
+    return
+  }
+
+  // PDF brochure flow: save via the off-plan endpoint
   if (!offplanProject || !offplanPaymentPlan || !offplanEvaluation || selectedOffplanUnits.length === 0) {
     return
   }
@@ -724,6 +849,16 @@ export function resetOffplan() {
     offplanEvaluation: null,
     offplanSavedMemoId: null,
     offplanBrochureImages: [],
+    // Also reset portal state that may have been set by URL-extracted off-plan
+    step: "input",
+    property: null,
+    evaluation: null,
+    marketContext: null,
+    enhancedPdfData: null,
+    notes: "",
+    savedMemoId: null,
+    scoreRevealComplete: false,
+    offplanDetected: false,
   })
 }
 

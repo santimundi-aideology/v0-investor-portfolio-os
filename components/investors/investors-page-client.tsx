@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Search, SlidersHorizontal, Users, UserPlus, Loader2 } from "lucide-react"
 
+import { usePathname } from "next/navigation"
 import type { Investor } from "@/lib/types"
 import { initInvestorStore, useInvestors, replaceAllInvestors } from "@/lib/investor-store"
 import { useApp } from "@/components/providers/app-provider"
@@ -79,6 +80,8 @@ function mapDbToInvestor(record: Record<string, unknown>): Investor {
 
 export function InvestorsPageClient() {
   const { role } = useApp()
+  const pathname = usePathname()
+  const basePath = pathname?.startsWith("/realtor") ? "/realtor" : ""
   const [loading, setLoading] = React.useState(true)
   const [dbError, setDbError] = React.useState<string | null>(null)
 
@@ -296,7 +299,7 @@ export function InvestorsPageClient() {
       ) : viewMode === "grid" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((inv) => (
-            <InvestorCard key={inv.id} investor={inv} />
+            <InvestorCard key={inv.id} investor={inv} basePath={basePath} />
           ))}
         </div>
       ) : (
@@ -326,7 +329,7 @@ export function InvestorsPageClient() {
                       <td className="py-4 pr-4 text-gray-500">{safeDate(inv.lastContact)}</td>
                       <td className="py-4 pr-0 text-right">
                         <Button size="sm" variant="outline" asChild>
-                          <Link href={`/investors/${inv.id}`}>Open</Link>
+                          <Link href={`${basePath}/investors/${inv.id}`}>Open</Link>
                         </Button>
                       </td>
                     </tr>

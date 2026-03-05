@@ -72,7 +72,9 @@ export async function GET(req: Request) {
       }
     }) || []
 
-    return NextResponse.json({ activities: activityFeed })
+    const response = NextResponse.json({ activities: activityFeed })
+    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60")
+    return response
   } catch (err) {
     if (err instanceof AccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

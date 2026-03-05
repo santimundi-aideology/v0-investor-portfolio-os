@@ -5,6 +5,7 @@ import { addDecision, getMemo, saveMemo } from "@/lib/db/memo-ops"
 import { transitionMemo } from "@/lib/domain/memos"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
+import { batchInsertNotifications, getNotificationRecipientsForInvestor } from "@/lib/db/notifications"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -49,6 +50,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         conditionText: body.conditionText,
       }),
     )
+
+    const decisionLabel =
+      decisionType === "approved"
+        ? "approved"
+        : decisionType === "approved_conditional"
+          ? "conditionally approved"
+          : "rejected"
+    const recipients = await getNotificationRecipientsForInvestor(memo.tenantId, memo.investorId!)
+    if (recipients.length > 0) {
+      await batchInsertNotifications(
+        recipients.map((uid) => ({
+          org_id: memo.tenantId,
+          recipient_user_id: uid,
+          entity_type: "memo",
+          entity_id: memo.id,
+          title: `Investor ${decisionLabel} memo`,
+          body: `The investor has ${decisionLabel} the IC Memo.`,
+          notification_key: `memo_decided_${memo.id}_${uid}`,
+        })),
+      )
+    }
 
     return NextResponse.json({ memo: decided, decision })
   } catch (err) {

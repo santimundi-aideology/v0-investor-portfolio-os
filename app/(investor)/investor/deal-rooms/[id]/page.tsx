@@ -109,7 +109,7 @@ export default function DealRoomDetailPage() {
     <div className="min-h-screen bg-gray-100/30">
       {/* Header */}
       <div className="border-b border-gray-100 bg-white">
-        <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="w-full py-6">
           <div className="flex items-start gap-4">
             <Button variant="ghost" size="icon" asChild className="mt-1">
               <Link href="/investor/deal-rooms">
@@ -175,7 +175,7 @@ export default function DealRoomDetailPage() {
       </div>
 
       {/* Main Content */}
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full py-6">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">

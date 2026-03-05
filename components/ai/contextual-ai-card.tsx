@@ -188,6 +188,7 @@ export function ContextualAICard({
         suggestedQuestions={suggestions}
         scopedInvestorId={investorId}
         propertyId={propertyId}
+        memoId={memoId}
       />
     </>
   )
