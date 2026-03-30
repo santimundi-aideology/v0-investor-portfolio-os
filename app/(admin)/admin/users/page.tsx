@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/layout/page-header"
@@ -87,7 +87,11 @@ export default function AdminUsersPage() {
     )
   }
 
-  return <UsersInner />
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" /></div>}>
+      <UsersInner />
+    </Suspense>
+  )
 }
 
 function UsersInner() {

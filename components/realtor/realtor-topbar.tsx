@@ -142,10 +142,10 @@ export function RealtorTopbar({ onMenuClick }: RealtorTopbarProps) {
       </div>
 
       {/* Center — Search (desktop) */}
-      <div className="hidden flex-1 max-w-md px-8 md:block">
+      <div className="hidden flex-1 max-w-2xl px-6 md:block">
         <Button
           variant="outline"
-          className="text-gray-500 w-full justify-start gap-2 border-gray-200 hover:border-teal-300 hover:bg-teal-50"
+          className="text-gray-500 w-full justify-start gap-2 border-gray-200 hover:border-teal-300 hover:bg-teal-50 h-11 text-base"
           onClick={openSearch}
         >
           <Search className="size-4" />

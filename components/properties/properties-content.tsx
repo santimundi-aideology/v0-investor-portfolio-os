@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { usePathname } from "next/navigation"
 import { PageHeader } from "@/components/layout/page-header"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,12 +59,16 @@ function isNewListing(createdAt: string) {
 type ViewMode = "table" | "grid"
 
 export function PropertiesContent() {
+  const pathname = usePathname()
+  const basePath = pathname?.startsWith("/realtor") ? "/realtor" : ""
   const [searchQuery, setSearchQuery] = useState("")
   const [areaFilter, setAreaFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [listingFilter, setListingFilter] = useState<string>("all")
   const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [shareTarget, setShareTarget] = useState<Property | null>(null)
+  // Local image URL overrides so the grid reflects photo changes immediately
+  const [imageOverrides, setImageOverrides] = useState<Record<string, string>>({})
 
   // Fetch properties from database via API
   const { data: listingsData, isLoading } = useAPI<Record<string, unknown>[]>("/api/listings")
@@ -71,8 +76,12 @@ export function PropertiesContent() {
 
   const allProperties = useMemo(() => {
     if (!listingsData || !Array.isArray(listingsData)) return []
-    return listingsData.map(mapListingToProperty)
-  }, [listingsData])
+    return listingsData.map((raw) => {
+      const prop = mapListingToProperty(raw)
+      if (imageOverrides[prop.id]) return { ...prop, imageUrl: imageOverrides[prop.id] }
+      return prop
+    })
+  }, [listingsData, imageOverrides])
   const areas = [...new Set(allProperties.map((p) => p.area))]
 
   const filteredProperties = allProperties.filter((property) => {
@@ -95,6 +104,10 @@ export function PropertiesContent() {
   const handleShare = (propertyId: string) => {
     const property = allProperties.find((item) => item.id === propertyId)
     if (property) setShareTarget(property)
+  }
+
+  const handlePhotoChange = (propertyId: string, newUrl: string) => {
+    setImageOverrides((prev) => ({ ...prev, [propertyId]: newUrl }))
   }
 
   const handleShareDialogChange = (open: boolean) => {
@@ -242,6 +255,7 @@ export function PropertiesContent() {
                   }}
                   onFavoriteToggle={handleFavoriteToggle}
                   onShare={handleShare}
+                  onPhotoChange={handlePhotoChange}
                 />
               ))}
             </div>
@@ -255,7 +269,7 @@ export function PropertiesContent() {
                 icon={<Building2 className="size-5" />}
                 action={
                   <Button asChild>
-                    <Link href="/properties/new">
+                    <Link href={`${basePath}/properties/new`}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add property
                     </Link>
@@ -347,7 +361,7 @@ export function PropertiesContent() {
                           </TableCell>
                           <TableCell className="text-right">
                             <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/properties/${property.id}`}>View</Link>
+                              <Link href={`${basePath}/properties/${property.id}`}>View</Link>
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -364,7 +378,7 @@ export function PropertiesContent() {
                 icon={<Building2 className="size-5" />}
                 action={
                   <Button asChild>
-                    <Link href="/properties/new">
+                    <Link href={`${basePath}/properties/new`}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add property
                     </Link>

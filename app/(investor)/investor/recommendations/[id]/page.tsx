@@ -23,6 +23,8 @@ import { Separator } from "@/components/ui/separator"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/components/providers/app-provider"
+import { useParams } from "next/navigation"
+import { toast } from "sonner"
 
 type OpportunityDetail = {
   id: string
@@ -63,23 +65,16 @@ function formatAED(value: number) {
   return `AED ${value.toLocaleString()}`
 }
 
-export default function OpportunityDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function OpportunityDetailPage() {
   const { scopedInvestorId } = useApp()
-  const [opportunityId, setOpportunityId] = React.useState<string | null>(null)
+  const routeParams = useParams<{ id: string }>()
+  const opportunityId = routeParams?.id ?? null
   const [opportunity, setOpportunity] = React.useState<OpportunityDetail | null>(null)
   const [messages, setMessages] = React.useState<ThreadMessage[]>([])
   const [loading, setLoading] = React.useState(true)
   const [input, setInput] = React.useState("")
   const [sending, setSending] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    params.then((p) => setOpportunityId(p.id))
-  }, [params])
 
   // Fetch opportunity and messages
   React.useEffect(() => {
@@ -88,8 +83,11 @@ export default function OpportunityDetailPage({
     async function load() {
       setLoading(true)
       try {
+        const oppUrl = scopedInvestorId
+          ? `/api/investor/opportunities?investorId=${scopedInvestorId}`
+          : "/api/investor/opportunities"
         const [oppRes, msgRes] = await Promise.all([
-          fetch("/api/investor/opportunities"),
+          fetch(oppUrl),
           fetch(`/api/investor/opportunities/${opportunityId}/messages`),
         ])
 
@@ -113,7 +111,7 @@ export default function OpportunityDetailPage({
     }
 
     load()
-  }, [opportunityId])
+  }, [opportunityId, scopedInvestorId])
 
   // Auto-scroll on new messages
   React.useEffect(() => {
@@ -143,9 +141,12 @@ export default function OpportunityDetailPage({
         const { message } = await res.json()
         setMessages((prev) => [...prev, message])
         setInput("")
+      } else {
+        toast.error("Failed to send message")
       }
     } catch (err) {
       console.error("Failed to send:", err)
+      toast.error("Something went wrong")
     } finally {
       setSending(false)
     }
@@ -154,13 +155,19 @@ export default function OpportunityDetailPage({
   const handleDecision = async (decision: string) => {
     if (!opportunityId) return
     try {
-      await fetch(`/api/investor/opportunities/${opportunityId}/decision`, {
+      const decRes = await fetch(`/api/investor/opportunities/${opportunityId}/decision`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       })
-      // Refresh
-      const res = await fetch("/api/investor/opportunities")
+      if (!decRes.ok) {
+        toast.error("Failed to update decision")
+        return
+      }
+      const refreshUrl = scopedInvestorId
+        ? `/api/investor/opportunities?investorId=${scopedInvestorId}`
+        : "/api/investor/opportunities"
+      const res = await fetch(refreshUrl)
       if (res.ok) {
         const data = await res.json()
         const found = data.opportunities?.find(

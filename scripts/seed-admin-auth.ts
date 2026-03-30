@@ -30,18 +30,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   },
 })
 
-// Admin user configuration
+// Admin user configuration — override via env vars for production use
 const ADMIN_USER = {
-  email: "smundi@aideology.ai",
-  password: "Aideology123#",
-  name: "Santiago Mundi Falgueras",
-  phone: "+971526851998",
-  whatsapp: "+34628764918",
+  email: process.env.ADMIN_EMAIL || "admin@example.com",
+  password: process.env.ADMIN_PASSWORD || "ChangeMe123!",
+  name: process.env.ADMIN_NAME || "Admin User",
+  phone: process.env.ADMIN_PHONE || "",
+  whatsapp: process.env.ADMIN_WHATSAPP || "",
   role: "super_admin",
-  tenant_id: "11111111-1111-1111-1111-111111111111", // Palm & Partners Realty
+  tenant_id: process.env.ADMIN_TENANT_ID || "11111111-1111-1111-1111-111111111111",
 }
 
 async function seedAdminUser() {
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    console.warn("⚠️  ADMIN_EMAIL / ADMIN_PASSWORD not set — using insecure defaults. Set these env vars for production.")
+  }
+
   console.log("🚀 Creating admin auth user...")
   console.log(`   Email: ${ADMIN_USER.email}`)
   console.log(`   Name: ${ADMIN_USER.name}`)

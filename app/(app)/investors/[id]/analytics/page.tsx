@@ -3,7 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { use } from "react"
 import {
   ArrowLeft,
   BarChart3,
@@ -51,6 +50,7 @@ import {
   calcYieldPct,
   formatAED,
 } from "@/lib/real-estate"
+import { useParams } from "next/navigation"
 import { useAPI } from "@/lib/hooks/use-api"
 import type { Investor } from "@/lib/types"
 
@@ -191,8 +191,9 @@ function generatePropertyComparison(holdings: EnhancedHolding[]) {
   })
 }
 
-export default function InvestorAnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: investorId } = use(params)
+export default function InvestorAnalyticsPage() {
+  const routeParams = useParams<{ id: string }>()
+  const investorId = routeParams?.id ?? ""
   const [timeRange, setTimeRange] = React.useState<TimeRange>("1y")
   const [comparisonMetric, setComparisonMetric] = React.useState<"yield" | "appreciation" | "occupancy">("yield")
 

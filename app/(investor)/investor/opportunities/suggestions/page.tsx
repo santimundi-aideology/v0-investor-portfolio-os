@@ -24,6 +24,7 @@ import { toast } from "sonner"
 import { formatAED } from "@/lib/real-estate"
 import { cn } from "@/lib/utils"
 import { useAPI } from "@/lib/hooks/use-api"
+import { useApp } from "@/components/providers/app-provider"
 
 const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=600&h=400&fit=crop"
 
@@ -225,10 +226,15 @@ function OpportunityCard({
 }
 
 export default function RealtorSuggestionsPage() {
+  const { scopedInvestorId } = useApp()
+  const investorApiUrl = scopedInvestorId
+    ? `/api/investor/opportunities?investorId=${scopedInvestorId}`
+    : null
+
   const { data: apiData, isLoading, mutate } = useAPI<{
     opportunities: Opportunity[]
     counts: { recommended: number; interested: number; veryInterested: number; pipeline: number; rejected: number; total: number }
-  }>("/api/investor/opportunities")
+  }>(investorApiUrl)
 
   const opportunities = apiData?.opportunities ?? []
   const counts = apiData?.counts ?? { recommended: 0, interested: 0, veryInterested: 0, pipeline: 0, rejected: 0, total: 0 }

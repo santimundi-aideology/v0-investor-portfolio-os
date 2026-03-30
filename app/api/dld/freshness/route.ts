@@ -20,7 +20,7 @@ export async function GET() {
       .select("instance_date")
       .order("instance_date", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     
     const { count: dldCount } = await supabase
       .from("dld_transactions")
@@ -42,7 +42,7 @@ export async function GET() {
       .eq("is_active", true)
       .order("updated_at", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     
     const { count: portalCount } = await supabase
       .from("portal_listings")
@@ -55,7 +55,7 @@ export async function GET() {
       .select("created_at")
       .order("created_at", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     
     const { count: signalCount } = await supabase
       .from("market_signal")

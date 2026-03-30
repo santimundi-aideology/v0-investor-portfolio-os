@@ -26,6 +26,7 @@ import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
+import { toast } from "sonner"
 
 type OpportunityProperty = {
   title: string | null
@@ -292,12 +293,16 @@ function OpportunityCard({
 export default function InvestorRecommendationsPage() {
   const { scopedInvestorId } = useApp()
 
+  const investorApiUrl = scopedInvestorId
+    ? `/api/investor/opportunities?investorId=${scopedInvestorId}`
+    : "/api/investor/opportunities"
+
   const {
     data: apiData,
     isLoading,
     mutate,
   } = useAPI<{ opportunities: Opportunity[]; counts: OpportunityCounts }>(
-    "/api/investor/opportunities"
+    investorApiUrl
   )
 
   const opportunities = apiData?.opportunities ?? []
@@ -316,14 +321,19 @@ export default function InvestorRecommendationsPage() {
     note?: string
   ) => {
     try {
-      await fetch(`/api/investor/opportunities/${id}/decision`, {
+      const res = await fetch(`/api/investor/opportunities/${id}/decision`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision, note }),
       })
+      if (!res.ok) {
+        toast.error("Failed to update decision")
+        return
+      }
       mutate()
     } catch (err) {
       console.error("Failed to update decision:", err)
+      toast.error("Something went wrong")
     }
   }
 

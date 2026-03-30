@@ -718,7 +718,7 @@ export default function ContextActivityPage() {
               )}
             </section>
 
-            {/* 2) News: formato actual, vista de un vistazo */}
+            {/* 2) News */}
             <section className="border-t border-gray-100 pt-6 dark:border-border">
               <h2 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 News
@@ -726,60 +726,15 @@ export default function ContextActivityPage() {
               <p className="mb-4 text-xs text-muted-foreground">
                 Curated real estate headlines. Click to open the article.
               </p>
-              <ul className="space-y-4">
-                {MOCK_NEWS.map((article) => {
-                  const href = article.url ?? "#"
-                  const isClickable = !!article.url
-                  const Wrapper = isClickable ? "a" : "div"
-                  return (
-                    <li key={article.id}>
-                      <Wrapper
-                        {...(isClickable
-                          ? { href, target: "_blank", rel: "noopener noreferrer" }
-                          : {})}
-                        className={cn(
-                          "group block overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-all dark:border-border dark:bg-card",
-                          isClickable &&
-                            "cursor-pointer hover:border-primary/30 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        )}
-                      >
-                        <div className="flex flex-col sm:flex-row">
-                          <div className="relative h-40 w-full shrink-0 overflow-hidden bg-muted sm:h-28 sm:w-44">
-                            {article.imageUrl ? (
-                              <img
-                                src={article.imageUrl}
-                                alt=""
-                                className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
-                                <Newspaper className="size-10 text-muted-foreground/50" />
-                              </div>
-                            )}
-                            <div className="absolute bottom-2 left-2">
-                              <Badge variant="secondary" className="text-[10px] uppercase">
-                                {article.category}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="flex flex-1 flex-col justify-center p-4">
-                            <h3 className="font-semibold leading-snug text-foreground group-hover:text-primary">
-                              {article.title}
-                            </h3>
-                            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                              {article.excerpt}
-                            </p>
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              {article.source} · {formatTimeAgo(article.publishedAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </Wrapper>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="rounded-xl border border-dashed border-gray-200 bg-muted/30 py-8 text-center dark:border-border">
+                <Newspaper className="mx-auto size-10 text-muted-foreground" />
+                <p className="mt-2 text-sm font-medium text-muted-foreground">
+                  No activity data yet
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  News and market updates will appear here once available.
+                </p>
+              </div>
             </section>
 
             {/* 3) Dubai: información para el cliente, barrios, constructoras, mapa, búsqueda */}

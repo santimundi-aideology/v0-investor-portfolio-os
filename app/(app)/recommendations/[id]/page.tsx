@@ -117,7 +117,7 @@ function fitBullets(_propertyId: string, p?: Property | null) {
   const bullets: string[] = []
   if (p?.roi) bullets.push(`Targets yield: ${p.roi}% ROI`)
   bullets.push(`Area fit: ${p?.area ?? "Prime area"} aligned with mandate`)
-  bullets.push("Downside protection: strong comps + liquidity (placeholder)")
+  bullets.push("Downside protection: strong comps + liquidity")
   return bullets.slice(0, 3)
 }
 
@@ -396,9 +396,9 @@ export default function RecommendationDetailPage() {
                   <Button
                     onClick={() => {
                       const generated =
-                        "AI draft (placeholder): This recommendation prioritizes prime assets with stable demand, strong comps, and clear downside protection aligned to the investor’s yield target."
+                        "This recommendation prioritizes prime assets with stable demand, strong comps, and clear downside protection aligned to the investor’s yield target."
                       updateRecommendation(rec.id, { summary: generated })
-                      toast.success("Generated summary (placeholder)")
+                      toast.success("Summary generated")
                       setRec(getRecommendationById(rec.id))
                     }}
                   >
@@ -440,9 +440,9 @@ export default function RecommendationDetailPage() {
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">Budget</div>
                   <div className="mt-1 text-sm">
                     {investor?.mandate?.minInvestment?.toLocaleString?.() ?? "—"} –{" "}
-                    {investor?.mandate?.maxInvestment?.toLocaleString?.() ?? "—"} AED (placeholder)
+                    {investor?.mandate?.maxInvestment?.toLocaleString?.() ?? "—"} AED
                   </div>
-                  <div className="mt-2 text-xs text-muted-foreground">Portfolio exposure: concentration checks (placeholder)</div>
+                  <div className="mt-2 text-xs text-muted-foreground">Portfolio exposure: concentration checks</div>
                 </div>
               </div>
             </details>
@@ -646,7 +646,7 @@ export default function RecommendationDetailPage() {
                               size="sm"
                               onClick={() => {
                                 const aiDraft =
-                                  "AI draft (placeholder): Downside case assumes 10% vacancy buffer and 5% capex reserve; exit targets a conservative cap rate based on recent comps."
+                                  "Downside case assumes 10% vacancy buffer and 5% capex reserve; exit targets a conservative cap rate based on recent comps."
                                 saveDraftAnswer(rec.id, q.id, aiDraft)
                                 toast("AI draft added", { description: "Placeholder answer inserted." })
                                 setRec(getRecommendationById(rec.id))

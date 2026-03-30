@@ -334,6 +334,31 @@ function OpportunityCard({
             )}
           </div>
 
+          {/* Match reasons */}
+          {opportunity.matchReasons.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {opportunity.matchReasons.slice(0, 3).map((reason, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center rounded-full bg-green-50 border border-green-100 px-2 py-0.5 text-[10px] text-green-700"
+                >
+                  {reason}
+                </span>
+              ))}
+              {opportunity.matchReasons.length > 3 && (
+                <span className="text-[10px] text-gray-400">+{opportunity.matchReasons.length - 3} more</span>
+              )}
+            </div>
+          )}
+
+          {/* Shared message */}
+          {opportunity.sharedMessage && opportunity.sharedMessage !== "Shared from Property Intake" && (
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+              <span className="font-medium text-blue-500">Realtor note: </span>
+              {opportunity.sharedMessage}
+            </div>
+          )}
+
           {/* Investor note */}
           {opportunity.decisionNote && (
             <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs text-gray-600">
@@ -353,12 +378,16 @@ function OpportunityCard({
                 <Link
                   href={`${basePath}/memos/${opportunity.memoId}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-sky-600 hover:bg-sky-50 transition-colors"
                 >
-                  <FileText className="h-3.5 w-3.5" />
+                  <FileText className="h-3 w-3" />
+                  IC Memo
                 </Link>
               )}
-              <ArrowRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-green-500 transition-colors" />
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 group-hover:text-green-600 transition-colors">
+                View Property
+                <ArrowRight className="h-3 w-3" />
+              </span>
             </div>
           </div>
         </div>

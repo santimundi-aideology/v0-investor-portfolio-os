@@ -45,7 +45,7 @@ export async function GET(
         const { data: listing } = await supabase
           .from("listings")
           .select(
-            "title, area, type, price, size, bedrooms, developer, expected_rent, attachments"
+            "title, area, address, type, price, size, bedrooms, bathrooms, developer, expected_rent, attachments, status, currency, handover_date"
           )
           .eq("id", opp.listingId)
           .maybeSingle()
@@ -89,15 +89,19 @@ export async function GET(
             ? {
                 title: listing.title,
                 area: listing.area,
+                address: listing.address,
                 type: listing.type,
                 price: listing.price ? Number(listing.price) : null,
                 size: listing.size ? Number(listing.size) : null,
                 bedrooms: listing.bedrooms,
+                bathrooms: listing.bathrooms,
                 imageUrl,
                 developer: listing.developer,
                 expectedRent: listing.expected_rent
                   ? Number(listing.expected_rent)
                   : null,
+                status: listing.status,
+                handoverDate: listing.handover_date,
               }
             : null,
         }

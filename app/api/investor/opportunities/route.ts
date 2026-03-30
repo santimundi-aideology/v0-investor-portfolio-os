@@ -49,9 +49,18 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     const ctx = await requireAuthContext(req)
-    const investorId = ctx.investorId
-    const includeOwned =
-      new URL(req.url).searchParams.get("includeOwned") === "true"
+    const url = new URL(req.url)
+    const includeOwned = url.searchParams.get("includeOwned") === "true"
+
+    // Resolve investorId: auth context first, then query param fallback
+    // (for realtor/super_admin previewing investor portal via scopedInvestorId)
+    let investorId = ctx.investorId
+    if (!investorId) {
+      const paramId = url.searchParams.get("investorId")
+      if (paramId && ["agent", "manager", "super_admin", "owner", "admin", "realtor"].includes(ctx.role)) {
+        investorId = paramId
+      }
+    }
 
     if (!investorId) {
       return NextResponse.json(

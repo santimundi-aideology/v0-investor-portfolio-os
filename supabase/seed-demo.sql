@@ -11,8 +11,8 @@ BEGIN;
 
 -- Clean up any existing demo data first
 DELETE FROM public.deal_rooms WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
-DELETE FROM public.market_signal_target WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
-DELETE FROM public.market_signal WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
+DELETE FROM public.market_signal_target WHERE org_id = 'demo-0000-0000-0000-000000000001'::uuid;
+DELETE FROM public.market_signal WHERE org_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.decisions WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.messages WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.memo_versions WHERE memo_id IN (SELECT id FROM public.memos WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid);
@@ -28,7 +28,7 @@ DELETE FROM public.mandates WHERE tenant_id = 'demo-0000-0000-0000-000000000001'
 DELETE FROM public.listings WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.investors WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.audit_events WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
-DELETE FROM public.notifications WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
+DELETE FROM public.notifications WHERE org_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.users WHERE tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
 DELETE FROM public.tenants WHERE id = 'demo-0000-0000-0000-000000000001'::uuid;
 
@@ -538,173 +538,175 @@ VALUES
 -- MARKET SIGNALS (10+ for portfolio areas)
 -- =============================
 INSERT INTO public.market_signal
-  (id, tenant_id, signal_type, area, headline, summary, severity, observed_at, created_at)
+  (id, org_id, source_type, source, type, severity, geo_type, geo_id, geo_name, segment, metric, timeframe, current_value, delta_pct, signal_key, created_at)
 VALUES
   (
     'demo-sig-0000-0000-000000000001',
     'demo-0000-0000-0000-000000000001',
-    'price_movement',
-    'Dubai Marina',
-    'Dubai Marina prices up 8.2% YoY',
-    'Average transaction prices in Dubai Marina increased 8.2% year-over-year, driven by waterfront property demand.',
-    'medium',
-    now() - interval '1 day',
+    'official', 'DLD',
+    'price_movement', 'watch',
+    'community', 'dubai-marina', 'Dubai Marina',
+    'residential', 'median_price_psf', 'YoY',
+    1850, 8.2,
+    'demo-sig-marina-price-yoy',
     now() - interval '1 day'
   ),
   (
     'demo-sig-0000-0000-000000000002',
     'demo-0000-0000-0000-000000000001',
-    'new_supply',
-    'Downtown Dubai',
-    '3 new towers launching in Downtown',
-    'Emaar announces 3 new residential towers with completion in 2027. May impact short-term rental yields.',
-    'low',
-    now() - interval '2 days',
+    'portal', 'Bayut',
+    'new_supply', 'info',
+    'community', 'downtown-dubai', 'Downtown Dubai',
+    'residential', 'new_supply_units', 'QoQ',
+    3, null,
+    'demo-sig-downtown-supply',
     now() - interval '2 days'
   ),
   (
     'demo-sig-0000-0000-000000000003',
     'demo-0000-0000-0000-000000000001',
-    'price_movement',
-    'Palm Jumeirah',
-    'Record villa sale at AED 500M',
-    'New record set for Palm Jumeirah villa sale, signaling continued ultra-prime demand.',
-    'high',
-    now() - interval '3 days',
+    'official', 'DLD',
+    'price_movement', 'urgent',
+    'community', 'palm-jumeirah', 'Palm Jumeirah',
+    'residential', 'max_sale_price', 'QoQ',
+    500000000, null,
+    'demo-sig-palm-record-sale',
     now() - interval '3 days'
   ),
   (
     'demo-sig-0000-0000-000000000004',
     'demo-0000-0000-0000-000000000001',
-    'rental_change',
-    'Business Bay',
-    'Office rents up 12% in Business Bay',
-    'Strong corporate demand drives office rental growth. Vacancy rates at 5-year low.',
-    'high',
-    now() - interval '4 days',
+    'official', 'Ejari',
+    'rental_change', 'urgent',
+    'community', 'business-bay', 'Business Bay',
+    'commercial', 'median_rent_annual', 'YoY',
+    194400, 12.0,
+    'demo-sig-biz-bay-office-rent',
     now() - interval '4 days'
   ),
   (
     'demo-sig-0000-0000-000000000005',
     'demo-0000-0000-0000-000000000001',
-    'infrastructure',
-    'JVC',
-    'New metro extension announced for JVC',
-    'RTA confirms metro extension to JVC with completion by 2028. Expected to boost property values 15-20%.',
-    'high',
-    now() - interval '5 days',
+    'official', 'RTA',
+    'infrastructure', 'urgent',
+    'community', 'jvc', 'JVC',
+    'residential', 'transit_proximity', 'YoY',
+    1, null,
+    'demo-sig-jvc-metro',
     now() - interval '5 days'
   ),
   (
     'demo-sig-0000-0000-000000000006',
     'demo-0000-0000-0000-000000000001',
-    'development',
-    'Dubai Creek Harbour',
-    'Dubai Creek Tower on track for 2027',
-    'Emaar confirms Dubai Creek Tower construction progressing on schedule for 2027 completion.',
-    'low',
-    now() - interval '6 days',
+    'official', 'Emaar',
+    'development', 'info',
+    'community', 'dubai-creek-harbour', 'Dubai Creek Harbour',
+    'residential', 'construction_progress', 'QoQ',
+    75, null,
+    'demo-sig-creek-tower-progress',
     now() - interval '6 days'
   ),
   (
     'demo-sig-0000-0000-000000000007',
     'demo-0000-0000-0000-000000000001',
-    'demand_change',
-    'Bluewaters Island',
-    'Ain Dubai visitors up 40%',
-    'Tourist footfall to Bluewaters Island up 40% following new attractions. Strong impact on short-term rentals.',
-    'high',
-    now() - interval '7 days',
+    'portal', 'DTCM',
+    'demand_change', 'urgent',
+    'community', 'bluewaters-island', 'Bluewaters Island',
+    'residential', 'visitor_footfall', 'YoY',
+    140, 40.0,
+    'demo-sig-bluewaters-tourism',
     now() - interval '7 days'
   ),
   (
     'demo-sig-0000-0000-000000000008',
     'demo-0000-0000-0000-000000000001',
-    'regulatory',
-    'Dubai Marina',
-    'New short-term rental regulations',
-    'DTCM introduces updated holiday home regulations. May affect rental pool operators.',
-    'medium',
-    now() - interval '8 days',
+    'official', 'DTCM',
+    'regulatory', 'watch',
+    'community', 'dubai-marina', 'Dubai Marina',
+    'residential', 'regulatory_change', 'QoQ',
+    1, null,
+    'demo-sig-marina-str-regulation',
     now() - interval '8 days'
   ),
   (
     'demo-sig-0000-0000-000000000009',
     'demo-0000-0000-0000-000000000001',
-    'price_movement',
-    'Downtown Dubai',
-    'Boulevard units premium at 15%',
-    'Boulevard-facing units command 15% premium over comparable non-boulevard properties.',
-    'medium',
-    now() - interval '9 days',
+    'official', 'DLD',
+    'price_movement', 'watch',
+    'community', 'downtown-dubai', 'Downtown Dubai',
+    'residential', 'price_premium_pct', 'QoQ',
+    15, null,
+    'demo-sig-downtown-boulevard-premium',
     now() - interval '9 days'
   ),
   (
     'demo-sig-0000-0000-000000000010',
     'demo-0000-0000-0000-000000000001',
-    'rental_change',
-    'Palm Jumeirah',
-    'Villa rents reach new high',
-    'Average Palm Jumeirah villa rents now at AED 1.2M annually, up 18% from 2024.',
-    'high',
-    now() - interval '10 days',
+    'official', 'Ejari',
+    'rental_change', 'urgent',
+    'community', 'palm-jumeirah', 'Palm Jumeirah',
+    'residential', 'median_rent_annual', 'YoY',
+    1200000, 18.0,
+    'demo-sig-palm-villa-rent',
     now() - interval '10 days'
   ),
   (
     'demo-sig-0000-0000-000000000011',
     'demo-0000-0000-0000-000000000001',
-    'demand_change',
-    'Dubai Marina',
-    'European buyer enquiries surge 45%',
-    'European buyer interest in Dubai Marina up 45% YoY, driven by tax advantages and lifestyle.',
-    'high',
-    now() - interval '11 days',
+    'portal', 'Bayut',
+    'demand_change', 'urgent',
+    'community', 'dubai-marina', 'Dubai Marina',
+    'residential', 'buyer_enquiries', 'YoY',
+    145, 45.0,
+    'demo-sig-marina-eu-demand',
     now() - interval '11 days'
   ),
   (
     'demo-sig-0000-0000-000000000012',
     'demo-0000-0000-0000-000000000001',
-    'new_supply',
-    'Business Bay',
-    'Limited new office supply through 2026',
-    'Only 3 new Grade A office projects scheduled for Business Bay through 2026, supporting rental growth.',
-    'medium',
-    now() - interval '12 days',
+    'portal', 'PropertyFinder',
+    'new_supply', 'watch',
+    'community', 'business-bay', 'Business Bay',
+    'commercial', 'pipeline_supply', 'YoY',
+    3, null,
+    'demo-sig-biz-bay-office-supply',
     now() - interval '12 days'
   );
 
 -- Map signals to relevant investors
-INSERT INTO public.market_signal_target (signal_id, investor_id, relevance_score, relevance_reason)
+INSERT INTO public.market_signal_target (org_id, signal_id, investor_id, relevance_score, reason)
 SELECT 
+  s.org_id,
   s.id,
   'demo-inv-0000-0000-000000000001'::uuid,
   CASE 
-    WHEN s.area IN ('Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Business Bay') THEN 0.9
+    WHEN s.geo_name IN ('Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Business Bay') THEN 0.9
     ELSE 0.5
   END,
   CASE 
-    WHEN s.area IN ('Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Business Bay') 
-    THEN 'Matches preferred areas in investment mandate'
-    ELSE 'General market awareness'
+    WHEN s.geo_name IN ('Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Business Bay') 
+    THEN '{"text": "Matches preferred areas in investment mandate"}'::jsonb
+    ELSE '{"text": "General market awareness"}'::jsonb
   END
 FROM public.market_signal s
-WHERE s.tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
+WHERE s.org_id = 'demo-0000-0000-0000-000000000001'::uuid;
 
-INSERT INTO public.market_signal_target (signal_id, investor_id, relevance_score, relevance_reason)
+INSERT INTO public.market_signal_target (org_id, signal_id, investor_id, relevance_score, reason)
 SELECT 
+  s.org_id,
   s.id,
   'demo-inv-0000-0000-000000000002'::uuid,
   CASE 
-    WHEN s.area IN ('JVC', 'Dubai Creek Harbour') THEN 0.95
+    WHEN s.geo_name IN ('JVC', 'Dubai Creek Harbour') THEN 0.95
     ELSE 0.4
   END,
   CASE 
-    WHEN s.area IN ('JVC', 'Dubai Creek Harbour') 
-    THEN 'Matches value-add focus areas'
-    ELSE 'General market awareness'
+    WHEN s.geo_name IN ('JVC', 'Dubai Creek Harbour') 
+    THEN '{"text": "Matches value-add focus areas"}'::jsonb
+    ELSE '{"text": "General market awareness"}'::jsonb
   END
 FROM public.market_signal s
-WHERE s.tenant_id = 'demo-0000-0000-0000-000000000001'::uuid;
+WHERE s.org_id = 'demo-0000-0000-0000-000000000001'::uuid;
 
 -- =============================
 -- DEAL ROOMS (Pipeline)
@@ -810,4 +812,4 @@ SELECT
   (SELECT COUNT(*) FROM holdings WHERE tenant_id = 'demo-0000-0000-0000-000000000001') as holdings,
   (SELECT COUNT(*) FROM memos WHERE tenant_id = 'demo-0000-0000-0000-000000000001') as memos,
   (SELECT COUNT(*) FROM tasks WHERE tenant_id = 'demo-0000-0000-0000-000000000001') as tasks,
-  (SELECT COUNT(*) FROM market_signal WHERE tenant_id = 'demo-0000-0000-0000-000000000001') as signals;
+  (SELECT COUNT(*) FROM market_signal WHERE org_id = 'demo-0000-0000-0000-000000000001') as signals;

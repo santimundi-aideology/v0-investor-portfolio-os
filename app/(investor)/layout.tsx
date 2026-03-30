@@ -35,18 +35,14 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
   // Count unread notifications for the badge
   const unreadCount = ([] as { unread?: boolean }[]).filter((n) => n.unread).length
 
-  // Determine if this is a super_admin previewing the investor portal (not in demo mode)
-  const isSuperAdmin = platformRole === "super_admin" && !demoModeActive
+  // Internal role previewing the investor portal (agent/manager/super_admin, not in demo mode)
+  const isInternalPreview = platformRole !== "investor" && !demoModeActive
 
-  // For super_admins (not in demo), find the selected investor from the available list
-  const selectedInvestor = isSuperAdmin && scopedInvestorId
+  // For internal roles (not in demo), find the selected investor from the available list
+  const selectedInvestor = isInternalPreview && scopedInvestorId
     ? availableInvestors.find((inv) => inv.id === scopedInvestorId)
     : undefined
 
-  // Get investor display info:
-  // - Demo mode: persona controls everything (user.name comes from persona)
-  // - Super admin preview: show selected investor's name
-  // - Real investor: show auth user's name
   const investorName = demoModeActive
     ? user?.name ?? "Investor"
     : selectedInvestor?.name ?? user?.name ?? "Investor"
@@ -74,7 +70,7 @@ function InvestorLayoutContent({ children }: { children: React.ReactNode }) {
               investorName={investorName}
               companyName={companyName}
               investorAvatar={investorAvatar}
-              isSuperAdmin={isSuperAdmin}
+              isSuperAdmin={isInternalPreview}
               availableInvestors={availableInvestors}
               selectedInvestorId={scopedInvestorId}
               onInvestorChange={setScopedInvestorId}

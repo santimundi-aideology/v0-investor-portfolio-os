@@ -10,7 +10,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     assertTenantScope(ctx.tenantId!, ctx)
     const listing = await getListingById((await params).id)
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    if (ctx.role === "investor") throw new AccessError("Investors cannot access listings directly")
     return NextResponse.json(listing)
   } catch (err) {
     return handleError(err)

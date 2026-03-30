@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRef, useState } from "react"
+import { useRef, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/layout/page-header"
@@ -30,7 +30,9 @@ export default function SettingsPage() {
   return (
     <>
       <RoleRedirect allow={["owner", "admin", "realtor"]} redirectTo="/real-estate" />
-      <SettingsPageInner />
+      <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" /></div>}>
+        <SettingsPageInner />
+      </Suspense>
     </>
   )
 }

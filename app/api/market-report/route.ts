@@ -13,6 +13,11 @@ export async function GET(req: Request) {
     if (!area) {
       return NextResponse.json({ error: "area parameter is required" }, { status: 400 })
     }
+
+    const AREA_NAME_RE = /^[a-zA-Z0-9 \-\.]+$/
+    if (!AREA_NAME_RE.test(area) || area.length > 100) {
+      return NextResponse.json({ error: "Invalid area parameter" }, { status: 400 })
+    }
     
     const supabase = getSupabaseAdminClient()
     

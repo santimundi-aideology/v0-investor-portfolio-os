@@ -35,6 +35,7 @@ import { formatAED } from "@/lib/real-estate"
 import { cn } from "@/lib/utils"
 import { useAPI } from "@/lib/hooks/use-api"
 import { useApp } from "@/components/providers/app-provider"
+import { toast } from "sonner"
 import {
   OpportunitiesFavouritesSection,
   getStoredLinkFavourites,
@@ -248,12 +249,16 @@ export default function InvestorOpportunitiesPage() {
     setLinkFavourites(getStoredLinkFavourites(scopedInvestorId ?? null))
   }, [scopedInvestorId])
 
+  const investorApiUrl = scopedInvestorId
+    ? `/api/investor/opportunities?investorId=${scopedInvestorId}`
+    : null
+
   const {
     data: apiData,
     isLoading,
     mutate,
   } = useAPI<{ opportunities: Opportunity[]; counts: OpportunityCounts }>(
-    "/api/investor/opportunities"
+    investorApiUrl
   )
 
   const opportunities = apiData?.opportunities ?? []
@@ -278,12 +283,17 @@ export default function InvestorOpportunitiesPage() {
           note,
         }),
       })
-      if (res.ok && (decision === "interested" || decision === "very_interested")) {
+      if (!res.ok) {
+        toast.error("Failed to update decision")
+        return
+      }
+      if (decision === "interested" || decision === "very_interested") {
         setActiveTab("interested")
       }
       mutate()
     } catch (err) {
       console.error("Failed to update decision:", err)
+      toast.error("Something went wrong")
     }
   }
 
@@ -332,14 +342,19 @@ export default function InvestorOpportunitiesPage() {
 
   const handleDecisionFav = async (id: string, decision: string) => {
     try {
-      await fetch(`/api/investor/opportunities/${id}/decision`, {
+      const res = await fetch(`/api/investor/opportunities/${id}/decision`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision: decision === "pass" ? "not_interested" : decision }),
       })
+      if (!res.ok) {
+        toast.error("Failed to update decision")
+        return
+      }
       mutate()
     } catch (err) {
       console.error("Failed to update decision:", err)
+      toast.error("Something went wrong")
     }
   }
 

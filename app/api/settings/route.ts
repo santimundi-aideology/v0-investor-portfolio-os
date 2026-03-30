@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 import { getSupabaseAdminClient } from "@/lib/db/client"
 import { requireAuthContext } from "@/lib/auth/server"
 import { AccessError } from "@/lib/security/rbac"
@@ -207,21 +208,33 @@ export async function POST(req: Request) {
     const body = await req.json()
     const validated = passwordChangeSchema.parse(body)
 
-    // Get auth user ID
     const supabase = getSupabaseAdminClient()
     const { data: user } = await supabase
       .from("users")
-      .select("auth_user_id")
+      .select("auth_user_id, email")
       .eq("id", ctx.userId)
       .single()
 
-    if (!user?.auth_user_id) {
+    if (!user?.auth_user_id || !user.email) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Use Supabase Auth API to update password
-    // Note: This requires the service role key to update another user's password
-    // In production, you'd want to verify current password first via auth API
+    // Verify the caller knows their current password before allowing a change
+    const verifyClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+    const { error: signInError } = await verifyClient.auth.signInWithPassword({
+      email: user.email,
+      password: validated.currentPassword,
+    })
+    if (signInError) {
+      return NextResponse.json(
+        { error: "Current password is incorrect" },
+        { status: 400 },
+      )
+    }
+
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       user.auth_user_id,
       { password: validated.newPassword }

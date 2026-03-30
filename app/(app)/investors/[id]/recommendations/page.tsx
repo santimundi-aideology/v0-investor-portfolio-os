@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useParams } from "next/navigation"
 import { PageHeader } from "@/components/layout/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,22 +9,9 @@ import { ArrowLeft, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { RoleRedirect } from "@/components/security/role-redirect"
 
-export default function RecommendationsPage({ params }: { params: Promise<{ id: string }> }) {
-  const [investorId, setInvestorId] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    params.then((p) => {
-      setInvestorId(p.id)
-    })
-  }, [params])
-
-  if (!investorId) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
-  }
+export default function RecommendationsPage() {
+  const params = useParams<{ id: string }>()
+  const investorId = params?.id ?? ""
 
   return (
     <>

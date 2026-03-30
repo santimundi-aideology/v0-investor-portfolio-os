@@ -37,10 +37,16 @@ interface InvestorMatch {
   mismatches: string[]
 }
 
+export interface InvestorMatchData {
+  investorId: string
+  matchScore: number
+  matchReasons: string[]
+}
+
 interface InvestorMatchingPanelProps {
   property: PropertyData
   investors: Investor[]
-  onShare?: (investorIds: string[]) => void
+  onShare?: (matches: InvestorMatchData[]) => void
   isSharing?: boolean
 }
 
@@ -233,7 +239,15 @@ export function InvestorMatchingPanel({
 
   const handleShare = () => {
     if (onShare && selectedInvestors.size > 0) {
-      onShare(Array.from(selectedInvestors))
+      const matchData: InvestorMatchData[] = Array.from(selectedInvestors).map((id) => {
+        const match = matches.find((m) => m.investor.id === id)
+        return {
+          investorId: id,
+          matchScore: match?.matchScore ?? 0,
+          matchReasons: match?.matchReasons ?? [],
+        }
+      })
+      onShare(matchData)
     }
   }
 
@@ -401,7 +415,7 @@ export function InvestorMatchingPanel({
             <>
               <Send className="mr-2 h-4 w-4" />
               <span className="truncate">
-                Share IC Memo with {selectedInvestors.size || "Selected"} Investor{selectedInvestors.size !== 1 ? "s" : ""}
+                Share Property with {selectedInvestors.size || "Selected"} Investor{selectedInvestors.size !== 1 ? "s" : ""}
               </span>
             </>
           )}

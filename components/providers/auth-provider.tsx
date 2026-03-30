@@ -114,43 +114,46 @@ export function AuthProvider({
           isAuthenticated: false,
         })
       }
+    }).catch((err) => {
+      console.error("Failed to get session:", err)
+      setState(prev => ({ ...prev, isLoading: false }))
     })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
-          const profile = await fetchUserProfile(session.user.id)
-          setState({
-            user: profile,
-            isLoading: false,
-            isAuthenticated: !!profile,
-          })
-        } else if (event === "SIGNED_OUT") {
-          setState({
-            user: null,
-            isLoading: false,
-            isAuthenticated: false,
-          })
-          // Note: redirect is handled by the signOut() function itself.
-          // Only redirect here if signOut was triggered externally (e.g. another tab).
-          // Use a short delay to avoid race with the signOut() redirect.
-          setTimeout(() => {
-            if (!publicRoutes.some(route => window.location.pathname.startsWith(route))) {
-              window.location.href = "/login"
-            }
-          }, 100)
-        } else if (event === "TOKEN_REFRESHED") {
-          // Refresh user data on token refresh
-          if (session?.user) {
+        try {
+          if (event === "SIGNED_IN" && session?.user) {
             const profile = await fetchUserProfile(session.user.id)
-            if (profile) {
-              setState(prev => ({
-                ...prev,
-                user: profile,
-              }))
+            setState({
+              user: profile,
+              isLoading: false,
+              isAuthenticated: !!profile,
+            })
+          } else if (event === "SIGNED_OUT") {
+            setState({
+              user: null,
+              isLoading: false,
+              isAuthenticated: false,
+            })
+            setTimeout(() => {
+              if (!publicRoutes.some(route => window.location.pathname.startsWith(route))) {
+                window.location.href = "/login"
+              }
+            }, 100)
+          } else if (event === "TOKEN_REFRESHED") {
+            if (session?.user) {
+              const profile = await fetchUserProfile(session.user.id)
+              if (profile) {
+                setState(prev => ({
+                  ...prev,
+                  user: profile,
+                }))
+              }
             }
           }
+        } catch (err) {
+          console.error("Auth state change error:", err)
         }
       }
     )
@@ -158,7 +161,8 @@ export function AuthProvider({
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, fetchUserProfile, pathname, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, fetchUserProfile])
 
   const signOut = React.useCallback(async () => {
     // Navigate to server-side signout route which properly clears auth cookies

@@ -23,10 +23,9 @@ const publicRoutes = [
   "/auth/signout",
   "/api/health",
   "/api/bayut",
-  "/api/dld",
-  "/api/property-intake",
+  "/api/dld/freshness",
+  "/api/property-intake/evaluate",
   "/api/jobs",
-  "/api/notifications",
 ]
 
 // Routes that require specific roles
@@ -79,12 +78,9 @@ const featureApiRouteMap: Record<string, string> = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip middleware for static files and API routes (except protected ones)
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes(".")
-  ) {
+  // Skip middleware for actual static assets only (not arbitrary dot-containing paths)
+  const staticExtensions = /\.(ico|png|jpg|jpeg|gif|svg|webp|css|js|woff|woff2|ttf|eot|map)$/i
+  if (pathname.startsWith("/_next") || pathname === "/favicon.ico" || staticExtensions.test(pathname)) {
     return NextResponse.next()
   }
 
@@ -237,7 +233,6 @@ export async function middleware(request: NextRequest) {
 
     // Add user context headers for API routes
     if (pathname.startsWith("/api/")) {
-      // Clone request headers and add context
       const requestHeaders = new Headers(request.headers)
       requestHeaders.set("x-user-id", userId)
       requestHeaders.set("x-role", userRole)
@@ -246,12 +241,17 @@ export async function middleware(request: NextRequest) {
         requestHeaders.set("x-investor-id", investorId)
       }
       
-      // Create new response with modified request headers
+      // Preserve any auth-refresh cookies that were set earlier by Supabase,
+      // then replace the response with one that carries the updated request headers.
+      const existingCookies = response.headers.getSetCookie()
       response = NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       })
+      for (const cookie of existingCookies) {
+        response.headers.append("Set-Cookie", cookie)
+      }
     }
   }
 

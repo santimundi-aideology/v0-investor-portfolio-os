@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { toast } from "sonner"
-import { ArrowDown, ArrowUp, Bath, BedDouble, Heart, MapPin, Minus, Ruler, Share2, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowDown, ArrowUp, Bath, BedDouble, Camera, Check, Heart, Loader2, MapPin, Minus, Ruler, Share2, Sparkles, TrendingDown, TrendingUp, X } from "lucide-react"
 
 import type { Property, PriceContrast } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +64,7 @@ interface PropertyCardProps {
   }
   onFavoriteToggle?: (propertyId: string) => void
   onShare?: (propertyId: string) => void
+  onPhotoChange?: (propertyId: string, newUrl: string) => void
 }
 
 const readinessLabels: Record<Property["readinessStatus"], string> = {
@@ -79,9 +81,19 @@ export function PropertyCard({
   agent,
   onFavoriteToggle,
   onShare,
+  onPhotoChange,
 }: PropertyCardProps) {
+  const pathname = usePathname()
+  const basePath = pathname?.startsWith("/realtor") ? "/realtor" : ""
+  const isRealtorContext = basePath === "/realtor"
   const [favorited, setFavorited] = useState(isFavorited)
   const [imageSrc, setImageSrc] = useState<string>(property.imageUrl || "/placeholder.svg")
+
+  // Photo editing state
+  const [photoEditOpen, setPhotoEditOpen] = useState(false)
+  const [photoUrl, setPhotoUrl] = useState("")
+  const [photoSaving, setPhotoSaving] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setFavorited(isFavorited)
@@ -126,8 +138,54 @@ export function PropertyCard({
     toast.success("Share link copied", { description: property.title })
   }
 
+  const handleOpenPhotoEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setPhotoUrl(imageSrc === "/placeholder.svg" ? "" : imageSrc)
+    setPhotoEditOpen(true)
+    setTimeout(() => photoInputRef.current?.focus(), 50)
+  }
+
+  const handleCancelPhotoEdit = (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setPhotoEditOpen(false)
+    setPhotoUrl("")
+  }
+
+  const handleSavePhoto = async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const trimmed = photoUrl.trim()
+    if (!trimmed) return
+
+    setPhotoSaving(true)
+    try {
+      const res = await fetch(`/api/listings/${property.id}/image`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: trimmed }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Failed to update image")
+      }
+      setImageSrc(trimmed)
+      onPhotoChange?.(property.id, trimmed)
+      toast.success("Photo updated", { description: property.title })
+      setPhotoEditOpen(false)
+      setPhotoUrl("")
+    } catch (err) {
+      toast.error("Could not update photo", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      })
+    } finally {
+      setPhotoSaving(false)
+    }
+  }
+
   return (
-    <Link href={`/properties/${property.id}`} className="block h-full">
+    <Link href={`${basePath}/properties/${property.id}`} className="block h-full">
       <div className={cn("property-card group", featured && "ring-2 ring-green-500/30")}>
         <div className="property-card__image-container">
           <Image
@@ -162,6 +220,59 @@ export function PropertyCard({
               <Share2 className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Change photo button — realtor context only */}
+          {isRealtorContext && !photoEditOpen && (
+            <button
+              type="button"
+              aria-label="Change photo"
+              onClick={handleOpenPhotoEdit}
+              className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 hover:bg-black/80"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Change photo
+            </button>
+          )}
+
+          {/* Inline URL editor */}
+          {isRealtorContext && photoEditOpen && (
+            <div
+              className="absolute inset-x-3 bottom-3 z-20 flex items-center gap-1.5 rounded-xl bg-black/80 px-3 py-2 backdrop-blur-sm"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+            >
+              <Camera className="h-4 w-4 shrink-0 text-white/70" />
+              <input
+                ref={photoInputRef}
+                type="url"
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                placeholder="Paste image URL…"
+                className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-white/50 focus:outline-none"
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === "Enter") handleSavePhoto(e as unknown as React.MouseEvent)
+                  if (e.key === "Escape") handleCancelPhotoEdit(e as unknown as React.MouseEvent)
+                }}
+              />
+              <button
+                type="button"
+                disabled={!photoUrl.trim() || photoSaving}
+                onClick={handleSavePhoto}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-teal-500 text-white disabled:opacity-50 hover:bg-teal-400 transition-colors"
+                aria-label="Save photo"
+              >
+                {photoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelPhotoEdit}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/20 text-white hover:bg-white/30 transition-colors"
+                aria-label="Cancel"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="property-card__content">

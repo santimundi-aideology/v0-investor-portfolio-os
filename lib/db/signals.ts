@@ -133,51 +133,17 @@ export async function upsertSignalTargets(rows: SignalTargetUpsertRow[]) {
 }
 
 /**
- * Adapter: fetch investors and their mandates.
- *
- * We try a few likely schemas:
- * - `investor` + `investor_mandate`
- * - `investor` with `mandate` jsonb
- * - `investors` with `mandate` jsonb (legacy in this repo)
+ * Adapter: fetch investors and their mandates from the `investors` table.
+ * Uses `tenant_id` as the org scope (tenant_id == org_id in signal context).
  */
 export async function getInvestorsWithMandates(orgId: string): Promise<InvestorWithMandate[]> {
   const supabase = getSupabaseAdminClient()
 
-  // 1) Try `investor` table with `investor_mandate` relationship
   try {
     const { data, error } = await supabase
-      .from("investor")
-      .select("id, org_id, name, investor_mandate:investor_mandate(mandate)")
-      .eq("org_id", orgId)
-    if (error) throw error
-    const mapped = (data ?? []).map((row: Record<string, unknown>) => ({
-      id: row.id,
-      org_id: row.org_id,
-      name: row.name ?? null,
-      mandate: (row.investor_mandate?.[0]?.mandate ?? {}) as InvestorWithMandate["mandate"],
-    }))
-    return mapped
-  } catch {
-    // fall through
-  }
-
-  // 2) Try `investor` table with `mandate` column
-  try {
-    const { data, error } = await supabase.from("investor").select("id, org_id, name, mandate").eq("org_id", orgId)
-    if (error) throw error
-    return (data ?? []).map((row: Record<string, unknown>) => ({
-      id: row.id,
-      org_id: row.org_id,
-      name: row.name ?? null,
-      mandate: (row.mandate ?? {}) as InvestorWithMandate["mandate"],
-    }))
-  } catch {
-    // fall through
-  }
-
-  // 3) Try repo's existing `investors` table keyed by tenant_id (treat tenant_id == org_id)
-  try {
-    const { data, error } = await supabase.from("investors").select("id, tenant_id, name, mandate").eq("tenant_id", orgId)
+      .from("investors")
+      .select("id, tenant_id, name, mandate")
+      .eq("tenant_id", orgId)
     if (error) throw error
     return (data ?? []).map((row: Record<string, unknown>) => ({
       id: row.id,

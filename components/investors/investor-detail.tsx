@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 import { useBreadcrumbs } from "@/components/providers/app-provider"
 import { ContextPanel } from "@/components/layout/context-panel"
@@ -44,6 +44,7 @@ import { PaymentsTab } from "@/components/investors/tabs/payments-tab"
 import { InvestorRecommendedProperties } from "@/components/investors/investor-recommended-properties"
 import { PropertyShareDialog } from "@/components/properties/property-share-dialog"
 import { ContextualAICard } from "@/components/ai/contextual-ai-card"
+import { useAPI } from "@/lib/hooks/use-api"
 
 export function InvestorDetail({
   investor,
@@ -59,9 +60,22 @@ export function InvestorDetail({
   dealRooms: DealRoom[]
 }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const basePath = pathname?.startsWith("/realtor") ? "/realtor" : ""
 
   const [shareConfig, setShareConfig] = React.useState<{ property: Property; investorIds?: string[] } | null>(null)
+
+  const { data: oppData } = useAPI<{ opportunities: Array<{ id: string }>; counts: { total: number } }>(
+    investor.id ? `/api/investors/${investor.id}/opportunities` : null
+  )
+  const opportunityCount = oppData?.counts?.total ?? 0
+
+  const tabParam = searchParams?.get("tab")
+  const defaultTab = tabParam === "opportunities"
+    ? "opportunities"
+    : opportunityCount > 0
+      ? "opportunities"
+      : "mandate"
 
   const openShareDialog = React.useCallback(
     (property: Property, investorId?: string) => {
@@ -251,10 +265,17 @@ export function InvestorDetail({
           {/* ── Main grid ── */}
           <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
             <div className="space-y-6 min-w-0">
-              <Tabs defaultValue="mandate" className="space-y-4">
+              <Tabs defaultValue={defaultTab} key={defaultTab} className="space-y-4">
                 <TabsList className="border border-gray-100 bg-gray-50/80 h-10">
                   <TabsTrigger value="mandate">Mandate</TabsTrigger>
-                  <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+                  <TabsTrigger value="opportunities" className="gap-1.5">
+                    Opportunities
+                    {opportunityCount > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold text-white">
+                        {opportunityCount}
+                      </span>
+                    )}
+                  </TabsTrigger>
                   <TabsTrigger value="dealRooms">Deal Rooms ({dealRooms.filter((d) => d.status !== "completed").length})</TabsTrigger>
                   <TabsTrigger value="properties">Properties ({shortlist.length})</TabsTrigger>
                   <TabsTrigger value="payments">Payments</TabsTrigger>

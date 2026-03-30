@@ -20,24 +20,27 @@ export async function GET(req: Request) {
     const now = new Date()
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
 
-    // Tasks are always personal (assigned to me). Pipeline and investors are
-    // tenant-wide so every realtor sees the full team dashboard.
+    // Agents see only their own investors, deals, and tasks.
+    // Managers / super_admins see the full tenant-wide dashboard.
+    // Properties and activity feed are always tenant-wide (shared inventory).
     const isAgent = ctx.role === "agent"
 
     // Build scoped queries
-    // Active investors: tenant-wide count (pipeline overview)
+    // Active investors: agent-scoped for agents, tenant-wide for managers
     const activeInvestorQuery = supabase
       .from("investors")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", ctx.tenantId)
       .eq("status", "active")
+    if (isAgent) activeInvestorQuery.eq("assigned_agent_id", ctx.userId)
 
-    // Pipeline value: always tenant-wide
+    // Pipeline value: agent-scoped for agents, tenant-wide for managers
     const pipelineValueQuery = supabase
       .from("deal_rooms")
       .select("ticket_size_aed")
       .eq("tenant_id", ctx.tenantId)
       .neq("status", "completed")
+    if (isAgent) pipelineValueQuery.eq("assigned_agent_id", ctx.userId)
 
     // Tasks due soon: personal (assigned to me)
     const tasksDueSoonQuery = supabase
@@ -47,15 +50,16 @@ export async function GET(req: Request) {
       .neq("status", "done")
       .lte("due_date", threeDaysFromNow.toISOString())
       .gte("due_date", now.toISOString())
-    if (isAgent) tasksDueSoonQuery.eq("assigned_user_id", ctx.userId)
+    if (isAgent) tasksDueSoonQuery.eq("assignee_id", ctx.userId)
 
-    // Pipeline deals: always tenant-wide so the board shows all active deals
+    // Pipeline deals: agent-scoped for agents, tenant-wide for managers
     const pipelineDealsQuery = supabase
       .from("deal_rooms")
       .select("id, status, ticket_size_aed, property_title, investor_name, next_step, probability")
       .eq("tenant_id", ctx.tenantId)
       .neq("status", "completed")
       .limit(200)
+    if (isAgent) pipelineDealsQuery.eq("assigned_agent_id", ctx.userId)
 
     // My tasks: personal
     const tasksQuery = supabase
@@ -65,9 +69,9 @@ export async function GET(req: Request) {
       .neq("status", "done")
       .order("due_date", { ascending: true, nullsFirst: false })
       .limit(20)
-    if (isAgent) tasksQuery.eq("assigned_user_id", ctx.userId)
+    if (isAgent) tasksQuery.eq("assignee_id", ctx.userId)
 
-    // Investor follow-ups: tenant-wide so no investor is missed
+    // Investor follow-ups: agent-scoped for agents, tenant-wide for managers
     const followUpInvestorsQuery = supabase
       .from("investors")
       .select("id, name, company, status, last_contact, mandate")
@@ -75,6 +79,7 @@ export async function GET(req: Request) {
       .neq("status", "inactive")
       .order("last_contact", { ascending: true })
       .limit(10)
+    if (isAgent) followUpInvestorsQuery.eq("assigned_agent_id", ctx.userId)
 
     // All queries fire simultaneously — single auth + single round-trip to DB pool
     const [

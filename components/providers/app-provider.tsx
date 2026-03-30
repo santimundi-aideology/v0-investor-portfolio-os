@@ -316,16 +316,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true }
   }, [shouldUseRealAuth, auth.user?.role])
 
-  // For super_admins on investor routes: auto-resolve an investor from the tenant
+  // For internal roles (super_admin/manager/agent) on investor routes: auto-resolve an investor from the tenant
   const [superAdminInvestorId, setSuperAdminInvestorId] = React.useState<string | undefined>(undefined)
   const [availableInvestors, setAvailableInvestors] = React.useState<{ id: string; name: string; company?: string; email?: string; status?: string }[]>([])
   const [investorsFetched, setInvestorsFetched] = React.useState(false)
 
+  const isInternalRole = shouldUseRealAuth && auth.user?.role !== "investor"
+
   React.useEffect(() => {
-    if (!shouldUseRealAuth || auth.user?.role !== "super_admin" || !isOnInvestorRoute) {
+    if (!isInternalRole || !isOnInvestorRoute) {
       return
     }
-    // Already fetched investors — skip
     if (investorsFetched) return
 
     let cancelled = false
@@ -343,7 +344,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               email: inv.email as string | undefined,
               status: inv.status as string | undefined,
             })))
-            // Auto-select first investor if none selected yet
             if (!superAdminInvestorId) {
               setSuperAdminInvestorId(investors[0].id as string)
             }
@@ -351,13 +351,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!cancelled) setInvestorsFetched(true)
         }
       } catch (err) {
-        console.error("Failed to fetch investors for super_admin preview:", err)
+        console.error("Failed to fetch investors for investor portal preview:", err)
         if (!cancelled) setInvestorsFetched(true)
       }
     }
     fetchInvestors()
     return () => { cancelled = true }
-  }, [shouldUseRealAuth, auth.user?.role, isOnInvestorRoute, investorsFetched, superAdminInvestorId])
+  }, [isInternalRole, isOnInvestorRoute, investorsFetched, superAdminInvestorId])
 
   // Exposed setter so the investor selector dropdown can change the previewed investor
   const setScopedInvestorIdManual = React.useCallback((id: string) => {
@@ -375,21 +375,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Real investor users: use their resolved ID, or fallback so portal always has content
     if (shouldUseRealAuth && auth.user?.role === "investor") {
       if (resolvedInvestorId) return resolvedInvestorId
-      // After fetch completed with no ID (e.g. demo user), use default so Overview/Portfolio/etc. load
       if (investorIdFetched && isOnInvestorRoute) return defaultDemoInvestorId
       return resolvedInvestorId
     }
-    // Super admins on investor routes: use auto-resolved or manually selected investor
-    if (shouldUseRealAuth && auth.user?.role === "super_admin" && isOnInvestorRoute && superAdminInvestorId) {
+    // Internal roles (super_admin/manager/agent) on investor routes: use resolved investor
+    if (isInternalRole && isOnInvestorRoute && superAdminInvestorId) {
       return superAdminInvestorId
     }
     // Fallback: we're on /investor and auth has settled (e.g. session exists but no profile in DB).
-    // Use demo investor ID so the portal always shows content instead of endless loading.
     if (isOnInvestorRoute && !auth.isLoading) {
       return defaultDemoInvestorId
     }
     return undefined
-  }, [demoModeActive, shouldUseRealAuth, auth.user, auth.isLoading, persona.scopedInvestorId, resolvedInvestorId, investorIdFetched, isOnInvestorRoute, superAdminInvestorId, defaultDemoInvestorId])
+  }, [demoModeActive, shouldUseRealAuth, auth.user, auth.isLoading, persona.scopedInvestorId, resolvedInvestorId, investorIdFetched, isOnInvestorRoute, isInternalRole, superAdminInvestorId, defaultDemoInvestorId])
 
   const value = React.useMemo<AppContextValue>(
     () => ({

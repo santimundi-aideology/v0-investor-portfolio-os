@@ -30,6 +30,7 @@ import { formatAED } from "@/lib/real-estate"
 import { PropertyAIChat } from "@/components/ai/property-ai-chat"
 import { ScoreRadarChart } from "@/components/charts/score-radar-chart"
 import { InvestorMatchingPanel } from "@/components/memos/investor-matching-panel"
+import type { InvestorMatchData } from "@/components/memos/investor-matching-panel"
 import type { Investor, OffPlanProject, OffPlanUnit, OffPlanPaymentPlan, OffPlanEvaluationResult } from "@/lib/types"
 import { MemoPdfExport } from "@/components/memos/memo-pdf-export"
 import { MemoChapterTabs } from "@/components/memos/memo-chapter-tabs"
@@ -219,7 +220,7 @@ function PropertyIntakeContent() {
   const showPortalReset = step !== "input" && step !== "saved"
 
   const handleShareMemoToInvestors = React.useCallback(
-    async (investorIds: string[]) => {
+    async (matches: InvestorMatchData[]) => {
       if (!savedMemoId) {
         toast.error("Save the memo first", {
           description: "Create the IC memo before sharing it with investors.",
@@ -227,7 +228,9 @@ function PropertyIntakeContent() {
         return
       }
 
-      if (investorIds.length === 0) return
+      if (matches.length === 0) return
+      const investorIds = matches.map((m) => m.investorId)
+      const matchByInvestor = new Map(matches.map((m) => [m.investorId, m]))
 
       setIsSharingMemo(true)
       try {
@@ -381,6 +384,7 @@ function PropertyIntakeContent() {
               (memoCreatePayload as { id?: string; memo?: { id?: string } }).id ||
               (memoCreatePayload as { id?: string; memo?: { id?: string } }).memo?.id
 
+            const investorMatch = matchByInvestor.get(investorId)
             const oppRes = await fetch(`/api/investors/${investorId}/opportunities`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -389,6 +393,8 @@ function PropertyIntakeContent() {
                 sharedMessage: notes || "Shared from Property Intake",
                 memoId: createdMemoId,
                 status: "recommended",
+                matchScore: investorMatch?.matchScore,
+                matchReasons: investorMatch?.matchReasons,
               }),
             })
             const oppPayload = await oppRes.json().catch(() => ({}))
@@ -406,28 +412,46 @@ function PropertyIntakeContent() {
         const succeeded = results.filter((r) => r.status === "fulfilled").length
         const failed = results.length - succeeded
 
+        const investorNames = matches
+          .filter((m) => {
+            const inv = investors.find((i) => i.id === m.investorId)
+            return !!inv
+          })
+          .map((m) => {
+            const inv = investors.find((i) => i.id === m.investorId)
+            return inv?.name ?? m.investorId
+          })
+
         if (succeeded > 0 && failed === 0) {
-          toast.success("IC memo shared", {
-            description: `Saved for ${succeeded} investor${succeeded === 1 ? "" : "s"}.`,
+          toast.success("Property shared", {
+            description: `Shared with ${investorNames.join(", ")}. View their profile to see the opportunity.`,
+            action: investorIds.length === 1
+              ? {
+                  label: "View Investor",
+                  onClick: () => {
+                    window.location.href = `/realtor/investors/${investorIds[0]}?tab=opportunities`
+                  },
+                }
+              : undefined,
           })
         } else if (succeeded > 0) {
-          toast.warning("IC memo partially shared", {
+          toast.warning("Property partially shared", {
             description: `${succeeded} succeeded, ${failed} failed.`,
           })
         } else {
-          toast.error("Failed to share IC memo", {
+          toast.error("Failed to share property", {
             description: "No investor records were updated.",
           })
         }
       } catch (err) {
-        toast.error("Failed to share IC memo", {
+        toast.error("Failed to share property", {
           description: err instanceof Error ? err.message : "Unexpected error",
         })
       } finally {
         setIsSharingMemo(false)
       }
     },
-    [savedMemoId, notes],
+    [savedMemoId, notes, investors],
   )
 
   if (!mounted) {

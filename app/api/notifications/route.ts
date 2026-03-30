@@ -67,6 +67,14 @@ export async function PATCH(req: Request) {
 
     const body = await req.json()
     const { ids, markAll } = body as { ids?: string[]; markAll?: boolean }
+
+    if (!markAll && (!Array.isArray(ids) || ids.length === 0)) {
+      return NextResponse.json(
+        { error: "Either markAll must be true or ids must be a non-empty array" },
+        { status: 400 },
+      )
+    }
+
     const supabase = getSupabaseAdminClient()
     const readAt = new Date().toISOString()
 

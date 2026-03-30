@@ -253,6 +253,22 @@ export async function POST(req: Request) {
       investorId: ctx.investorId || body.scopedInvestorId,
     })
 
+    // Verify the resolved investor belongs to the caller's tenant
+    if (ctx.tenantId) {
+      const adminDb = getSupabaseAdminClient()
+      const { data: investorRow } = await adminDb
+        .from("investors")
+        .select("tenant_id")
+        .eq("id", investorId)
+        .maybeSingle()
+      if (investorRow && investorRow.tenant_id !== ctx.tenantId) {
+        return NextResponse.json(
+          { error: "Investor does not belong to your organization" },
+          { status: 403 },
+        )
+      }
+    }
+
     const lastUserText =
       (body.messages ?? []).slice().reverse().find((m) => (m?.role ?? "") === "user")?.content ??
       (body.messages ?? []).slice(-1)[0]?.content ??

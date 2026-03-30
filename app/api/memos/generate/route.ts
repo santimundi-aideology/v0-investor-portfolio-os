@@ -33,11 +33,12 @@ export async function POST(req: Request) {
       .select("*")
       .eq("underwriting_id", uw.id)
     const comps = compsData ?? []
-    const { data: trustRow } = await supabase
-      .from("trust")
+    const { data: trustRow, error: trustError } = await supabase
+      .from("trust_records")
       .select("*")
       .eq("listing_id", listingId)
       .maybeSingle()
+    if (trustError) console.warn("[memos/generate] trust_records lookup failed:", trustError.message)
     const trust = trustRow
     const warnings = evidenceWarnings(comps)
     const confidence = computeConfidence(comps.map((c: Record<string, unknown>) => ({ observedDate: c.observed_date as string })), uw.inputs as Record<string, unknown>)

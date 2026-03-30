@@ -71,7 +71,9 @@ export async function POST(
       )
     }
 
-    if (!ctx.investorId || ctx.investorId !== opportunity.investorId) {
+    const privilegedRoles = ["agent", "manager", "super_admin"]
+    const isOwner = ctx.investorId && ctx.investorId === opportunity.investorId
+    if (!isOwner && !privilegedRoles.includes(ctx.role)) {
       return NextResponse.json(
         { error: "You can only post messages to your own opportunities" },
         { status: 403 }

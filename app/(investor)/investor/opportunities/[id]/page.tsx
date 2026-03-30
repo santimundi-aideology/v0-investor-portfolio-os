@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { AskAIBankerWidget } from "@/components/ai/ask-ai-banker-widget"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/components/providers/app-provider"
+import { useParams } from "next/navigation"
 
 type OpportunityDetail = {
   id: string
@@ -71,13 +72,10 @@ function getUiDecision(decision: string, decisionAt?: string | null): "intereste
   return null
 }
 
-export default function OpportunityDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function OpportunityDetailPage() {
   const { scopedInvestorId } = useApp()
-  const [opportunityId, setOpportunityId] = React.useState<string | null>(null)
+  const routeParams = useParams<{ id: string }>()
+  const opportunityId = routeParams?.id ?? null
   const [opportunity, setOpportunity] = React.useState<OpportunityDetail | null>(null)
   const [messages, setMessages] = React.useState<ThreadMessage[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -85,19 +83,16 @@ export default function OpportunityDetailPage({
   const [sending, setSending] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  React.useEffect(() => {
-    params.then((p) => setOpportunityId(p.id))
-  }, [params])
-
   // Fetch opportunity and messages
   React.useEffect(() => {
-    if (!opportunityId) return
+    if (!opportunityId || !scopedInvestorId) return
 
     async function load() {
       setLoading(true)
       try {
+        const oppUrl = `/api/investor/opportunities?investorId=${scopedInvestorId}`
         const [oppRes, msgRes] = await Promise.all([
-          fetch("/api/investor/opportunities"),
+          fetch(oppUrl),
           fetch(`/api/investor/opportunities/${opportunityId}/messages`),
         ])
 
@@ -121,7 +116,7 @@ export default function OpportunityDetailPage({
     }
 
     load()
-  }, [opportunityId])
+  }, [opportunityId, scopedInvestorId])
 
   // Auto-scroll on new messages
   React.useEffect(() => {
@@ -167,8 +162,8 @@ export default function OpportunityDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       })
-      // Refresh
-      const res = await fetch("/api/investor/opportunities")
+      if (!scopedInvestorId) return
+      const res = await fetch(`/api/investor/opportunities?investorId=${scopedInvestorId}`)
       if (res.ok) {
         const data = await res.json()
         const found = data.opportunities?.find(

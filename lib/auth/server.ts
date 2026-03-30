@@ -168,6 +168,16 @@ export async function requireAuthContext(req?: Request): Promise<RequestContext>
         sessionCtx.investorId = investor.id
       }
     }
+
+    // For non-investor roles (realtor/manager/super_admin) accessing the investor
+    // portal, pick up x-investor-id set by middleware from user_metadata
+    if (!sessionCtx.investorId && req) {
+      const headerInvestorId = req.headers.get("x-investor-id")
+      if (headerInvestorId) {
+        sessionCtx.investorId = headerInvestorId
+      }
+    }
+
     return sessionCtx
   }
 
